@@ -119,6 +119,8 @@ public class ObjectGrabSystem : MonoBehaviour
     
     void CheckForGrabbableObject()
     {
+        if (playerCamera == null) return;
+        
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
         
         // Убираем подсветку с предыдущего объекта
