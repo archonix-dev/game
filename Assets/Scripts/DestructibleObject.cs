@@ -32,16 +32,6 @@ public class DestructibleObject : MonoBehaviour
             audioSource.spatialBlend = 1f; // 3D звук
             audioSource.playOnAwake = false;
         }
-        
-        // ВАЖНО: Удаляем ObjectMaterial если он есть!
-        // ObjectMaterial вызывает DamageMesh при КАЖДОМ ударе, а нам нужно только при полном разрушении
-        // Вместо этого мы добавим ObjectMaterial только при полном разрушении в DestroyWithMeshSlicer()
-        ObjectMaterial existingMaterial = GetComponent<ObjectMaterial>();
-        if (existingMaterial != null)
-        {
-            Debug.LogWarning($"DestructibleObject: Удаляем ObjectMaterial с {gameObject.name}. ObjectMaterial несовместим с системой счетчика ударов!");
-            Destroy(existingMaterial);
-        }
     }
     
     void Start()
@@ -127,18 +117,23 @@ public class DestructibleObject : MonoBehaviour
             CoinManager.Instance.AddCoins(coinsToGive);
         }
         
-        // Реалистичное разрушение через MeshSlicer
-        if (objectData.UseRealisticDestruction && meshFilter != null && meshFilter.mesh != null && MeshCutterManager.Instance != null)
+        // Реалистичное разрушение
+        if (objectData.UseRealisticDestruction && meshFilter != null && meshFilter.mesh != null)
         {
-            DestroyWithMeshSlicer(force);
+            if (SimpleDestructionManager.Instance != null)
+            {
+                DestroyWithSimpleDestruction(destructionPoint, force);
+            }
+            else
+            {
+                Debug.LogWarning($"SimpleDestructionManager не найден! Используем базовое разрушение для {gameObject.name}");
+                CreateSimpleFragments(destructionPoint, direction);
+                Destroy(gameObject, 3f);
+            }
         }
         else
         {
             // Простое разрушение - создаем осколки как дочерние объекты
-            if (objectData.UseRealisticDestruction && MeshCutterManager.Instance == null)
-            {
-                Debug.LogWarning($"MeshCutterManager не найден! Используем простое разрушение для {gameObject.name}");
-            }
             CreateSimpleFragments(destructionPoint, direction);
             
             // Удаляем весь родительский объект вместе со всеми дочерними осколками через 3 секунды
@@ -166,55 +161,29 @@ public class DestructibleObject : MonoBehaviour
     }
     
     /// <summary>
-    /// Использует MeshSlicer для реалистичного разрушения (вызывается ТОЛЬКО при полном разрушении!)
+    /// Использует SimpleDestructionManager для разрушения (РЕКОМЕНДУЕТСЯ!)
     /// </summary>
-    private void DestroyWithMeshSlicer(float impactForce)
+    private void DestroyWithSimpleDestruction(Vector3 destructionPoint, float impactForce)
     {
-        bool meshSlicerSuccess = false;
+        // Вычисляем количество осколков из настроек ScriptableObject
+        int fragmentCount = objectData.CalculateShatterAmount(impactForce);
         
-        if (MeshCutterManager.Instance != null)
-        {
-            try
-            {
-                // Добавляем ObjectMaterial ТОЛЬКО для MeshSlicer разрушения
-                ObjectMaterial objMat = gameObject.AddComponent<ObjectMaterial>();
-                objMat.MaterialType = objectData.MaterialType;
-                
-                // Вычисляем количество разрезов из настроек ScriptableObject
-                int shatterAmount = objectData.CalculateShatterAmount(impactForce);
-                
-                // Используем КАСТОМНЫЙ метод MeshSlicer с настройками из DestructibleObjectData
-                // Передаем transform родителя чтобы осколки стали дочерними объектами
-                // И время удаления через 3 секунды
-                MeshCutterManager.Instance.DamageMeshCustom(gameObject, shatterAmount, transform, 3f);
-                meshSlicerSuccess = true;
-                
-                Debug.Log($"[РАЗРУШЕНИЕ] MeshSlicer применен к {gameObject.name} после {currentHits} ударов. " +
-                         $"Количество разрезов: {shatterAmount} (базовое: {objectData.ShatterAmount}, " +
-                         $"с учетом силы: {objectData.UseImpactForceMultiplier}). " +
-                         $"Осколки будут дочерними и удалятся через 3 секунды.");
-                
-                // ВАЖНО: Уничтожаем оригинальный объект (с дочерними осколками) через 3 секунды
-                Destroy(gameObject, 3f);
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogError($"Ошибка MeshSlicer для {gameObject.name}: {e.Message}. Используем простое разрушение.");
-                meshSlicerSuccess = false;
-            }
-        }
-        else
-        {
-            Debug.LogWarning("MeshCutterManager не найден в сцене! Используем простое разрушение.");
-        }
+        // Используем SimpleDestructionManager
+        SimpleDestructionManager.Instance.DestroyObject(
+            gameObject,
+            fragmentCount,
+            objectData.FragmentExplosionForce,
+            destructionPoint,
+            transform,
+            3f
+        );
         
-        // Если MeshSlicer не сработал, используем простое разрушение
-        if (!meshSlicerSuccess)
-        {
-            CreateSimpleFragments(transform.position, Vector3.down);
-            // Удаляем весь объект через 3 секунды вместе с осколками
-            Destroy(gameObject, 3f);
-        }
+        Debug.Log($"[РАЗРУШЕНИЕ] SimpleDestruction применен к {gameObject.name} после {currentHits} ударов. " +
+                 $"Количество осколков: {fragmentCount}, сила разлета: {objectData.FragmentExplosionForce}. " +
+                 $"Осколки будут дочерними и удалятся через 3 секунды.");
+        
+        // Уничтожаем оригинальный объект (с дочерними осколками) через 3 секунды
+        Destroy(gameObject, 3f);
     }
     
     /// <summary>
@@ -255,10 +224,10 @@ public class DestructibleObject : MonoBehaviour
             fragment.transform.SetParent(transform, true);
             
             // Добавляем силу от точки удара
-            Vector3 explosionForce = (fragment.transform.position - position).normalized;
-            explosionForce += direction.normalized;
-            fragmentRb.AddForce(explosionForce * 3f, ForceMode.Impulse);
-            fragmentRb.AddTorque(Random.insideUnitSphere * 5f, ForceMode.Impulse);
+            Vector3 explosionDir = (fragment.transform.position - position).normalized;
+            explosionDir += direction.normalized;
+            fragmentRb.AddForce(explosionDir * objectData.FragmentExplosionForce, ForceMode.Impulse);
+            fragmentRb.AddTorque(Random.insideUnitSphere * objectData.FragmentExplosionForce, ForceMode.Impulse);
         }
         
         Debug.Log($"[РАЗРУШЕНИЕ] Создано {fragmentCount} осколков. Весь объект {gameObject.name} (включая осколки) будет удален через 3 секунды");

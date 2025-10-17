@@ -28,6 +28,10 @@ public class DestructibleObjectData : ScriptableObject
     [Range(0.01f, 2f)]
     [SerializeField] private float impactForceMultiplier = 0.1f;
     
+    [Tooltip("Сила разлета осколков при разрушении")]
+    [Range(0f, 20f)]
+    [SerializeField] private float fragmentExplosionForce = 5f;
+    
     [Header("Награды")]
     [Tooltip("Минимальное количество монет при разрушении")]
     [SerializeField] private int minCoins = 1;
@@ -49,10 +53,6 @@ public class DestructibleObjectData : ScriptableObject
     [Tooltip("Звук при разрушении")]
     [SerializeField] private AudioClip destroySound;
     
-    [Header("Тип материала для MeshSlicer")]
-    [Tooltip("Тип материала для системы разрушения MeshSlicer")]
-    [SerializeField] private MaterialTypes materialType = MaterialTypes.CONCRETE;
-    
     // Публичные свойства для доступа
     public int HitsToDestroy => hitsToDestroy;
     public float MinimumImpactForce => minimumImpactForce;
@@ -60,13 +60,13 @@ public class DestructibleObjectData : ScriptableObject
     public int ShatterAmount => shatterAmount;
     public bool UseImpactForceMultiplier => useImpactForceMultiplier;
     public float ImpactForceMultiplier => impactForceMultiplier;
+    public float FragmentExplosionForce => fragmentExplosionForce;
     public int MinCoins => minCoins;
     public int MaxCoins => maxCoins;
     public GameObject HitEffectPrefab => hitEffectPrefab;
     public GameObject DestroyEffectPrefab => destroyEffectPrefab;
     public AudioClip HitSound => hitSound;
     public AudioClip DestroySound => destroySound;
-    public MaterialTypes MaterialType => materialType;
     
     /// <summary>
     /// Получить случайное количество монет в диапазоне

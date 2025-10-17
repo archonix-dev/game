@@ -15,13 +15,13 @@ MonoBehaviour:
   hitsToDestroy: 3
   minimumImpactForce: 10
   useRealisticDestruction: 1
-  shatterAmount: 3
+  shatterAmount: 20
   useImpactForceMultiplier: 0
-  impactForceMultiplier: 0.1
+  impactForceMultiplier: 0.01
+  fragmentExplosionForce: 0
   minCoins: 1
   maxCoins: 5
   hitEffectPrefab: {fileID: 0}
   destroyEffectPrefab: {fileID: 0}
   hitSound: {fileID: 0}
   destroySound: {fileID: 0}
-  materialType: 2

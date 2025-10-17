@@ -191,8 +191,8 @@ public class GrabbableObject : MonoBehaviour
             return false;
         }
         
-        // Проверяем наличие MeshCutterManager
-        if (MeshCutterManager.Instance == null)
+        // Проверяем наличие SimpleDestructionManager
+        if (SimpleDestructionManager.Instance == null)
         {
             return false;
         }
@@ -202,14 +202,25 @@ public class GrabbableObject : MonoBehaviour
             // Вычисляем силу удара
             float impactForce = lastVelocity.magnitude * rb.mass;
             
-            // Применяем MeshCutter с автоудалением осколков через 3 секунды
-            MeshCutterManager.Instance.DamageMesh(gameObject, impactForce, null, 3f);
-            Debug.Log($"MeshCutter успешно применен к {gameObject.name} (сила: {impactForce})");
+            // Используем SimpleDestructionManager
+            int fragmentCount = Mathf.RoundToInt(impactForce * 0.5f);
+            fragmentCount = Mathf.Clamp(fragmentCount, 5, 15);
+            
+            SimpleDestructionManager.Instance.DestroyObject(
+                gameObject,
+                fragmentCount,
+                impactForce * 0.5f,
+                transform.position,
+                null,
+                3f
+            );
+            Debug.Log($"SimpleDestruction успешно применен к {gameObject.name} (сила: {impactForce}, осколков: {fragmentCount})");
+            
             return true;
         }
         catch (System.Exception e)
         {
-            Debug.LogWarning($"Не удалось применить MeshCutter к {gameObject.name}: {e.Message}");
+            Debug.LogWarning($"Не удалось применить разрушение к {gameObject.name}: {e.Message}");
             return false;
         }
     }
