@@ -33,11 +33,8 @@ public class DestructibleObjectData : ScriptableObject
     [SerializeField] private float fragmentExplosionForce = 5f;
     
     [Header("Награды")]
-    [Tooltip("Минимальное количество монет при разрушении")]
-    [SerializeField] private int minCoins = 1;
-    
-    [Tooltip("Максимальное количество монет при разрушении")]
-    [SerializeField] private int maxCoins = 5;
+    [Tooltip("Фиксированное количество монет при разрушении")]
+    [SerializeField] private int coinAmount = 3;
     
     [Header("Визуальная обратная связь")]
     [Tooltip("Визуальный эффект при ударе")]
@@ -61,19 +58,18 @@ public class DestructibleObjectData : ScriptableObject
     public bool UseImpactForceMultiplier => useImpactForceMultiplier;
     public float ImpactForceMultiplier => impactForceMultiplier;
     public float FragmentExplosionForce => fragmentExplosionForce;
-    public int MinCoins => minCoins;
-    public int MaxCoins => maxCoins;
+    public int CoinAmount => coinAmount;
     public GameObject HitEffectPrefab => hitEffectPrefab;
     public GameObject DestroyEffectPrefab => destroyEffectPrefab;
     public AudioClip HitSound => hitSound;
     public AudioClip DestroySound => destroySound;
     
     /// <summary>
-    /// Получить случайное количество монет в диапазоне
+    /// Получить фиксированное количество монет
     /// </summary>
-    public int GetRandomCoinAmount()
+    public int GetCoinAmount()
     {
-        return Random.Range(minCoins, maxCoins + 1);
+        return coinAmount;
     }
     
     /// <summary>

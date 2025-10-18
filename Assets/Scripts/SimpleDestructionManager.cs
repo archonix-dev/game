@@ -75,7 +75,84 @@ public class SimpleDestructionManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Разрушить объект на осколки
+    /// Разрушить объект на осколки с указанным цветом
+    /// </summary>
+    /// <param name="objectToDestroy">Объект для разрушения</param>
+    /// <param name="fragmentCount">Количество осколков</param>
+    /// <param name="explosionForce">Сила разлета</param>
+    /// <param name="explosionCenter">Центр взрыва</param>
+    /// <param name="parentTransform">Родительский transform для осколков</param>
+    /// <param name="fragmentColor">Цвет фрагментов</param>
+    /// <param name="destroyAfter">Время до удаления осколков</param>
+    public void DestroyObjectWithColor(GameObject objectToDestroy, int fragmentCount, float explosionForce, 
+        Vector3 explosionCenter, Transform parentTransform = null, Color fragmentColor = default, float destroyAfter = 3f)
+    {
+        if (objectToDestroy == null) return;
+
+        // Получаем компоненты оригинального объекта
+        MeshFilter meshFilter = objectToDestroy.GetComponent<MeshFilter>();
+        Renderer renderer = objectToDestroy.GetComponent<Renderer>();
+        Rigidbody originalRb = objectToDestroy.GetComponent<Rigidbody>();
+
+        if (meshFilter == null || renderer == null)
+        {
+            Debug.LogWarning($"Объект {objectToDestroy.name} не имеет MeshFilter или Renderer!");
+            return;
+        }
+
+        Vector3 objectPosition = objectToDestroy.transform.position;
+        Quaternion objectRotation = objectToDestroy.transform.rotation;
+        Vector3 objectScale = objectToDestroy.transform.localScale;
+        Bounds objectBounds = renderer.bounds;
+        float objectMass = originalRb != null ? originalRb.mass : 1f;
+
+        // Вычисляем единый размер осколка
+        float calculatedFragmentSize = CalculateFragmentSize(objectScale, fragmentCount);
+
+        // Создаем осколки
+        List<GameObject> fragments = new List<GameObject>();
+        
+        for (int i = 0; i < fragmentCount; i++)
+        {
+            GameObject fragment = CreateFragmentWithColor(
+                objectToDestroy,
+                meshFilter.sharedMesh,
+                objectPosition,
+                objectRotation,
+                objectScale,
+                objectBounds,
+                objectMass,
+                i,
+                calculatedFragmentSize,
+                fragmentColor
+            );
+
+            if (fragment != null)
+            {
+                fragments.Add(fragment);
+                
+                // Устанавливаем родителя если указан
+                if (parentTransform != null)
+                {
+                    fragment.transform.SetParent(parentTransform);
+                }
+                
+                // Применяем силу разлета
+                ApplyExplosionForce(fragment, explosionForce, explosionCenter, objectPosition);
+                
+                // Удаляем через время
+                Destroy(fragment, destroyAfter);
+            }
+        }
+
+        Debug.Log($"[SimpleDestruction] Создано {fragments.Count} осколков для {objectToDestroy.name}. " +
+                  $"Сила разлета: {explosionForce}, цвет: {fragmentColor}, удаление через {destroyAfter}с");
+        
+        OnObjectDestroyed?.Invoke(objectToDestroy, fragments.Count);
+    }
+
+    /// <summary>
+    /// Разрушить объект на осколки (старый метод для совместимости)
     /// </summary>
     /// <param name="objectToDestroy">Объект для разрушения</param>
     /// <param name="fragmentCount">Количество осколков</param>
@@ -170,7 +247,99 @@ public class SimpleDestructionManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Создает отдельный осколок
+    /// Создает отдельный осколок с указанным цветом
+    /// </summary>
+    private GameObject CreateFragmentWithColor(GameObject original, Mesh originalMesh,
+        Vector3 position, Quaternion rotation, Vector3 scale, Bounds bounds, float originalMass, int index, float fragmentSize, Color fragmentColor)
+    {
+        GameObject fragment = new GameObject($"{original.name}_Fragment_{index}");
+        
+        // Случайная позиция в пределах объекта
+        Vector3 randomOffset = new Vector3(
+            Random.Range(-bounds.extents.x, bounds.extents.x),
+            Random.Range(-bounds.extents.y, bounds.extents.y),
+            Random.Range(-bounds.extents.z, bounds.extents.z)
+        ) * fragmentSpreadRadius;
+        
+        fragment.transform.position = position + randomOffset;
+        fragment.transform.rotation = rotation * Quaternion.Euler(
+            Random.Range(0f, 360f),
+            Random.Range(0f, 360f),
+            Random.Range(0f, 360f)
+        );
+        
+        // Используем вычисленный размер осколка (одинаковый для всех)
+        fragment.transform.localScale = scale * fragmentSize;
+        
+        // Добавляем визуальное представление
+        if (usePrimitiveFragments)
+        {
+            // Создаем примитив (куб, сфера и т.д.)
+            GameObject primitive = GameObject.CreatePrimitive(fragmentPrimitiveType);
+            primitive.transform.SetParent(fragment.transform);
+            primitive.transform.localPosition = Vector3.zero;
+            primitive.transform.localRotation = Quaternion.identity;
+            primitive.transform.localScale = Vector3.one;
+            
+            // Удаляем коллайдер примитива (добавим свой)
+            Destroy(primitive.GetComponent<Collider>());
+            
+            // Создаем материал с указанным цветом для URP
+            Material colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            colorMaterial.color = fragmentColor;
+            primitive.GetComponent<Renderer>().material = colorMaterial;
+        }
+        else
+        {
+            // Используем копию оригинального меша
+            MeshFilter mf = fragment.AddComponent<MeshFilter>();
+            MeshRenderer mr = fragment.AddComponent<MeshRenderer>();
+            mf.sharedMesh = originalMesh;
+            
+            // Создаем материал с указанным цветом для URP
+            Material colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            colorMaterial.color = fragmentColor;
+            mr.material = colorMaterial;
+        }
+        
+        // Добавляем коллайдер (упрощенный для производительности)
+        Collider collider;
+        if (usePrimitiveFragments)
+        {
+            // Используем коллайдер соответствующий примитиву
+            switch (fragmentPrimitiveType)
+            {
+                case PrimitiveType.Sphere:
+                    collider = fragment.AddComponent<SphereCollider>();
+                    break;
+                case PrimitiveType.Capsule:
+                    collider = fragment.AddComponent<CapsuleCollider>();
+                    break;
+                default:
+                    collider = fragment.AddComponent<BoxCollider>();
+                    break;
+            }
+        }
+        else
+        {
+            collider = fragment.AddComponent<BoxCollider>();
+        }
+        
+        // Добавляем физику
+        Rigidbody rb = fragment.AddComponent<Rigidbody>();
+        rb.mass = originalMass * fragmentMassMultiplier;
+        rb.useGravity = true;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        
+        // Добавляем компонент для автоматического затухания
+        SimpleFragment fragmentComponent = fragment.AddComponent<SimpleFragment>();
+        fragmentComponent.Initialize(rb);
+        
+        return fragment;
+    }
+
+    /// <summary>
+    /// Создает отдельный осколок (старый метод для совместимости)
     /// </summary>
     private GameObject CreateFragment(GameObject original, Mesh originalMesh, Material material,
         Vector3 position, Quaternion rotation, Vector3 scale, Bounds bounds, float originalMass, int index, float fragmentSize)
@@ -288,7 +457,84 @@ public class SimpleDestructionManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Создать простые примитивные осколки (альтернативный метод)
+    /// Создать простые примитивные осколки с цветом (альтернативный метод)
+    /// </summary>
+    public void DestroyObjectSimpleWithColor(GameObject objectToDestroy, int fragmentCount, float explosionForce,
+        Vector3 explosionCenter, Transform parentTransform = null, Color fragmentColor = default, float destroyAfter = 3f)
+    {
+        if (objectToDestroy == null) return;
+
+        Renderer renderer = objectToDestroy.GetComponent<Renderer>();
+        Rigidbody originalRb = objectToDestroy.GetComponent<Rigidbody>();
+
+        if (renderer == null)
+        {
+            Debug.LogWarning($"Объект {objectToDestroy.name} не имеет Renderer!");
+            return;
+        }
+
+        Vector3 objectPosition = objectToDestroy.transform.position;
+        Vector3 objectScale = objectToDestroy.transform.localScale;
+        Bounds objectBounds = renderer.bounds;
+        float objectMass = originalRb != null ? originalRb.mass : 1f;
+
+        // Вычисляем единый размер осколка
+        float calculatedFragmentSize = CalculateFragmentSize(objectScale, fragmentCount);
+        float fragmentSize = calculatedFragmentSize * Mathf.Min(objectBounds.size.x, objectBounds.size.y, objectBounds.size.z);
+
+        // Создаем простые примитивные осколки
+        for (int i = 0; i < fragmentCount; i++)
+        {
+            GameObject fragment = GameObject.CreatePrimitive(fragmentPrimitiveType);
+            fragment.name = $"{objectToDestroy.name}_{fragmentPrimitiveType}Fragment_{i}";
+
+            // Случайная позиция
+            Vector3 randomOffset = new Vector3(
+                Random.Range(-objectBounds.extents.x, objectBounds.extents.x),
+                Random.Range(-objectBounds.extents.y, objectBounds.extents.y),
+                Random.Range(-objectBounds.extents.z, objectBounds.extents.z)
+            ) * fragmentSpreadRadius;
+
+            fragment.transform.position = objectPosition + randomOffset;
+            fragment.transform.rotation = Random.rotation;
+
+            // Одинаковый размер для всех осколков
+            fragment.transform.localScale = Vector3.one * fragmentSize;
+
+            // Создаем материал с указанным цветом для URP
+            Material colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            colorMaterial.color = fragmentColor;
+            fragment.GetComponent<Renderer>().material = colorMaterial;
+
+            // Физика
+            Rigidbody rb = fragment.AddComponent<Rigidbody>();
+            rb.mass = objectMass * fragmentMassMultiplier;
+            rb.useGravity = true;
+
+            // Родитель
+            if (parentTransform != null)
+            {
+                fragment.transform.SetParent(parentTransform);
+            }
+
+            // Сила разлета
+            ApplyExplosionForce(fragment, explosionForce, explosionCenter, objectPosition);
+
+            // Компонент осколка
+            SimpleFragment fragmentComponent = fragment.AddComponent<SimpleFragment>();
+            fragmentComponent.Initialize(rb);
+
+            // Удаление
+            Destroy(fragment, destroyAfter);
+        }
+
+        Debug.Log($"[SimpleDestruction] Создано {fragmentCount} {fragmentPrimitiveType} осколков для {objectToDestroy.name} с цветом {fragmentColor}");
+        
+        OnObjectDestroyed?.Invoke(objectToDestroy, fragmentCount);
+    }
+
+    /// <summary>
+    /// Создать простые примитивные осколки (старый метод для совместимости)
     /// </summary>
     public void DestroyObjectSimple(GameObject objectToDestroy, int fragmentCount, float explosionForce,
         Vector3 explosionCenter, Transform parentTransform = null, float destroyAfter = 3f)

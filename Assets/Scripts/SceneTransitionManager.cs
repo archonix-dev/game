@@ -117,6 +117,18 @@ public class SceneTransitionManager : MonoBehaviour
             // Клиент ждет загрузки сцены от хоста
             Debug.Log("Waiting for host to load menu scene...");
         }
+        else
+        {
+            // Если нет активного подключения, загружаем сцену локально
+            if (!string.IsNullOrEmpty(menuSceneName))
+            {
+                SceneManager.LoadScene(menuSceneName);
+            }
+            else
+            {
+                Debug.LogError("Menu scene name is not set!");
+            }
+        }
     }
     
     public void LoadGameSceneDirectly()

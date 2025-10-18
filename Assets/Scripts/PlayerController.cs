@@ -1,8 +1,8 @@
 using UnityEngine;
-using Unity.Netcode;
+//using Unity.Netcode;
 
 [RequireComponent(typeof(CharacterController))]
-public class PlayerController : NetworkBehaviour
+public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
 {
     [Header("Movement Settings")]
     [SerializeField] private float walkSpeed = 3f;
@@ -34,7 +34,7 @@ public class PlayerController : NetworkBehaviour
     private float targetHeight;
     private Vector3 targetCenter;
     
-    public override void OnNetworkSpawn()
+    /*public override void OnNetworkSpawn()
     {
         controller = GetComponent<CharacterController>();
         controller.height = standingHeight;
@@ -51,12 +51,27 @@ public class PlayerController : NetworkBehaviour
         if (!IsOwner)
         {
         }
+    }*/
+    
+    void Start()
+    {
+        controller = GetComponent<CharacterController>();
+        controller.height = standingHeight;
+        targetHeight = standingHeight;
+        
+        if (groundCheck == null)
+        {
+            GameObject groundCheckObj = new GameObject("GroundCheck");
+            groundCheckObj.transform.parent = transform;
+            groundCheckObj.transform.localPosition = new Vector3(0, -controller.height / 2, 0);
+            groundCheck = groundCheckObj.transform;
+        }
     }
     
     void Update()
     {
-        // Обрабатываем ввод только для владельца
-        if (!IsOwner) return;
+        // Обрабатываем ввод только для владельца (закомментировано для одиночной игры)
+        //if (!IsOwner) return;
         
         HandleGroundCheck();
         HandleStance();

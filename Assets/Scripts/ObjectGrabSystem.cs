@@ -29,8 +29,17 @@ public class ObjectGrabSystem : MonoBehaviour
     [SerializeField] private Color highlightColor = Color.yellow;
     [SerializeField] private float highlightIntensity = 1.5f;
     
-    private GrabbableObject currentGrabbedObject;
-    private GrabbableObject currentLookingAt;
+    [Header("Throw System")]
+    [SerializeField] private float maxThrowForce = 40f;
+    [SerializeField] private float throwChargeSpeed = 2f;
+    [SerializeField] private float throwUIStartShakeTime = 3f;
+    [SerializeField] private float throwUIShakeIntensity = 10f;
+    [SerializeField] private GameObject throwUIObject; // UI объект с картинкой и текстом
+    [SerializeField] private UnityEngine.UI.Image throwForceImage; // Картинка силы броска
+    [SerializeField] private UnityEngine.UI.Text throwForceText; // Текст силы броска
+    
+    private DestructibleObject currentGrabbedObject;
+    private DestructibleObject currentLookingAt;
     private Camera playerCamera;
     private Rigidbody grabbedRigidbody;
     private float currentWeight;
@@ -46,6 +55,13 @@ public class ObjectGrabSystem : MonoBehaviour
     private Material highlightedMaterial;
     private Color originalEmissionColor;
     private bool wasEmissionEnabled;
+    
+    // Для системы броска
+    private float currentThrowForce = 0f;
+    private bool isChargingThrow = false;
+    private float throwChargeTime = 0f;
+    private Vector3 originalThrowUIPosition;
+    private Color originalThrowTextColor;
     
     void Start()
     {
@@ -71,6 +87,9 @@ public class ObjectGrabSystem : MonoBehaviour
         {
             mouseLook = GetComponent<MouseLook>();
         }
+        
+        // Инициализируем UI для броска
+        InitializeThrowUI();
     }
     
     void Update()
@@ -95,12 +114,27 @@ public class ObjectGrabSystem : MonoBehaviour
             }
         }
         
-        // Вращение предмета колесиком мыши
+        // Вращение предмета колесиком мыши (улучшенное)
         if (currentGrabbedObject != null && Input.GetAxis("Mouse ScrollWheel") != 0)
         {
             float scroll = Input.GetAxis("Mouse ScrollWheel");
-            holdPoint.Rotate(Vector3.forward, scroll * 500f * Time.deltaTime, Space.Self);
+            // Вращаем по разным осям в зависимости от зажатых клавиш
+            if (Input.GetKey(KeyCode.LeftControl))
+            {
+                holdPoint.Rotate(Vector3.up, scroll * 500f * Time.deltaTime, Space.World);
+            }
+            else if (Input.GetKey(KeyCode.LeftAlt))
+            {
+                holdPoint.Rotate(Vector3.right, scroll * 500f * Time.deltaTime, Space.Self);
+            }
+            else
+            {
+                holdPoint.Rotate(Vector3.forward, scroll * 500f * Time.deltaTime, Space.Self);
+            }
         }
+        
+        // Система броска
+        HandleThrowSystem();
         
         // Проверка на скольжение и падение
         if (currentGrabbedObject != null)
@@ -123,26 +157,28 @@ public class ObjectGrabSystem : MonoBehaviour
         
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
         
-        // Убираем подсветку с предыдущего объекта
+        // Убираем подсветку с предыдущего объекта и уведомляем о том, что больше не смотрим
         if (currentLookingAt != null && currentLookingAt != currentGrabbedObject)
         {
             RemoveHighlight(currentLookingAt);
+            currentLookingAt.SetPlayerLookingAt(false); // Уведомляем что больше не смотрим
             currentLookingAt = null;
         }
         
         if (Physics.Raycast(ray, out RaycastHit hit, grabDistance, grabbableLayer))
         {
-            GrabbableObject grabbable = hit.collider.GetComponent<GrabbableObject>();
+            DestructibleObject grabbable = hit.collider.GetComponent<DestructibleObject>();
             if (grabbable != null && grabbable != currentGrabbedObject)
             {
                 currentLookingAt = grabbable;
                 currentHit = hit; // Сохраняем информацию о рейкасте
                 HighlightObject(grabbable);
+                grabbable.SetPlayerLookingAt(true); // Уведомляем что смотрим на объект
             }
         }
     }
     
-    void TryGrabObject(GrabbableObject grabbable)
+    void TryGrabObject(DestructibleObject grabbable)
     {
         // Проверяем, можно ли взять предмет
         if (grabbable.objectWeight > dropWeightThreshold)
@@ -182,6 +218,9 @@ public class ObjectGrabSystem : MonoBehaviour
             
             grabbable.OnGrabbed();
             RemoveHighlight(grabbable);
+            
+            // Показываем UI для броска
+            ShowThrowUI();
         }
     }
     
@@ -189,6 +228,12 @@ public class ObjectGrabSystem : MonoBehaviour
     {
         if (currentGrabbedObject != null)
         {
+            // Если мы заряжали бросок - бросаем предмет
+            if (isChargingThrow && currentThrowForce > 0)
+            {
+                ThrowObject();
+            }
+            
             currentGrabbedObject.OnReleased();
             
             if (grabbedRigidbody != null)
@@ -199,10 +244,24 @@ public class ObjectGrabSystem : MonoBehaviour
                 grabbedRigidbody.useGravity = true;
             }
             
+            // Скрываем UI броска
+            HideThrowUI();
+            
+            // Сбрасываем все переменные броска
             currentGrabbedObject = null;
             grabbedRigidbody = null;
             currentWeight = 0f;
             slipAccumulation = 0f;
+            currentThrowForce = 0f;
+            isChargingThrow = false;
+            throwChargeTime = 0f;
+            
+            // Сбрасываем состояние наведения
+            if (currentLookingAt != null)
+            {
+                currentLookingAt.SetPlayerLookingAt(false);
+                currentLookingAt = null;
+            }
         }
     }
     
@@ -321,7 +380,7 @@ public class ObjectGrabSystem : MonoBehaviour
         }
     }
     
-    void HighlightObject(GrabbableObject grabbable)
+    void HighlightObject(DestructibleObject grabbable)
     {
         Renderer renderer = grabbable.GetComponent<Renderer>();
         if (renderer != null && renderer.material != null)
@@ -341,7 +400,7 @@ public class ObjectGrabSystem : MonoBehaviour
         }
     }
     
-    void RemoveHighlight(GrabbableObject grabbable)
+    void RemoveHighlight(DestructibleObject grabbable)
     {
         if (highlightedMaterial != null)
         {
@@ -404,10 +463,186 @@ public class ObjectGrabSystem : MonoBehaviour
         Gizmos.DrawRay(transform.position, transform.forward * grabDistance);
     }
     
+    /// <summary>
+    /// Инициализирует UI для системы броска
+    /// </summary>
+    void InitializeThrowUI()
+    {
+        if (throwUIObject != null)
+        {
+            originalThrowUIPosition = throwUIObject.transform.localPosition;
+            throwUIObject.SetActive(false);
+        }
+        
+        if (throwForceText != null)
+        {
+            originalThrowTextColor = throwForceText.color;
+        }
+    }
+    
+    /// <summary>
+    /// Показывает UI для броска
+    /// </summary>
+    void ShowThrowUI()
+    {
+        if (throwUIObject != null)
+        {
+            throwUIObject.SetActive(true);
+        }
+    }
+    
+    /// <summary>
+    /// Скрывает UI для броска
+    /// </summary>
+    void HideThrowUI()
+    {
+        if (throwUIObject != null)
+        {
+            throwUIObject.SetActive(false);
+        }
+        
+        // Сбрасываем UI в исходное состояние
+        if (throwForceText != null)
+        {
+            throwForceText.color = originalThrowTextColor;
+        }
+        
+        if (throwUIObject != null)
+        {
+            throwUIObject.transform.localPosition = originalThrowUIPosition;
+        }
+    }
+    
+    /// <summary>
+    /// Обрабатывает систему броска
+    /// </summary>
+    void HandleThrowSystem()
+    {
+        if (currentGrabbedObject == null) return;
+        
+        // Начинаем или отменяем зарядку броска при нажатии G
+        if (Input.GetKeyDown(KeyCode.G))
+        {
+            if (isChargingThrow)
+            {
+                // Отменяем зарядку если уже заряжаем
+                isChargingThrow = false;
+                throwChargeTime = 0f;
+                currentThrowForce = 0f;
+                UpdateThrowUI();
+                Debug.Log("Зарядка броска отменена");
+            }
+            else
+            {
+                // Начинаем зарядку
+                isChargingThrow = true;
+                throwChargeTime = 0f;
+                currentThrowForce = 0f;
+                Debug.Log("Начата зарядка броска");
+            }
+        }
+        
+        // Заряжаем бросок при удержании G
+        if (Input.GetKey(KeyCode.G) && isChargingThrow)
+        {
+            throwChargeTime += Time.deltaTime;
+            currentThrowForce = Mathf.Clamp(throwChargeTime * throwChargeSpeed, 0f, maxThrowForce);
+            
+            // Обновляем UI
+            UpdateThrowUI();
+        }
+        
+        // НЕ сбрасываем зарядку при отпускании G - зарядка сохраняется до отпускания ЛКМ
+        // Зарядка сбрасывается только при отпускании ЛКМ в методе ReleaseObject()
+    }
+    
+    /// <summary>
+    /// Обновляет UI броска
+    /// </summary>
+    void UpdateThrowUI()
+    {
+        if (throwUIObject == null) return;
+        
+        // Обновляем текст силы броска
+        if (throwForceText != null)
+        {
+            if (isChargingThrow)
+            {
+                
+                // Меняем цвет на красный при долгом удержании
+                if (throwChargeTime > throwUIStartShakeTime)
+                {
+                    throwForceText.color = Color.red;
+                }
+                else
+                {
+                    float redIntensity = throwChargeTime / throwUIStartShakeTime;
+                    throwForceText.color = Color.Lerp(originalThrowTextColor, Color.red, redIntensity);
+                }
+            }
+            else
+            {
+                throwForceText.color = originalThrowTextColor;
+            }
+        }
+        
+        // Обновляем картинку силы броска
+        if (throwForceImage != null)
+        {
+            float fillAmount = currentThrowForce / maxThrowForce;
+            throwForceImage.fillAmount = fillAmount;
+        }
+        
+        // Добавляем тряску при долгом удержании
+        if (throwChargeTime > throwUIStartShakeTime)
+        {
+            Vector3 shakeOffset = new Vector3(
+                Random.Range(-throwUIShakeIntensity, throwUIShakeIntensity),
+                Random.Range(-throwUIShakeIntensity, throwUIShakeIntensity),
+                0f
+            ) * 0.1f;
+            throwUIObject.transform.localPosition = originalThrowUIPosition + shakeOffset;
+        }
+        else
+        {
+            throwUIObject.transform.localPosition = originalThrowUIPosition;
+        }
+    }
+    
+    /// <summary>
+    /// Бросает объект с накопленной силой
+    /// </summary>
+    void ThrowObject()
+    {
+        if (grabbedRigidbody == null || currentThrowForce <= 0) return;
+        
+        // Вычисляем направление броска (вперед от камеры)
+        Vector3 throwDirection = playerCamera.transform.forward;
+        
+        // Применяем силу броска
+        Vector3 throwForce = throwDirection * currentThrowForce;
+        grabbedRigidbody.AddForce(throwForce, ForceMode.Impulse);
+        
+        // Добавляем небольшой случайный момент вращения для реалистичности
+        Vector3 randomTorque = new Vector3(
+            Random.Range(-5f, 5f),
+            Random.Range(-5f, 5f),
+            Random.Range(-5f, 5f)
+        );
+        grabbedRigidbody.AddTorque(randomTorque, ForceMode.Impulse);
+        
+        Debug.Log($"Брошен объект {currentGrabbedObject.name} с силой {currentThrowForce}");
+    }
+    
     // Публичные методы для получения информации о состоянии
     public bool IsHoldingObject() => currentGrabbedObject != null;
     public float GetCurrentWeight() => currentWeight;
     public float GetSlipAmount() => slipAccumulation;
-    public GrabbableObject GetCurrentObject() => currentGrabbedObject;
+    public DestructibleObject GetCurrentObject() => currentGrabbedObject;
+    
+    // Методы для системы броска
+    public bool IsChargingThrow() => isChargingThrow;
+    public float GetCurrentThrowForce() => currentThrowForce;
+    public float GetThrowChargeProgress() => currentThrowForce / maxThrowForce;
 }
 
