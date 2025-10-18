@@ -183,7 +183,6 @@ public class ObjectGrabSystem : MonoBehaviour
         // Проверяем, можно ли взять предмет
         if (grabbable.objectWeight > dropWeightThreshold)
         {
-            Debug.Log($"Объект слишком тяжелый! Вес: {grabbable.objectWeight}kg");
             return;
         }
         
@@ -224,7 +223,7 @@ public class ObjectGrabSystem : MonoBehaviour
         }
     }
     
-    void ReleaseObject()
+    public void ReleaseObject()
     {
         if (currentGrabbedObject != null)
         {
@@ -352,7 +351,6 @@ public class ObjectGrabSystem : MonoBehaviour
         // Если предмет слишком тяжелый или игрок двигается слишком быстро - роняем
         if (slipAccumulation > 1f || currentWeight > dropWeightThreshold * 0.8f && playerMovementSpeed > 5f)
         {
-            Debug.Log("Предмет выскользнул из рук!");
             ReleaseObject();
             return;
         }
@@ -374,7 +372,6 @@ public class ObjectGrabSystem : MonoBehaviour
             // Если предмет слишком далеко - роняем
             if (distanceFromTarget > (holdDistance + objectDistance) * 1.5f)
             {
-                Debug.Log("Предмет слишком далеко отклонился!");
                 ReleaseObject();
             }
         }
@@ -530,7 +527,6 @@ public class ObjectGrabSystem : MonoBehaviour
                 throwChargeTime = 0f;
                 currentThrowForce = 0f;
                 UpdateThrowUI();
-                Debug.Log("Зарядка броска отменена");
             }
             else
             {
@@ -538,7 +534,6 @@ public class ObjectGrabSystem : MonoBehaviour
                 isChargingThrow = true;
                 throwChargeTime = 0f;
                 currentThrowForce = 0f;
-                Debug.Log("Начата зарядка броска");
             }
         }
         
@@ -631,7 +626,6 @@ public class ObjectGrabSystem : MonoBehaviour
         );
         grabbedRigidbody.AddTorque(randomTorque, ForceMode.Impulse);
         
-        Debug.Log($"Брошен объект {currentGrabbedObject.name} с силой {currentThrowForce}");
     }
     
     // Публичные методы для получения информации о состоянии

@@ -66,24 +66,20 @@ public class SceneTransitionManager : MonoBehaviour
     
     void OnClientConnected(ulong clientId)
     {
-        Debug.Log($"Client {clientId} connected");
         
         // Если это хост, переходим в игровую сцену через 2 секунды
         if (NetworkManager.Singleton.IsHost)
         {
-            Debug.Log("Host started, transitioning to game scene in 2 seconds");
             Invoke(nameof(TransitionToGameScene), 2f);
         }
     }
     
     void OnClientDisconnected(ulong clientId)
     {
-        Debug.Log($"Client {clientId} disconnected");
         
         // Если это хост и отключился клиент, возвращаемся в меню
         if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost && NetworkManager.Singleton.ConnectedClients.Count <= 1)
         {
-            Debug.Log("All clients disconnected, returning to menu");
             TransitionToMenuScene();
         }
     }
@@ -98,11 +94,7 @@ public class SceneTransitionManager : MonoBehaviour
             // Спавним игроков после загрузки сцены
             StartCoroutine(SpawnPlayersAfterSceneLoad());
         }
-        else if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsClient)
-        {
-            // Клиент ждет загрузки сцены от хоста
-            Debug.Log("Waiting for host to load game scene...");
-        }
+
     }
     
     public void TransitionToMenuScene()
@@ -112,21 +104,12 @@ public class SceneTransitionManager : MonoBehaviour
             // Хост загружает сцену для всех
             NetworkManager.Singleton.SceneManager.LoadScene(menuSceneName, LoadSceneMode.Single);
         }
-        else if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsClient)
-        {
-            // Клиент ждет загрузки сцены от хоста
-            Debug.Log("Waiting for host to load menu scene...");
-        }
         else
         {
             // Если нет активного подключения, загружаем сцену локально
             if (!string.IsNullOrEmpty(menuSceneName))
             {
                 SceneManager.LoadScene(menuSceneName);
-            }
-            else
-            {
-                Debug.LogError("Menu scene name is not set!");
             }
         }
     }
@@ -148,10 +131,6 @@ public class SceneTransitionManager : MonoBehaviour
         {
             TransitionToGameScene();
         }
-        else
-        {
-            Debug.LogWarning("Only host can start the game!");
-        }
     }
     
     public void OnReturnToMenuButtonClicked()
@@ -159,10 +138,6 @@ public class SceneTransitionManager : MonoBehaviour
         if (NetworkManager.Singleton.IsHost)
         {
             TransitionToMenuScene();
-        }
-        else
-        {
-            Debug.LogWarning("Only host can return to menu!");
         }
     }
     
@@ -215,14 +190,11 @@ public class SceneTransitionManager : MonoBehaviour
     
     IEnumerator SpawnPlayersAfterSceneLoad()
     {
-        Debug.Log("Waiting for scene to load...");
         yield return new WaitForSeconds(2f);
         
-        Debug.Log("Spawning players...");
         
         if (playerPrefab == null)
         {
-            Debug.LogError("Player prefab is not assigned in SceneTransitionManager!");
             yield break;
         }
         
@@ -231,7 +203,6 @@ public class SceneTransitionManager : MonoBehaviour
         // Спавним всех подключенных клиентов
         foreach (var client in NetworkManager.Singleton.ConnectedClients)
         {
-            Debug.Log($"Spawning player for client {client.Key}");
             
             GameObject playerObject = Instantiate(playerPrefab, spawnPosition, Quaternion.identity);
             NetworkObject networkObject = playerObject.GetComponent<NetworkObject>();
@@ -239,11 +210,9 @@ public class SceneTransitionManager : MonoBehaviour
             if (networkObject != null)
             {
                 networkObject.SpawnAsPlayerObject(client.Key);
-                Debug.Log($"Player spawned for client {client.Key} at position {spawnPosition}");
             }
             else
             {
-                Debug.LogError("Player prefab doesn't have NetworkObject component!");
                 Destroy(playerObject);
             }
         }

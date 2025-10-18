@@ -67,8 +67,7 @@ public class MultiplayerManager : MonoBehaviour
     {
         InitializeNetworkManager();
         SetupUI();
-        SetupLocalServer();
-        
+
         isInitialized = true;
         UpdateStatusText("Готов к подключению");
     }
@@ -93,7 +92,6 @@ public class MultiplayerManager : MonoBehaviour
         // Только если мы были подключены достаточно долго
         if (wasConnected && !isCurrentlyConnected && connectionTime >= MIN_CONNECTION_TIME)
         {
-            Debug.LogWarning($"Unexpected disconnection detected after {connectionTime:F1}s - possible transport failure");
             HandleTransportFailure();
         }
         
@@ -106,7 +104,6 @@ public class MultiplayerManager : MonoBehaviour
         networkManager = NetworkManager.Singleton;
         if (networkManager == null)
         {
-            Debug.LogError("NetworkManager.Singleton is null! Make sure NetworkManager is in the scene.");
             UpdateStatusText("Ошибка: NetworkManager не найден!");
             return;
         }
@@ -115,7 +112,6 @@ public class MultiplayerManager : MonoBehaviour
         transport = networkManager.GetComponent<UnityTransport>();
         if (transport == null)
         {
-            Debug.LogError("UnityTransport component not found on NetworkManager!");
             UpdateStatusText("Ошибка: UnityTransport не найден!");
             return;
         }
@@ -126,7 +122,6 @@ public class MultiplayerManager : MonoBehaviour
         networkManager.OnClientConnectedCallback += OnClientConnected;
         networkManager.OnClientDisconnectCallback += OnClientDisconnected;
         
-        Debug.Log("NetworkManager initialized successfully");
     }
     
     
@@ -139,25 +134,9 @@ public class MultiplayerManager : MonoBehaviour
         if (joinLobbyButton != null)
             joinLobbyButton.onClick.AddListener(JoinLobby);
     }
-    
-    void SetupLocalServer()
-    {
-        // Инициализация выделенных серверов
-        Debug.Log("MultiplayerManager инициализирован для работы с удаленными серверами");
-    }
-    
-    void CheckServerStatus()
-    {
-        // Проверяем состояние NetworkManager
-        if (NetworkManager.Singleton != null)
-        {
-            Debug.Log($"NetworkManager состояние - IsServer: {NetworkManager.Singleton.IsServer}, IsHost: {NetworkManager.Singleton.IsHost}, IsClient: {NetworkManager.Singleton.IsClient}");
-        }
-    }
-    
+
     public void CreateLobby()
     {
-        Debug.Log("CreateLobby called");
         
         if (!isInitialized || networkManager == null)
         {
@@ -194,7 +173,6 @@ public class MultiplayerManager : MonoBehaviour
         }
         
         UpdateStatusText("Создание лобби...");
-        Debug.Log($"Attempting to create lobby: {lobbyId}");
         
         try
         {
@@ -234,19 +212,16 @@ public class MultiplayerManager : MonoBehaviour
             currentPassword = password;
             
             // Подключаемся к серверу как клиент
-            Debug.Log($"Attempting to connect to server: {availableServer.ipAddress}:{availableServer.port}");
             
             bool success = networkManager.StartClient();
             if (success)
             {
                 string statusMessage = $"Лобби создано!\nID: {lobbyId}\nПароль: {password}\nСервер: {availableServer.serverName}\nIP: {availableServer.ipAddress}:{availableServer.port}\nПодключение к серверу...";
                 UpdateStatusText(statusMessage);
-                Debug.Log($"Lobby created and connecting to dedicated server: {lobbyId} with password: {password}");
             }
             else
             {
                 UpdateStatusText("Ошибка подключения к серверу!");
-                Debug.LogError("Failed to start client");
                 // Удаляем лобби из словаря при ошибке
                 activeLobbies.Remove(lobbyId);
                 // Освобождаем сервер
@@ -256,7 +231,6 @@ public class MultiplayerManager : MonoBehaviour
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"Error creating lobby: {e.Message}");
             
             // Очищаем лобби из словаря при ошибке
             if (activeLobbies.ContainsKey(lobbyId))
@@ -279,7 +253,6 @@ public class MultiplayerManager : MonoBehaviour
     
     public void JoinLobby()
     {
-        Debug.Log("JoinLobby called");
         
         if (!isInitialized || networkManager == null)
         {
@@ -309,7 +282,6 @@ public class MultiplayerManager : MonoBehaviour
         }
         
         UpdateStatusText("Поиск лобби...");
-        Debug.Log($"Attempting to join lobby: {lobbyId}");
         
         try
         {
@@ -356,17 +328,14 @@ public class MultiplayerManager : MonoBehaviour
             if (success)
             {
                 UpdateStatusText("Подключение...");
-                Debug.Log($"Joining lobby: {lobbyId}");
             }
             else
             {
                 UpdateStatusText("Ошибка подключения!");
-                Debug.LogError("Failed to start client");
             }
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"Error joining lobby: {e.Message}");
             UpdateStatusText($"Ошибка подключения: {e.Message}");
         }
         
@@ -382,12 +351,10 @@ public class MultiplayerManager : MonoBehaviour
             if (!string.IsNullOrEmpty(currentServerId))
             {
                 DecrementServerPlayerCount(currentServerId);
-                Debug.Log($"Decremented player count for server {currentServerId}");
             }
             
             networkManager.Shutdown();
             UpdateStatusText("Отключено");
-            Debug.Log("Disconnected from network");
         }
         
         // Сбрасываем текущие данные лобби
@@ -400,7 +367,6 @@ public class MultiplayerManager : MonoBehaviour
     
     void OnClientConnected(ulong clientId)
     {
-        Debug.Log("Connected to Dedicated Server as Client");
         UpdateStatusText("Подключен к лобби");
         
         // Обновляем счетчик игроков на сервере
@@ -415,7 +381,6 @@ public class MultiplayerManager : MonoBehaviour
     
     void OnClientDisconnected(ulong clientId)
     {
-        Debug.Log("Disconnected from Dedicated Server");
         UpdateStatusText("Отключен от лобби");
         
         // Уменьшаем счетчик игроков на сервере
@@ -434,14 +399,12 @@ public class MultiplayerManager : MonoBehaviour
         
         isHandlingTransportFailure = true;
         
-        Debug.LogError("Transport failure detected! Connection lost.");
         UpdateStatusText("Ошибка подключения к серверу!\nПопытка переподключения...");
         
         // Уменьшаем счетчик игроков на сервере при ошибке
         if (!string.IsNullOrEmpty(currentServerId))
         {
             DecrementServerPlayerCount(currentServerId);
-            Debug.Log($"Decremented player count for server {currentServerId} due to transport failure");
         }
         
         // Отключаемся от сети
@@ -495,7 +458,6 @@ public class MultiplayerManager : MonoBehaviour
         {
             statusText.text = message;
         }
-        Debug.Log($"Multiplayer Status: {message}");
     }
     
     // Публичные методы для получения информации
@@ -561,13 +523,11 @@ public class MultiplayerManager : MonoBehaviour
         };
         
         dedicatedServers.Add(server);
-        Debug.Log($"Added dedicated server: {serverName} ({ipAddress}:{port})");
     }
     
     public void RemoveDedicatedServer(string serverId)
     {
         dedicatedServers.RemoveAll(server => server.serverId == serverId);
-        Debug.Log($"Removed dedicated server: {serverId}");
     }
     
     public DedicatedServer FindAvailableServer()
@@ -587,7 +547,6 @@ public class MultiplayerManager : MonoBehaviour
         {
             server.isAvailable = false;
             server.currentPlayers = 1; // Первый игрок подключился
-            Debug.Log($"Server {serverId} marked as occupied with {server.currentPlayers} players");
         }
     }
     
@@ -598,7 +557,6 @@ public class MultiplayerManager : MonoBehaviour
         {
             server.isAvailable = true;
             server.currentPlayers = 0;
-            Debug.Log($"Server {serverId} marked as available");
         }
     }
     
@@ -614,7 +572,6 @@ public class MultiplayerManager : MonoBehaviour
         {
             server.currentPlayers = playerCount;
             server.isAvailable = playerCount < server.maxPlayers;
-            Debug.Log($"Server {serverId} player count updated to {playerCount}/{server.maxPlayers}");
         }
     }
     
@@ -625,7 +582,6 @@ public class MultiplayerManager : MonoBehaviour
         {
             server.currentPlayers++;
             server.isAvailable = server.currentPlayers < server.maxPlayers;
-            Debug.Log($"Server {serverId} player count incremented to {server.currentPlayers}/{server.maxPlayers}");
         }
     }
     
@@ -636,7 +592,6 @@ public class MultiplayerManager : MonoBehaviour
         {
             server.currentPlayers = Mathf.Max(0, server.currentPlayers - 1);
             server.isAvailable = server.currentPlayers < server.maxPlayers;
-            Debug.Log($"Server {serverId} player count decremented to {server.currentPlayers}/{server.maxPlayers}");
         }
     }
     

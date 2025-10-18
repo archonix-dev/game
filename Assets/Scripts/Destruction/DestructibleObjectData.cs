@@ -88,13 +88,6 @@ public class DestructibleObjectData : ScriptableObject
             finalAmount = Mathf.Clamp(finalAmount, shatterAmount, 30);
         }
         
-        // ВАЖНО: Минимум 3 разреза для корректного разрушения всей модели
-        // При 1-2 разрезах может разрушиться только часть модели
-        if (finalAmount < 3)
-        {
-            Debug.LogWarning($"ShatterAmount слишком мало ({finalAmount}). Рекомендуется минимум 3 для полного разрушения модели.");
-        }
-        
         return Mathf.Max(finalAmount, 1); // Минимум 1 разрез
     }
 }

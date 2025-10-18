@@ -108,24 +108,10 @@ public class DestructibleObject : MonoBehaviour
     
     void Start()
     {
-        if (objectData == null)
-        {
-            Debug.LogWarning($"DestructibleObject на {gameObject.name} не имеет назначенного DestructibleObjectData!");
-        }
-        
-        // Автоматически назначаем тег если не назначен
         if (gameObject.tag == "Untagged")
         {
             gameObject.tag = "Grabbable";
         }
-        
-        // Проверяем наличие коллайдера
-        if (GetComponent<Collider>() == null)
-        {
-            Debug.LogWarning($"DestructibleObject на {gameObject.name} не имеет Collider! Добавьте коллайдер для корректной работы.");
-        }
-        
-        // Инициализируем систему отображения награды
         InitializeRewardDisplay();
     }
     
@@ -167,8 +153,6 @@ public class DestructibleObject : MonoBehaviour
         {
             // Передаем информацию об ударе другому разрушаемому объекту
             otherDestructible.TakeHit(impactForce, impactPoint, impactDirection);
-            
-            Debug.Log($"{gameObject.name} ударил {collision.gameObject.name} с силой {impactForce}");
         }
         
         // ВАЖНО: Этот объект тоже получает урон от столкновения с любыми объектами
@@ -182,16 +166,7 @@ public class DestructibleObject : MonoBehaviour
                 if (!isGrabbed || impactForce >= objectData.MinimumImpactForce * 2f)
                 {
                     TakeHit(impactForce, impactPoint, impactDirection);
-                    Debug.Log($"{gameObject.name} получил урон от столкновения с {collision.gameObject.name} (сила: {impactForce})");
                 }
-                else
-                {
-                    Debug.Log($"{gameObject.name} не получил урон - объект захвачен и удар слишком слабый (сила: {impactForce})");
-                }
-            }
-            else
-            {
-                Debug.Log($"{gameObject.name} не получил урон - удар слишком слабый (сила: {impactForce} < {objectData.MinimumImpactForce})");
             }
         }
         
@@ -216,12 +191,10 @@ public class DestructibleObject : MonoBehaviour
         // Проверяем минимальную силу удара
         if (impactForce < objectData.MinimumImpactForce)
         {
-            Debug.Log($"Удар слишком слабый: {impactForce} < {objectData.MinimumImpactForce}");
             return;
         }
         
         currentHits++;
-        Debug.Log($"{gameObject.name} получил удар! {currentHits}/{objectData.HitsToDestroy} (сила: {impactForce})");
         
         // Визуальные эффекты
         PlayHitEffect(impactPoint);
@@ -285,7 +258,6 @@ public class DestructibleObject : MonoBehaviour
     /// </summary>
     void BreakObject(Vector3 impactPoint)
     {
-        Debug.Log($"{gameObject.name} разбился!");
         
         // Отключаем визуальное представление сразу
         DisableObjectVisually();
@@ -322,7 +294,6 @@ public class DestructibleObject : MonoBehaviour
     /// </summary>
     private void DestroyObject(Vector3 destructionPoint, Vector3 direction, float force)
     {
-        Debug.Log($"{gameObject.name} разрушен!");
         
         // ВАЖНО: Сразу отключаем визуальное представление и коллайдеры
         // чтобы объект исчез визуально даже если уничтожение займет время
@@ -364,7 +335,6 @@ public class DestructibleObject : MonoBehaviour
             }
             else
             {
-                Debug.LogWarning($"SimpleDestructionManager не найден! Используем базовое разрушение для {gameObject.name}");
                 CreateSimpleFragments(destructionPoint, direction);
                 Destroy(gameObject, 3f);
             }
@@ -417,10 +387,6 @@ public class DestructibleObject : MonoBehaviour
             3f
         );
         
-        Debug.Log($"[РАЗРУШЕНИЕ] SimpleDestruction применен к {gameObject.name} после {currentHits} ударов. " +
-                 $"Количество осколков: {fragmentCount}, сила разлета: {objectData.FragmentExplosionForce}. " +
-                 $"Осколки будут дочерними и удалятся через 3 секунды.");
-        
         // Уничтожаем оригинальный объект (с дочерними осколками) через 3 секунды
         Destroy(gameObject, 3f);
     }
@@ -432,7 +398,6 @@ public class DestructibleObject : MonoBehaviour
     private void CreateSimpleFragments(Vector3 position, Vector3 direction)
     {
         int fragmentCount = Random.Range(5, 10);
-        Debug.Log($"[РАЗРУШЕНИЕ] Создаем {fragmentCount} осколков как дочерние объекты {gameObject.name}");
         
         for (int i = 0; i < fragmentCount; i++)
         {
@@ -469,7 +434,6 @@ public class DestructibleObject : MonoBehaviour
             fragmentRb.AddTorque(Random.insideUnitSphere * objectData.FragmentExplosionForce, ForceMode.Impulse);
         }
         
-        Debug.Log($"[РАЗРУШЕНИЕ] Создано {fragmentCount} осколков. Весь объект {gameObject.name} (включая осколки) будет удален через 3 секунды");
     }
     
     /// <summary>
@@ -533,13 +497,11 @@ public class DestructibleObject : MonoBehaviour
                 fragmentColor,
                 3f
             );
-            Debug.Log($"SimpleDestruction успешно применен к {gameObject.name} (сила: {impactForce}, осколков: {fragmentCount})");
             
             return true;
         }
         catch (System.Exception e)
         {
-            Debug.LogWarning($"Не удалось применить разрушение к {gameObject.name}: {e.Message}");
             return false;
         }
     }
@@ -659,21 +621,6 @@ public class DestructibleObject : MonoBehaviour
     /// </summary>
     void InitializeRewardDisplay()
     {
-        if (!showRewardDisplay) 
-        {
-            Debug.Log($"Reward display disabled for {gameObject.name}");
-            return;
-        }
-        
-        if (objectData == null) 
-        {
-            Debug.LogWarning($"objectData is null for {gameObject.name} - reward display will not work!");
-            return;
-        }
-        
-        Debug.Log($"Initializing reward display for {gameObject.name} with {objectData.CoinAmount} coins");
-        
-        // Ищем игрока
         FindPlayer();
         
         // Создаем отображение награды если не назначено
@@ -737,7 +684,6 @@ public class DestructibleObject : MonoBehaviour
             rewardText.font = Resources.GetBuiltinResource<TMP_FontAsset>("Legacy Runtime/TextMeshPro/Fonts & Materials/LiberationSans SDF");
         }
         
-        Debug.Log($"Создано отображение награды для {gameObject.name}");
     }
     
     /// <summary>
@@ -821,7 +767,6 @@ public class DestructibleObject : MonoBehaviour
             if (rewardText.text != newText)
             {
                 rewardText.text = newText;
-                Debug.Log($"Updated reward text for {gameObject.name}: {newText}");
             }
         }
     }
@@ -860,12 +805,10 @@ public class DestructibleObject : MonoBehaviour
     {
         if (objectData == null) 
         {
-            Debug.LogWarning($"objectData is null for {gameObject.name}");
             return "0";
         }
         
         int coins = objectData.CoinAmount;
-        Debug.Log($"Getting reward text for {gameObject.name}: {coins} coins");
         return $"{coins}";
     }
     

@@ -93,13 +93,6 @@ public class SimpleDestructionManager : MonoBehaviour
         MeshFilter meshFilter = objectToDestroy.GetComponent<MeshFilter>();
         Renderer renderer = objectToDestroy.GetComponent<Renderer>();
         Rigidbody originalRb = objectToDestroy.GetComponent<Rigidbody>();
-
-        if (meshFilter == null || renderer == null)
-        {
-            Debug.LogWarning($"Объект {objectToDestroy.name} не имеет MeshFilter или Renderer!");
-            return;
-        }
-
         Vector3 objectPosition = objectToDestroy.transform.position;
         Quaternion objectRotation = objectToDestroy.transform.rotation;
         Vector3 objectScale = objectToDestroy.transform.localScale;
@@ -144,10 +137,6 @@ public class SimpleDestructionManager : MonoBehaviour
                 Destroy(fragment, destroyAfter);
             }
         }
-
-        Debug.Log($"[SimpleDestruction] Создано {fragments.Count} осколков для {objectToDestroy.name}. " +
-                  $"Сила разлета: {explosionForce}, цвет: {fragmentColor}, удаление через {destroyAfter}с");
-        
         OnObjectDestroyed?.Invoke(objectToDestroy, fragments.Count);
     }
 
@@ -172,7 +161,6 @@ public class SimpleDestructionManager : MonoBehaviour
 
         if (meshFilter == null || renderer == null)
         {
-            Debug.LogWarning($"Объект {objectToDestroy.name} не имеет MeshFilter или Renderer!");
             return;
         }
 
@@ -222,9 +210,6 @@ public class SimpleDestructionManager : MonoBehaviour
             }
         }
 
-        Debug.Log($"[SimpleDestruction] Создано {fragments.Count} осколков для {objectToDestroy.name}. " +
-                  $"Сила разлета: {explosionForce}, удаление через {destroyAfter}с");
-        
         OnObjectDestroyed?.Invoke(objectToDestroy, fragments.Count);
     }
 
@@ -603,9 +588,6 @@ public class SimpleDestructionManager : MonoBehaviour
             // Удаление
             Destroy(fragment, destroyAfter);
         }
-
-        Debug.Log($"[SimpleDestruction] Создано {fragmentCount} {fragmentPrimitiveType} осколков для {objectToDestroy.name}");
-        
         OnObjectDestroyed?.Invoke(objectToDestroy, fragmentCount);
     }
 

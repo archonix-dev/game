@@ -73,7 +73,6 @@ public class GameManager : NetworkBehaviour
     
     void OnClientConnected(ulong clientId)
     {
-        Debug.Log($"Client {clientId} connected to game");
         
         // Спавним игрока для нового клиента
         if (IsServer)
@@ -84,7 +83,6 @@ public class GameManager : NetworkBehaviour
     
     void OnClientDisconnected(ulong clientId)
     {
-        Debug.Log($"Client {clientId} disconnected from game");
         
         // Удаляем игрока отключившегося клиента
         if (IsServer)
@@ -102,36 +100,30 @@ public class GameManager : NetworkBehaviour
             if (client.PlayerObject != null)
             {
                 client.PlayerObject.Despawn();
-                Debug.Log($"Player removed for client {clientId}");
             }
         }
     }
     
     IEnumerator SpawnAllPlayersAfterSceneLoad()
     {
-        Debug.Log("SpawnAllPlayersAfterSceneLoad started");
         
         // Ждем загрузки сцены
         yield return new WaitForSeconds(1f);
         
-        Debug.Log($"Found {NetworkManager.Singleton.ConnectedClients.Count} connected clients");
         
         // Спавним всех подключенных клиентов
         foreach (var client in NetworkManager.Singleton.ConnectedClients)
         {
-            Debug.Log($"Spawning player for existing client {client.Key}");
             SpawnPlayerForClient(client.Key);
         }
     }
     
     IEnumerator SpawnPlayerAfterDelay(ulong clientId)
     {
-        Debug.Log($"SpawnPlayerAfterDelay started for client {clientId}");
         
         // Ждем немного чтобы сцена загрузилась
         yield return new WaitForSeconds(0.5f);
         
-        Debug.Log($"Spawning player for new client {clientId}");
         
         // Спавним игрока
         SpawnPlayerForClient(clientId);
@@ -139,16 +131,13 @@ public class GameManager : NetworkBehaviour
     
     void SpawnPlayerForClient(ulong clientId)
     {
-        Debug.Log($"Attempting to spawn player for client {clientId}");
         
         if (playerPrefab == null)
         {
-            Debug.LogError("Player prefab is not assigned!");
             return;
         }
         
         Vector3 spawnPosition = GetSpawnPosition();
-        Debug.Log($"Spawning at position: {spawnPosition}");
         
         GameObject playerObject = Instantiate(playerPrefab, spawnPosition, Quaternion.identity);
         
@@ -156,11 +145,9 @@ public class GameManager : NetworkBehaviour
         if (networkObject != null)
         {
             networkObject.SpawnAsPlayerObject(clientId);
-            Debug.Log($"Player spawned for client {clientId} at position {spawnPosition}");
         }
         else
         {
-            Debug.LogError("Player prefab doesn't have NetworkObject component!");
             Destroy(playerObject);
         }
     }
@@ -181,14 +168,12 @@ public class GameManager : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     public void StartGameServerRpc()
     {
-        Debug.Log("Game started by server");
         // Здесь можно добавить логику начала игры
     }
     
     [ServerRpc(RequireOwnership = false)]
     public void EndGameServerRpc()
     {
-        Debug.Log("Game ended by server");
         // Здесь можно добавить логику окончания игры
     }
     

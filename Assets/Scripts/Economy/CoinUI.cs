@@ -65,11 +65,6 @@ public class CoinUI : MonoBehaviour
             
             lastCoinAmount = CoinManager.Instance.GetCoins();
         }
-        else
-        {
-            Debug.LogWarning("CoinUI: CoinManager не найден в сцене!");
-        }
-        
         UpdateDisplay();
     }
     

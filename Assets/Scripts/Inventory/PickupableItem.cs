@@ -1,0 +1,369 @@
+using UnityEngine;
+using TMPro;
+
+/// <summary>
+/// Компонент для предметов, которые можно подобрать в инвентарь
+/// </summary>
+public class PickupableItem : MonoBehaviour, IPickupable
+{
+    [Header("Item Settings")]
+    [SerializeField] private InventoryItem inventoryItem;
+    [SerializeField] private bool canBePickedUp = true;
+    
+    [Header("Visual Feedback")]
+    [SerializeField] private bool showPickupPrompt = true;
+    [SerializeField] private float promptDistance = 3f;
+    [SerializeField] private TextMeshPro pickupPromptText;
+    [SerializeField] private GameObject pickupPromptObject;
+    
+    [Header("Настройки масштабирования")]
+    [SerializeField] private float minScale = 0.01f;  // Минимальный размер (близко к объекту)
+    [SerializeField] private float maxScale = 0.05f;  // Максимальный размер (далеко от объекта)
+    [SerializeField] private float scaleSmoothTime = 0.1f; // Время плавного изменения размера
+    
+    private Transform playerTransform;
+    private bool isPlayerInRange = false;
+    private bool isPlayerLookingAt = false;
+    private float currentScale = 0.01f;
+    private float scaleVelocity = 0f;
+    
+    void Start()
+    {
+        // Автоматически создаем InventoryItem если не назначен
+        if (inventoryItem == null)
+        {
+            CreateDefaultInventoryItem();
+        }
+        
+        // Ищем игрока
+        FindPlayer();
+        
+        // Инициализируем систему отображения подсказки
+        InitializePickupPrompt();
+    }
+    
+    void Update()
+    {
+        if (showPickupPrompt)
+        {
+            UpdatePickupPrompt();
+        }
+    }
+    
+    /// <summary>
+    /// Создает стандартный InventoryItem на основе компонентов объекта
+    /// </summary>
+    void CreateDefaultInventoryItem()
+    {
+        string itemName = gameObject.name.Replace("(Clone)", "");
+        
+        // Пытаемся найти иконку в ресурсах
+        Sprite icon = Resources.Load<Sprite>($"Icons/{itemName}");
+        if (icon == null)
+        {
+            // Создаем простую иконку если не найдена
+            icon = CreateSimpleIcon();
+        }
+        
+        inventoryItem = new InventoryItem(
+            itemName,
+            $"Подобранный {itemName}",
+            icon,
+            gameObject
+        );
+        
+        // Настраиваем категорию на основе тега
+        if (gameObject.CompareTag("Tool"))
+            inventoryItem.category = ItemCategory.Tool;
+        else if (gameObject.CompareTag("Weapon"))
+            inventoryItem.category = ItemCategory.Weapon;
+        else if (gameObject.CompareTag("Material"))
+            inventoryItem.category = ItemCategory.Material;
+        else
+            inventoryItem.category = ItemCategory.Misc;
+        
+        // Настраиваем вес на основе Rigidbody
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            inventoryItem.weight = rb.mass;
+        }
+        
+        // Сохраняем тег и слой
+        inventoryItem.itemTag = gameObject.tag;
+        inventoryItem.itemLayer = gameObject.layer;
+        
+        // Предметы в инвентаре не разбиваются
+        inventoryItem.isBreakable = false;
+    }
+    
+    /// <summary>
+    /// Создает простую иконку для предмета
+    /// </summary>
+    Sprite CreateSimpleIcon()
+    {
+        // Создаем простую текстуру 32x32
+        Texture2D texture = new Texture2D(32, 32);
+        Color[] pixels = new Color[32 * 32];
+        
+        // Заполняем случайным цветом
+        Color itemColor = Random.ColorHSV(0f, 1f, 0.5f, 1f, 0.5f, 1f);
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = itemColor;
+        }
+        
+        texture.SetPixels(pixels);
+        texture.Apply();
+        
+        return Sprite.Create(texture, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f));
+    }
+    
+    /// <summary>
+    /// Ищет игрока в сцене
+    /// </summary>
+    void FindPlayer()
+    {
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null)
+        {
+            playerTransform = player.transform;
+        }
+        else
+        {
+            // Ищем камеру как альтернативу
+            Camera mainCamera = Camera.main;
+            if (mainCamera != null)
+            {
+                playerTransform = mainCamera.transform;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Инициализирует систему отображения подсказки
+    /// </summary>
+    void InitializePickupPrompt()
+    {
+
+        if (pickupPromptObject == null)
+        {
+            CreatePickupPrompt();
+        }
+        
+        // Скрываем отображение по умолчанию
+        HidePickupPrompt();
+    }
+    
+    /// <summary>
+    /// Создает отображение подсказки
+    /// </summary>
+    void CreatePickupPrompt()
+    {
+        // Создаем GameObject для отображения подсказки
+        pickupPromptObject = new GameObject("PickupPrompt");
+        pickupPromptObject.transform.SetParent(transform);
+        pickupPromptObject.transform.localPosition = Vector3.up * 2f; // Над объектом
+        pickupPromptObject.transform.localScale = Vector3.one * minScale; // Устанавливаем начальный размер
+        
+        // Добавляем TextMeshPro
+        pickupPromptText = pickupPromptObject.AddComponent<TextMeshPro>();
+        pickupPromptText.fontSize = 2f;
+        pickupPromptText.color = Color.white;
+        pickupPromptText.alignment = TextAlignmentOptions.Center;
+        pickupPromptText.sortingOrder = 10;
+        
+        // Устанавливаем текст подсказки
+        pickupPromptText.text = GetPickupPromptText();
+        
+        // Настраиваем шрифт
+        pickupPromptText.font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+        if (pickupPromptText.font == null)
+        {
+            // Используем стандартный шрифт если не найден
+            pickupPromptText.font = Resources.GetBuiltinResource<TMP_FontAsset>("Legacy Runtime/TextMeshPro/Fonts & Materials/LiberationSans SDF");
+        }
+        
+    }
+    
+    /// <summary>
+    /// Обновляет отображение подсказки
+    /// </summary>
+    void UpdatePickupPrompt()
+    {
+        if (!showPickupPrompt || inventoryItem == null) return;
+        
+        if (playerTransform == null)
+        {
+            FindPlayer();
+            return;
+        }
+        
+        // Проверяем расстояние до игрока
+        float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
+        bool inRange = distanceToPlayer <= promptDistance;
+        
+        // Показываем только если игрок в радиусе И смотрит на объект
+        bool shouldShow = inRange && isPlayerLookingAt;
+        
+        if (shouldShow != isPlayerInRange)
+        {
+            isPlayerInRange = shouldShow;
+            
+            if (isPlayerInRange)
+            {
+                ShowPickupPrompt();
+            }
+            else
+            {
+                HidePickupPrompt();
+            }
+        }
+        
+        // Поворачиваем текст к игроку и обновляем размер
+        if (isPlayerInRange && pickupPromptObject != null)
+        {
+            pickupPromptObject.transform.LookAt(playerTransform);
+            // Поворачиваем на 180 градусов чтобы текст был читаемым
+            pickupPromptObject.transform.Rotate(0, 180, 0);
+            
+            // Обновляем размер в зависимости от расстояния
+            UpdatePromptScale(distanceToPlayer);
+            
+            // Обновляем текст подсказки
+            UpdatePickupPromptText();
+        }
+    }
+    
+    /// <summary>
+    /// Обновляет размер отображения подсказки в зависимости от расстояния до игрока
+    /// </summary>
+    void UpdatePromptScale(float distanceToPlayer)
+    {
+        if (pickupPromptObject == null) return;
+        
+        // Вычисляем целевой размер на основе расстояния
+        // Чем дальше игрок, тем больше размер (но в пределах promptDistance)
+        float normalizedDistance = Mathf.Clamp01(distanceToPlayer / promptDistance);
+        
+        // Инвертируем: далеко = большой размер, близко = маленький размер
+        float targetScale = Mathf.Lerp(minScale, maxScale, normalizedDistance);
+        
+        // Плавно изменяем размер
+        currentScale = Mathf.SmoothDamp(currentScale, targetScale, ref scaleVelocity, scaleSmoothTime);
+        
+        // Применяем размер
+        pickupPromptObject.transform.localScale = Vector3.one * currentScale;
+    }
+    
+    /// <summary>
+    /// Обновляет текст подсказки
+    /// </summary>
+    void UpdatePickupPromptText()
+    {
+        if (pickupPromptText != null)
+        {
+            string newText = GetPickupPromptText();
+            if (pickupPromptText.text != newText)
+            {
+                pickupPromptText.text = newText;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Показывает отображение подсказки
+    /// </summary>
+    void ShowPickupPrompt()
+    {
+        if (pickupPromptObject != null)
+        {
+            pickupPromptObject.SetActive(true);
+        }
+    }
+    
+    /// <summary>
+    /// Скрывает отображение подсказки
+    /// </summary>
+    void HidePickupPrompt()
+    {
+        if (pickupPromptObject != null)
+        {
+            pickupPromptObject.SetActive(false);
+            // Сбрасываем размер к минимальному при скрытии
+            pickupPromptObject.transform.localScale = Vector3.one * minScale;
+            currentScale = minScale;
+            scaleVelocity = 0f;
+        }
+        isPlayerInRange = false;
+    }
+    
+    /// <summary>
+    /// Получает текст подсказки
+    /// </summary>
+    string GetPickupPromptText()
+    {
+        if (inventoryItem == null) 
+        {
+            return "E - Подобрать";
+        }
+        
+        string itemName = inventoryItem.itemName;
+        return $"E - {itemName}";
+    }
+    
+    /// <summary>
+    /// Устанавливает данные предмета для инвентаря
+    /// </summary>
+    public void SetInventoryItem(InventoryItem item)
+    {
+        inventoryItem = item;
+    }
+    
+    // Реализация интерфейса IPickupable
+    public InventoryItem GetInventoryItem()
+    {
+        return inventoryItem;
+    }
+    
+    public void OnPickedUp()
+    {
+        // Воспроизводим звук подбора если есть AudioSource
+        AudioSource audioSource = GetComponent<AudioSource>();
+        if (audioSource != null)
+        {
+            audioSource.Play();
+        }
+        
+        // Уничтожаем объект
+        Destroy(gameObject);
+    }
+    
+    public bool CanBePickedUp()
+    {
+        return canBePickedUp;
+    }
+    
+    /// <summary>
+    /// Устанавливает состояние наведения игрока на объект
+    /// </summary>
+    public void SetPlayerLookingAt(bool looking)
+    {
+        isPlayerLookingAt = looking;
+    }
+    
+    /// <summary>
+    /// Проверяет, смотрит ли игрок на объект
+    /// </summary>
+    public bool IsPlayerLookingAt()
+    {
+        return isPlayerLookingAt;
+    }
+    
+    void OnDrawGizmosSelected()
+    {
+        // Показываем радиус подбора
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(transform.position, promptDistance);
+    }
+}

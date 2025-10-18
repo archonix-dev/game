@@ -99,8 +99,6 @@ public class CoinManager : MonoBehaviour
         currentCoins += amount;
         targetCoins = currentCoins;
         
-        Debug.Log($"Получено монет: +{amount}. Всего: {currentCoins}");
-        
         // Воспроизводим звук
         if (coinCollectSound != null && audioSource != null)
         {
@@ -133,8 +131,6 @@ public class CoinManager : MonoBehaviour
             currentCoins -= amount;
             targetCoins = currentCoins;
             
-            Debug.Log($"Потрачено монет: -{amount}. Осталось: {currentCoins}");
-            
             if (!animateOnChange)
             {
                 displayedCoins = currentCoins;
@@ -149,7 +145,6 @@ public class CoinManager : MonoBehaviour
             return true;
         }
         
-        Debug.Log($"Недостаточно монет! Нужно: {amount}, есть: {currentCoins}");
         return false;
     }
     

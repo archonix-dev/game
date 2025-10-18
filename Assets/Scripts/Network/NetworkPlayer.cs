@@ -80,7 +80,6 @@ public class NetworkPlayer : NetworkBehaviour
             playerController.enabled = true;
         }
         
-        Debug.Log($"Local player spawned with ID: {OwnerClientId}");
     }
     
     void SetupRemotePlayer()
@@ -102,7 +101,6 @@ public class NetworkPlayer : NetworkBehaviour
             playerController.enabled = false;
         }
         
-        Debug.Log($"Remote player spawned with ID: {OwnerClientId}");
     }
     
     public override void OnNetworkDespawn()
@@ -117,13 +115,11 @@ public class NetworkPlayer : NetworkBehaviour
     void OnPlayerNameChanged(FixedString64Bytes oldName, FixedString64Bytes newName)
     {
         playerName = newName.ToString();
-        Debug.Log($"Player {OwnerClientId} name changed to: {newName}");
     }
     
     void OnPlayerColorChanged(Color oldColor, Color newColor)
     {
         playerColor = newColor;
-        Debug.Log($"Player {OwnerClientId} color changed to: {newColor}");
         
         // Применяем цвет к игроку (например, к материалу)
         ApplyPlayerColor(newColor);
