@@ -37,6 +37,8 @@ public class ObjectGrabSystem : MonoBehaviour
     [SerializeField] private GameObject throwUIObject; // UI объект с картинкой и текстом
     [SerializeField] private UnityEngine.UI.Image throwForceImage; // Картинка силы броска
     [SerializeField] private UnityEngine.UI.Text throwForceText; // Текст силы броска
+    [SerializeField] private float staminaCostPerThrowForce = 2f; // Стоимость стамины за единицу силы броска
+    [SerializeField] private PlayerHealthStamina playerHealthStamina;
     
     private DestructibleObject currentGrabbedObject;
     private DestructibleObject currentLookingAt;
@@ -86,6 +88,12 @@ public class ObjectGrabSystem : MonoBehaviour
         if (mouseLook == null)
         {
             mouseLook = GetComponent<MouseLook>();
+        }
+        
+        // Находим компонент PlayerHealthStamina если не назначен
+        if (playerHealthStamina == null)
+        {
+            playerHealthStamina = GetComponent<PlayerHealthStamina>();
         }
         
         // Инициализируем UI для броска
@@ -530,21 +538,41 @@ public class ObjectGrabSystem : MonoBehaviour
             }
             else
             {
-                // Начинаем зарядку
-                isChargingThrow = true;
-                throwChargeTime = 0f;
-                currentThrowForce = 0f;
+                // Проверяем достаточно ли стамины для начала зарядки
+                float minStaminaCost = staminaCostPerThrowForce * 1f;
+                if (playerHealthStamina != null && playerHealthStamina.HasEnoughStamina(minStaminaCost))
+                {
+                    // Начинаем зарядку
+                    isChargingThrow = true;
+                    throwChargeTime = 0f;
+                    currentThrowForce = 0f;
+                }
             }
         }
         
         // Заряжаем бросок при удержании G
         if (Input.GetKey(KeyCode.G) && isChargingThrow)
         {
-            throwChargeTime += Time.deltaTime;
-            currentThrowForce = Mathf.Clamp(throwChargeTime * throwChargeSpeed, 0f, maxThrowForce);
+            float newThrowForce = Mathf.Clamp(throwChargeTime * throwChargeSpeed, 0f, maxThrowForce);
+            float staminaCost = (newThrowForce - currentThrowForce) * staminaCostPerThrowForce;
             
-            // Обновляем UI
-            UpdateThrowUI();
+            if (playerHealthStamina != null && playerHealthStamina.HasEnoughStamina(staminaCost))
+            {
+                throwChargeTime += Time.deltaTime;
+                currentThrowForce = newThrowForce;
+                playerHealthStamina.UseStamina(staminaCost);
+                
+                // Обновляем UI
+                UpdateThrowUI();
+            }
+            else
+            {
+                // Недостаточно стамины - останавливаем зарядку
+                isChargingThrow = false;
+                throwChargeTime = 0f;
+                currentThrowForce = 0f;
+                UpdateThrowUI();
+            }
         }
         
         // НЕ сбрасываем зарядку при отпускании G - зарядка сохраняется до отпускания ЛКМ
@@ -626,6 +654,12 @@ public class ObjectGrabSystem : MonoBehaviour
         );
         grabbedRigidbody.AddTorque(randomTorque, ForceMode.Impulse);
         
+        // Тратим финальную стамину за бросок
+        if (playerHealthStamina != null)
+        {
+            float finalStaminaCost = currentThrowForce * staminaCostPerThrowForce * 0.1f;
+            playerHealthStamina.UseStamina(finalStaminaCost);
+        }
     }
     
     // Публичные методы для получения информации о состоянии

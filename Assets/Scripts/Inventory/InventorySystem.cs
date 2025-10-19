@@ -66,6 +66,9 @@ public class InventorySystem : MonoBehaviour
         {
             CreateItemNameDisplay();
         }
+        
+        // Инициализируем предметы в руке
+        InitializeHandItems();
     }
     
     void Update()
@@ -256,6 +259,41 @@ public class InventorySystem : MonoBehaviour
     }
     
     /// <summary>
+    /// Инициализирует предметы в руке - настраивает позицию, поворот и отключает физику
+    /// </summary>
+    void InitializeHandItems()
+    {
+        if (handTransform == null) return;
+        
+        // Настраиваем все дочерние объекты
+        for (int i = 0; i < handTransform.childCount; i++)
+        {
+            GameObject child = handTransform.GetChild(i).gameObject;
+            
+            // Устанавливаем позицию и поворот
+            child.transform.localPosition = handOffset;
+            child.transform.localRotation = Quaternion.Euler(handRotation);
+            
+            // Отключаем физику
+            Rigidbody rb = child.GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                rb.isKinematic = true;
+            }
+            
+            // Отключаем коллайдеры
+            Collider[] colliders = child.GetComponents<Collider>();
+            foreach (Collider col in colliders)
+            {
+                col.enabled = false;
+            }
+            
+            // Скрываем по умолчанию
+            child.SetActive(false);
+        }
+    }
+    
+    /// <summary>
     /// Обрабатывает ввод пользователя
     /// </summary>
     void HandleInput()
@@ -379,6 +417,17 @@ public class InventorySystem : MonoBehaviour
         InventoryItem item = currentSlot.RemoveItem();
         if (item != null)
         {
+            // Останавливаем отображение названия предмета и скрываем текст
+            if (itemNameDisplayCoroutine != null)
+            {
+                StopCoroutine(itemNameDisplayCoroutine);
+                itemNameDisplayCoroutine = null;
+            }
+            if (itemNameText != null)
+            {
+                itemNameText.gameObject.SetActive(false);
+            }
+            
             DropItem(item);
             OnItemDropped?.Invoke(item);
         }
@@ -461,6 +510,9 @@ public class InventorySystem : MonoBehaviour
             }
         }
         
+        // Устанавливаем точное название предмета
+        droppedItem.name = item.itemName;
+        
         // Добавляем физику если её нет
         Rigidbody rb = droppedItem.GetComponent<Rigidbody>();
         if (rb == null)
@@ -486,47 +538,61 @@ public class InventorySystem : MonoBehaviour
         {
             pickupable = droppedItem.AddComponent<PickupableItem>();
         }
-        pickupable.SetInventoryItem(item);
         
+        // Создаем точную копию InventoryItem для сохранения всех свойств
+        InventoryItem droppedItemData = new InventoryItem();
+        droppedItemData.itemName = item.itemName;
+        droppedItemData.description = item.description;
+        droppedItemData.icon = item.icon;
+        droppedItemData.itemPrefab = item.itemPrefab;
+        droppedItemData.maxStackSize = item.maxStackSize;
+        droppedItemData.category = item.category;
+        droppedItemData.weight = item.weight;
+        droppedItemData.isBreakable = item.isBreakable;
+        droppedItemData.canBeUsed = item.canBeUsed;
+        droppedItemData.useCooldown = item.useCooldown;
+        droppedItemData.itemTag = item.itemTag;
+        droppedItemData.itemLayer = item.itemLayer;
+        
+        pickupable.SetInventoryItem(droppedItemData);
     }
     /// <summary>
     /// Обновляет отображение предмета в руке
     /// </summary>
     void UpdateHandDisplay()
     {
+        if (handTransform == null) return;
+        
         InventorySlot currentSlot = hotbarSlotsArray[currentSelectedSlot];
         
-        // Удаляем предыдущий предмет из руки
-        if (currentHandItem != null)
+        // Скрываем все дочерние объекты
+        for (int i = 0; i < handTransform.childCount; i++)
         {
-            Destroy(currentHandItem);
-            currentHandItem = null;
+            handTransform.GetChild(i).gameObject.SetActive(false);
         }
         
-        // Показываем новый предмет если слот не пустой
-        if (!currentSlot.IsEmpty && handTransform != null)
+        // Показываем предмет если слот не пустой
+        if (!currentSlot.IsEmpty)
         {
             InventoryItem item = currentSlot.Item;
-            if (item.itemPrefab != null)
+            string itemName = item.itemName;
+            
+            // Ищем дочерний объект с таким же названием
+            Transform foundItem = handTransform.Find(itemName);
+            if (foundItem != null)
             {
-                currentHandItem = Instantiate(item.itemPrefab, handTransform);
-                currentHandItem.transform.localPosition = handOffset;
-                currentHandItem.transform.localRotation = Quaternion.Euler(handRotation);
-                
-                // Отключаем физику для предмета в руке
-                Rigidbody rb = currentHandItem.GetComponent<Rigidbody>();
-                if (rb != null)
-                {
-                    rb.isKinematic = true;
-                }
-                
-                // Отключаем коллайдеры
-                Collider[] colliders = currentHandItem.GetComponents<Collider>();
-                foreach (Collider col in colliders)
-                {
-                    col.enabled = false;
-                }
+                foundItem.gameObject.SetActive(true);
+                currentHandItem = foundItem.gameObject;
             }
+            else
+            {
+                // Если не найден - скрываем все
+                currentHandItem = null;
+            }
+        }
+        else
+        {
+            currentHandItem = null;
         }
     }
     
@@ -564,6 +630,7 @@ public class InventorySystem : MonoBehaviour
         if (itemNameDisplayCoroutine != null)
         {
             StopCoroutine(itemNameDisplayCoroutine);
+            itemNameDisplayCoroutine = null;
         }
         
         InventorySlot currentSlot = hotbarSlotsArray[currentSelectedSlot];

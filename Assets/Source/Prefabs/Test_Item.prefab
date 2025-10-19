@@ -162,7 +162,7 @@ MonoBehaviour:
     canBeUsed: 0
     useCooldown: 1
     itemTag: Item
-    itemLayer: 0
+    itemLayer: 7
   canBePickedUp: 1
   showPickupPrompt: 1
   promptDistance: 3

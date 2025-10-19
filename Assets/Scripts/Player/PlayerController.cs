@@ -7,8 +7,6 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
     [Header("Movement Settings")]
     [SerializeField] private float walkSpeed = 3f;
     [SerializeField] private float runSpeed = 6f;
-    [SerializeField] private float crouchSpeed = 1.5f;
-    [SerializeField] private float proneSpeed = 0.8f;
     
     [Header("Jump Settings")]
     [SerializeField] private float jumpHeight = 2f;
@@ -16,29 +14,24 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
     
     [Header("Stance Settings")]
     [SerializeField] private float standingHeight = 2f;
-    [SerializeField] private float crouchHeight = 1.2f;
-    [SerializeField] private float proneHeight = 0.6f;
-    [SerializeField] private float stanceTransitionSpeed = 10f;
     
     [Header("Ground Check")]
     [SerializeField] private Transform groundCheck;
     [SerializeField] private float groundDistance = 0.4f;
     [SerializeField] private LayerMask groundMask;
     
+    [Header("Stamina Settings")]
+    [SerializeField] private float runStaminaCost = 5f;
+    [SerializeField] private PlayerHealthStamina playerHealthStamina;
+    
     private CharacterController controller;
     private Vector3 velocity;
     private bool isGrounded;
-    
-    private enum PlayerStance { Standing, Crouching, Prone }
-    private PlayerStance currentStance = PlayerStance.Standing;
-    private float targetHeight;
-    private Vector3 targetCenter;
     
     /*public override void OnNetworkSpawn()
     {
         controller = GetComponent<CharacterController>();
         controller.height = standingHeight;
-        targetHeight = standingHeight;
         
         if (groundCheck == null)
         {
@@ -57,7 +50,6 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
     {
         controller = GetComponent<CharacterController>();
         controller.height = standingHeight;
-        targetHeight = standingHeight;
         
         if (groundCheck == null)
         {
@@ -65,6 +57,11 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
             groundCheckObj.transform.parent = transform;
             groundCheckObj.transform.localPosition = new Vector3(0, -controller.height / 2, 0);
             groundCheck = groundCheckObj.transform;
+        }
+        
+        if (playerHealthStamina == null)
+        {
+            playerHealthStamina = GetComponent<PlayerHealthStamina>();
         }
     }
     
@@ -74,13 +71,11 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
         //if (!IsOwner) return;
         
         HandleGroundCheck();
-        HandleStance();
         HandleMovement();
         HandleJump();
         ApplyGravity();
         
         controller.Move(velocity * Time.deltaTime);
-        SmoothStanceTransition();
     }
     
     void HandleGroundCheck()
@@ -91,98 +86,22 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
         {
             velocity.y = -2f;
         }
-    }
-    
-    void HandleStance()
-    {
-        if (Input.GetKeyDown(KeyCode.C))
-        {
-            if (currentStance == PlayerStance.Crouching)
-            {
-                if (CanStandUp())
-                {
-                    SetStance(PlayerStance.Standing);
-                }
-            }
-            else if (currentStance == PlayerStance.Standing)
-            {
-                SetStance(PlayerStance.Crouching);
-            }
-            else if (currentStance == PlayerStance.Prone)
-            {
-                SetStance(PlayerStance.Crouching);
-            }
-        }
         
-        if (Input.GetKeyDown(KeyCode.Z))
+        // Дополнительная проверка: если игрок застрял под землей, поднимаем его
+        if (isGrounded && groundCheck.position.y < transform.position.y - controller.height / 2)
         {
-            if (currentStance == PlayerStance.Prone)
-            {
-                if (CanStandUp())
-                {
-                    SetStance(PlayerStance.Standing);
-                }
-            }
-            else
-            {
-                SetStance(PlayerStance.Prone);
-            }
-        }
-        
-        if (Input.GetKey(KeyCode.LeftControl) && currentStance == PlayerStance.Standing)
-        {
-            SetStance(PlayerStance.Crouching);
-        }
-        else if (Input.GetKeyUp(KeyCode.LeftControl) && currentStance == PlayerStance.Crouching)
-        {
-            if (CanStandUp())
-            {
-                SetStance(PlayerStance.Standing);
-            }
-        }
-    }
-    
-    void SetStance(PlayerStance newStance)
-    {
-        currentStance = newStance;
-        
-        switch (currentStance)
-        {
-            case PlayerStance.Standing:
-                targetHeight = standingHeight;
-                break;
-            case PlayerStance.Crouching:
-                targetHeight = crouchHeight;
-                break;
-            case PlayerStance.Prone:
-                targetHeight = proneHeight;
-                break;
-        }
-        
-        targetCenter = new Vector3(0, targetHeight / 2, 0);
-    }
-    
-    bool CanStandUp()
-    {
-        float checkDistance = standingHeight - controller.height;
-        Vector3 start = transform.position + Vector3.up * (controller.height / 2);
-        
-        return !Physics.SphereCast(start, controller.radius, Vector3.up, out RaycastHit hit, checkDistance);
-    }
-    
-    void SmoothStanceTransition()
-    {
-        if (Mathf.Abs(controller.height - targetHeight) > 0.01f)
-        {
-            controller.height = Mathf.Lerp(controller.height, targetHeight, Time.deltaTime * stanceTransitionSpeed);
-            controller.center = Vector3.Lerp(controller.center, targetCenter, Time.deltaTime * stanceTransitionSpeed);
+            // Поднимаем игрока так, чтобы его нижняя часть была на уровне земли
+            float groundLevel = groundCheck.position.y + groundDistance;
+            float playerBottom = transform.position.y - controller.height / 2;
+            float adjustment = groundLevel - playerBottom;
             
-            if (groundCheck != null)
+            if (adjustment > 0.01f)
             {
-                groundCheck.localPosition = new Vector3(0, -controller.height / 2, 0);
+                transform.position += Vector3.up * adjustment;
             }
         }
     }
+    
     
     void HandleMovement()
     {
@@ -193,28 +112,39 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
         float currentSpeed = GetCurrentSpeed();
         Vector3 moveVelocity = move * currentSpeed;
         controller.Move(moveVelocity * Time.deltaTime);
+        
+        HandleRunStamina();
     }
     
     float GetCurrentSpeed()
     {
         bool isRunning = Input.GetKey(KeyCode.LeftShift);
+        bool hasMovement = Input.GetAxis("Horizontal") != 0 || Input.GetAxis("Vertical") != 0;
         
-        switch (currentStance)
+        if (isRunning && hasMovement && playerHealthStamina != null && playerHealthStamina.HasEnoughStamina(runStaminaCost * Time.deltaTime))
         {
-            case PlayerStance.Standing:
-                return isRunning ? runSpeed : walkSpeed;
-            case PlayerStance.Crouching:
-                return crouchSpeed;
-            case PlayerStance.Prone:
-                return proneSpeed;
-            default:
-                return walkSpeed;
+            return runSpeed;
+        }
+        
+        return walkSpeed;
+    }
+    
+    void HandleRunStamina()
+    {
+        if (playerHealthStamina == null) return;
+        
+        bool isRunning = Input.GetKey(KeyCode.LeftShift);
+        bool hasMovement = Input.GetAxis("Horizontal") != 0 || Input.GetAxis("Vertical") != 0;
+        
+        if (isRunning && hasMovement)
+        {
+            playerHealthStamina.UseStamina(runStaminaCost * Time.deltaTime);
         }
     }
     
     void HandleJump()
     {
-        if (Input.GetButtonDown("Jump") && isGrounded && currentStance != PlayerStance.Prone)
+        if (Input.GetButtonDown("Jump") && isGrounded)
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
