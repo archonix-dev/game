@@ -252,7 +252,7 @@ GameObject:
   - component: {fileID: 142543424}
   - component: {fileID: 142543423}
   m_Layer: 5
-  m_Name: txt
+  m_Name: text_lobby
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -861,7 +861,7 @@ GameObject:
   - component: {fileID: 516019332}
   - component: {fileID: 516019331}
   m_Layer: 5
-  m_Name: txt
+  m_Name: text_password
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1098,7 +1098,7 @@ GameObject:
   - component: {fileID: 803659642}
   - component: {fileID: 803659641}
   m_Layer: 5
-  m_Name: Text (Legacy)
+  m_Name: text_lobby_create
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1145,18 +1145,18 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: 9937a126816c42948b09b60b19a4ac01, type: 3}
-    m_FontSize: 56
+    m_FontSize: 46
     m_FontStyle: 0
-    m_BestFit: 0
-    m_MinSize: 10
-    m_MaxSize: 56
+    m_BestFit: 1
+    m_MinSize: 4
+    m_MaxSize: 46
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: Create
+  m_Text: "\u0421\u043E\u0437\u0434\u0430\u0442\u044C"
 --- !u!222 &803659642
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -1256,7 +1256,7 @@ GameObject:
   - component: {fileID: 1254199911}
   - component: {fileID: 1254199910}
   m_Layer: 5
-  m_Name: Text (Legacy)
+  m_Name: text_lobby_join
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1303,18 +1303,18 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: 9937a126816c42948b09b60b19a4ac01, type: 3}
-    m_FontSize: 56
+    m_FontSize: 46
     m_FontStyle: 0
-    m_BestFit: 0
-    m_MinSize: 10
-    m_MaxSize: 56
+    m_BestFit: 1
+    m_MinSize: 4
+    m_MaxSize: 46
     m_Alignment: 4
     m_AlignByGeometry: 0
     m_RichText: 1
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: Join
+  m_Text: "\u0412\u043E\u0439\u0442\u0438"
 --- !u!222 &1254199911
 CanvasRenderer:
   m_ObjectHideFlags: 0
