@@ -405,7 +405,6 @@ public class InventorySystem : MonoBehaviour
             // Проверяем, что объект не уничтожен
             if (currentLookingAtPickupable.gameObject == null)
             {
-                Debug.Log("CheckForPickupableObjects: Объект уничтожен, сбрасываем ссылку");
                 currentLookingAtPickupable = null;
             }
             else
@@ -596,7 +595,6 @@ public class InventorySystem : MonoBehaviour
         if (tempItemData.IsConsumable())
         {
             slot.ClearSlot();
-            Debug.Log($"Использован предмет: {item.itemName}");
         }
         
         // Очищаем временные объекты
@@ -633,6 +631,15 @@ public class InventorySystem : MonoBehaviour
         {
             itemData.itemType = ItemType.MaxStamina;
             itemData.maxStaminaAmount = 10f; // Значение по умолчанию
+        }
+        // Проверяем на предметы увеличения силы хвата
+        else if (lowerName.Contains("strength") || lowerName.Contains("сила") ||
+                 lowerName.Contains("power") || lowerName.Contains("мощность") ||
+                 lowerName.Contains("grip") || lowerName.Contains("хват") ||
+                 lowerName.Contains("muscle") || lowerName.Contains("мышца"))
+        {
+            itemData.itemType = ItemType.Strength;
+            itemData.strengthAmount = 2f; // Значение по умолчанию (будет умножено на 0.25 в ObjectGrabSystem)
         }
         // По умолчанию обычный предмет
         else

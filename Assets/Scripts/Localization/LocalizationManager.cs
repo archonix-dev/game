@@ -170,7 +170,6 @@ namespace Game.Localization
 			var textAsset = Resources.Load<TextAsset>(resourcesCsvPath);
 			if (textAsset == null)
 			{
-				Debug.LogWarning($"Localization CSV not found at Resources/{resourcesCsvPath}.csv");
 				return;
 			}
 
@@ -181,7 +180,6 @@ namespace Game.Localization
 			var header = ParseCsvLine(lines[0], delimiter);
 			if (header.Count <= 1)
 			{
-				Debug.LogWarning("Localization CSV header must contain at least one language column.");
 				return;
 			}
 

@@ -40,7 +40,6 @@ public class AudioSettings
     {
         if (audioMixer == null) 
         {
-            Debug.LogWarning("AudioMixer is not assigned in AudioSettings!");
             return;
         }
 
@@ -53,19 +52,10 @@ public class AudioSettings
             success &= audioMixer.SetFloat("Players", LinearToDecibels(playersVolume));
             success &= audioMixer.SetFloat("UI", LinearToDecibels(uiVolume));
             success &= audioMixer.SetFloat("Steps", LinearToDecibels(stepsVolume));
-            
-            if (success)
-            {
-                Debug.Log($"Applied audio settings - Master: {masterVolume:F2}, Music: {musicVolume:F2}, Players: {playersVolume:F2}, UI: {uiVolume:F2}, Steps: {stepsVolume:F2}");
-            }
-            else
-            {
-                Debug.LogWarning("Some audio mixer parameters could not be set. Check if the parameter names match in the AudioMixer.");
-            }
+
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"Error applying audio settings: {e.Message}");
         }
     }
 
@@ -190,11 +180,6 @@ public class AudioSettingsUI : MonoBehaviour
         if (currentSettings != null && audioMixer != null)
         {
             currentSettings.ApplySettings(audioMixer);
-            Debug.Log("Audio settings applied successfully!");
-        }
-        else if (audioMixer == null)
-        {
-            Debug.LogWarning("AudioMixer is not assigned in AudioSettingsUI!");
         }
     }
 
@@ -294,7 +279,6 @@ public class AudioSettingsUI : MonoBehaviour
 
             ApplyAllSettings();
             UpdateUI();
-            Debug.Log("Audio settings reset to defaults!");
         }
     }
 
@@ -303,7 +287,6 @@ public class AudioSettingsUI : MonoBehaviour
         if (currentSettings != null)
         {
             currentSettings.SaveSettings();
-            Debug.Log("Audio settings saved successfully!");
         }
     }
     #endregion

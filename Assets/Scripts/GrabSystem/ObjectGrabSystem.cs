@@ -21,6 +21,11 @@ public class ObjectGrabSystem : MonoBehaviour
     [SerializeField] private float movementSlipMultiplier = 2f;
     [SerializeField] private float dropWeightThreshold = 50f;
     
+    [Header("Strength System")]
+    [SerializeField] private float baseStrength = 1f; // Базовая сила хвата
+    [SerializeField] private float currentStrength = 1f; // Текущая сила хвата (с бонусами)
+    [SerializeField] private float strengthMultiplier = 0.25f; // Множитель для уменьшения силы в 4 раза
+    
     [Header("Mouse Sensitivity Adjustment")]
     [SerializeField] private float weightSensitivityReduction = 0.5f;
     [SerializeField] private MouseLook mouseLook;
@@ -28,6 +33,12 @@ public class ObjectGrabSystem : MonoBehaviour
     [Header("Visual Feedback")]
     [SerializeField] private Color highlightColor = Color.yellow;
     [SerializeField] private float highlightIntensity = 1.5f;
+    
+    [Header("Grab Line Settings")]
+    [SerializeField] private Transform lineStartPoint; // Начальная точка линии (если не указана, используется holdPoint)
+    [SerializeField] private int lineSegments = 20; // Количество сегментов для волн
+    [SerializeField] private float waveAmplitude = 0.1f; // Амплитуда волн
+    [SerializeField] private float waveFrequency = 2f; // Частота волн
     
     [Header("Throw System")]
     [SerializeField] private float maxThrowForce = 40f;
@@ -57,6 +68,9 @@ public class ObjectGrabSystem : MonoBehaviour
     private Material highlightedMaterial;
     private Color originalEmissionColor;
     private bool wasEmissionEnabled;
+    
+    // Для визуализации удержания
+    private LineRenderer grabLineRenderer;
     
     // Для системы броска
     private float currentThrowForce = 0f;
@@ -98,6 +112,12 @@ public class ObjectGrabSystem : MonoBehaviour
         
         // Инициализируем UI для броска
         InitializeThrowUI();
+        
+        // Инициализируем силу хвата
+        currentStrength = baseStrength;
+        
+        // Создаем LineRenderer для визуализации удержания
+        CreateGrabLineRenderer();
     }
     
     void Update()
@@ -156,6 +176,7 @@ public class ObjectGrabSystem : MonoBehaviour
         if (currentGrabbedObject != null && grabbedRigidbody != null)
         {
             MoveGrabbedObject();
+            UpdateGrabLineRenderer();
         }
     }
     
@@ -188,8 +209,9 @@ public class ObjectGrabSystem : MonoBehaviour
     
     void TryGrabObject(DestructibleObject grabbable)
     {
-        // Проверяем, можно ли взять предмет
-        if (grabbable.objectWeight > dropWeightThreshold)
+        // Проверяем, можно ли взять предмет с учетом силы хвата
+        float effectiveWeightThreshold = dropWeightThreshold * currentStrength;
+        if (grabbable.objectWeight > effectiveWeightThreshold)
         {
             return;
         }
@@ -254,6 +276,9 @@ public class ObjectGrabSystem : MonoBehaviour
             // Скрываем UI броска
             HideThrowUI();
             
+            // Скрываем линию удержания
+            HideGrabLineRenderer();
+            
             // Сбрасываем все переменные броска
             currentGrabbedObject = null;
             grabbedRigidbody = null;
@@ -301,8 +326,9 @@ public class ObjectGrabSystem : MonoBehaviour
         Vector3 directionToTarget = targetPosition - grabPointWorld;
         float distanceToTarget = directionToTarget.magnitude;
         
-        // Адаптивная сила в зависимости от расстояния и веса
-        float adaptiveForce = grabForce / (1f + weightFactor);
+        // Адаптивная сила в зависимости от расстояния, веса и силы хвата
+        float strengthFactor = 1f / currentStrength; // Чем больше сила, тем меньше штраф
+        float adaptiveForce = grabForce * currentStrength / (1f + weightFactor * strengthFactor);
         Vector3 force = directionToTarget.normalized * adaptiveForce * distanceToTarget;
         
         // Добавляем компенсацию гравитации (чтобы рука "держала" объект)
@@ -349,15 +375,17 @@ public class ObjectGrabSystem : MonoBehaviour
         float playerMovementSpeed = (currentPlayerPosition - lastPlayerPosition).magnitude / Time.deltaTime;
         lastPlayerPosition = currentPlayerPosition;
         
-        // Вычисляем фактор скольжения
-        float weightFactor = Mathf.Clamp01(currentWeight / maxComfortableWeight);
+        // Вычисляем фактор скольжения с учетом силы хвата
+        float weightFactor = Mathf.Clamp01(currentWeight / (maxComfortableWeight * currentStrength));
         float movementFactor = playerMovementSpeed * movementSlipMultiplier;
         
-        // Накапливаем скольжение
-        slipAccumulation += (weightFactor * weightSlipFactor + movementFactor * weightSlipFactor) * Time.deltaTime;
+        // Накапливаем скольжение (уменьшаем скольжение при большей силе)
+        float strengthSlipReduction = 1f / currentStrength;
+        slipAccumulation += (weightFactor * weightSlipFactor * strengthSlipReduction + movementFactor * weightSlipFactor) * Time.deltaTime;
         
         // Если предмет слишком тяжелый или игрок двигается слишком быстро - роняем
-        if (slipAccumulation > 1f || currentWeight > dropWeightThreshold * 0.8f && playerMovementSpeed > 5f)
+        float effectiveDropThreshold = dropWeightThreshold * currentStrength * 0.8f;
+        if (slipAccumulation > 1f || currentWeight > effectiveDropThreshold && playerMovementSpeed > 5f)
         {
             ReleaseObject();
             return;
@@ -672,5 +700,122 @@ public class ObjectGrabSystem : MonoBehaviour
     public bool IsChargingThrow() => isChargingThrow;
     public float GetCurrentThrowForce() => currentThrowForce;
     public float GetThrowChargeProgress() => currentThrowForce / maxThrowForce;
+    
+    // Методы для системы силы
+    public void AddStrengthBonus(float bonus)
+    {
+        currentStrength += bonus * strengthMultiplier;
+    }
+    
+    public void RemoveStrengthBonus(float bonus)
+    {
+        currentStrength = Mathf.Max(baseStrength, currentStrength - bonus * strengthMultiplier);
+    }
+    
+    public void ResetStrength()
+    {
+        currentStrength = baseStrength;
+    }
+    
+    public float GetCurrentStrength() => currentStrength;
+    public float GetBaseStrength() => baseStrength;
+    
+    /// <summary>
+    /// Создает LineRenderer для визуализации удержания предмета
+    /// </summary>
+    void CreateGrabLineRenderer()
+    {
+        GameObject lineObj = new GameObject("GrabLineRenderer");
+        lineObj.transform.parent = transform;
+        
+        grabLineRenderer = lineObj.AddComponent<LineRenderer>();
+        grabLineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+        grabLineRenderer.startColor = Color.cyan;
+        grabLineRenderer.endColor = Color.cyan;
+        grabLineRenderer.startWidth = 0.1f;
+        grabLineRenderer.endWidth = 0.06f;
+        grabLineRenderer.positionCount = lineSegments + 1; // +1 для плавности
+        grabLineRenderer.useWorldSpace = true;
+        grabLineRenderer.enabled = false;
+    }
+    
+    /// <summary>
+    /// Обновляет позиции LineRenderer для визуализации удержания
+    /// </summary>
+    void UpdateGrabLineRenderer()
+    {
+        if (grabLineRenderer == null || currentGrabbedObject == null) return;
+        
+        // Показываем линию только когда держим предмет
+        grabLineRenderer.enabled = true;
+        
+        // Определяем начальную точку линии
+        Vector3 startPos = (lineStartPoint != null) ? lineStartPoint.position : holdPoint.position;
+        
+        // Позиция конца линии - точка захвата на объекте
+        Vector3 grabPointWorld = grabbedRigidbody.transform.TransformPoint(grabLocalOffset);
+        
+        // Создаем анимированную линию с волнами
+        CreateAnimatedLine(startPos, grabPointWorld);
+        
+        // Меняем цвет в зависимости от скольжения
+        Color lineColor = Color.Lerp(Color.cyan, Color.red, slipAccumulation);
+        grabLineRenderer.startColor = lineColor;
+        grabLineRenderer.endColor = lineColor;
+    }
+    
+    /// <summary>
+    /// Создает анимированную линию с волнами
+    /// </summary>
+    void CreateAnimatedLine(Vector3 startPos, Vector3 endPos)
+    {
+        Vector3[] linePoints = new Vector3[lineSegments + 1];
+        
+        // Вычисляем направление и расстояние
+        Vector3 direction = endPos - startPos;
+        float distance = direction.magnitude;
+        Vector3 normalizedDirection = direction.normalized;
+        
+        // Вычисляем перпендикуляр для волн
+        Vector3 perpendicular = Vector3.Cross(normalizedDirection, Vector3.up).normalized;
+        if (perpendicular.magnitude < 0.1f)
+        {
+            perpendicular = Vector3.Cross(normalizedDirection, Vector3.right).normalized;
+        }
+        
+        // Интенсивность волн зависит от скольжения
+        float waveIntensity = slipAccumulation;
+        float currentAmplitude = waveAmplitude * waveIntensity;
+        float currentFrequency = waveFrequency * (1f + waveIntensity);
+        
+        for (int i = 0; i <= lineSegments; i++)
+        {
+            float t = (float)i / lineSegments;
+            Vector3 basePosition = Vector3.Lerp(startPos, endPos, t);
+            
+            // Добавляем волны только если есть скольжение
+            if (waveIntensity > 0.01f)
+            {
+                float waveOffset = Mathf.Sin(t * currentFrequency * Mathf.PI + Time.time * 3f) * currentAmplitude;
+                basePosition += perpendicular * waveOffset;
+            }
+            
+            linePoints[i] = basePosition;
+        }
+        
+        // Устанавливаем все точки линии
+        grabLineRenderer.SetPositions(linePoints);
+    }
+    
+    /// <summary>
+    /// Скрывает LineRenderer когда предмет не захвачен
+    /// </summary>
+    void HideGrabLineRenderer()
+    {
+        if (grabLineRenderer != null)
+        {
+            grabLineRenderer.enabled = false;
+        }
+    }
 }
 

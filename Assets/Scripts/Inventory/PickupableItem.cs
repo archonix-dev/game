@@ -373,17 +373,23 @@ public class PickupableItem : MonoBehaviour, IPickupable
         {
             case ItemType.Health:
                 playerHealth.Heal(itemData.healthAmount);
-                Debug.Log($"Восстановлено {itemData.healthAmount} здоровья");
                 break;
                 
             case ItemType.MaxHealth:
                 playerHealth.IncreaseMaxHealth(itemData.maxHealthAmount);
-                Debug.Log($"Увеличено максимальное здоровье на {itemData.maxHealthAmount}");
                 break;
                 
             case ItemType.MaxStamina:
                 playerHealth.IncreaseMaxStamina(itemData.maxStaminaAmount);
-                Debug.Log($"Увеличена максимальная стамина на {itemData.maxStaminaAmount}");
+                break;
+                
+            case ItemType.Strength:
+                // Ищем систему захвата объектов
+                ObjectGrabSystem grabSystem = FindObjectOfType<ObjectGrabSystem>();
+                if (grabSystem != null)
+                {
+                    grabSystem.AddStrengthBonus(itemData.strengthAmount);
+                }
                 break;
                 
             case ItemType.Normal:

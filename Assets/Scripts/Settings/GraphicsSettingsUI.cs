@@ -85,10 +85,6 @@ public class GraphicsSettings
         }
         else
         {
-            if (mainLightShadowsSupported && !assetAllows)
-            {
-                Debug.LogWarning("URP asset does not support main light shadows; enable it in the asset to use shadows.");
-            }
             sun.shadows = LightShadows.None;
         }
     }
@@ -99,7 +95,6 @@ public class GraphicsSettings
         urpAsset = ResolveActiveUrpAsset();
         if (urpAsset == null) 
         {
-            Debug.LogWarning("URP Asset not found. Make sure URP is set in Project Settings → Graphics.");
             return;
         }
 
@@ -115,14 +110,12 @@ public class GraphicsSettings
 
             // На случай если quality уровни используют разные RP ассеты, переприсваиваем текущий, чтобы форсировать обновление
             QualitySettings.renderPipeline = urpAsset;
-            Debug.Log("URP settings applied via public API.");
 
             // Применяем тени на уровне источника света
             ApplyMainLightShadowToggle();
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"Error applying URP settings: {e.Message}");
         }
     }
 
@@ -397,7 +390,6 @@ public class GraphicsSettingsUI : MonoBehaviour
             currentSettings.ApplyQualitySettings();
 			currentSettings.ApplyPostProcessSettings();
 			currentSettings.ApplyDisplaySettings(filteredResolutions);
-            Debug.Log("Graphics settings applied successfully!");
         }
     }
 
@@ -687,7 +679,6 @@ public class GraphicsSettingsUI : MonoBehaviour
 
             ApplyAllSettings();
             UpdateUI();
-            Debug.Log("Graphics settings reset to defaults!");
         }
     }
 
@@ -696,7 +687,6 @@ public class GraphicsSettingsUI : MonoBehaviour
         if (currentSettings != null)
         {
             currentSettings.SaveSettings();
-            Debug.Log("Graphics settings saved successfully!");
         }
     }
     #endregion

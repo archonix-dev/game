@@ -28,6 +28,12 @@ public class PickupableGrabSystem : MonoBehaviour
     [SerializeField] private Color highlightColor = Color.yellow;
     [SerializeField] private float highlightIntensity = 1.5f;
     
+    [Header("Grab Line Settings")]
+    [SerializeField] private Transform lineStartPoint; // Начальная точка линии (если не указана, используется holdPoint)
+    [SerializeField] private int lineSegments = 20; // Количество сегментов для волн
+    [SerializeField] private float waveAmplitude = 0.1f; // Амплитуда волн
+    [SerializeField] private float waveFrequency = 2f; // Частота волн
+    
     private PickupableItem currentGrabbedObject;
     private PickupableItem currentLookingAt;
     private Camera playerCamera;
@@ -44,6 +50,9 @@ public class PickupableGrabSystem : MonoBehaviour
     private Material highlightedMaterial;
     private Color originalEmissionColor;
     private bool wasEmissionEnabled;
+    
+    // Для визуализации удержания
+    private LineRenderer grabLineRenderer;
     
     void Start()
     {
@@ -63,6 +72,9 @@ public class PickupableGrabSystem : MonoBehaviour
         }
         
         lastPlayerPosition = transform.root.position;
+        
+        // Создаем LineRenderer для визуализации удержания
+        CreateGrabLineRenderer();
     }
     
     void Update()
@@ -127,6 +139,7 @@ public class PickupableGrabSystem : MonoBehaviour
         if (currentGrabbedObject != null && grabbedRigidbody != null)
         {
             MoveGrabbedObject();
+            UpdateGrabLineRenderer();
         }
     }
     
@@ -203,6 +216,9 @@ public class PickupableGrabSystem : MonoBehaviour
             grabbedRigidbody = null;
             currentWeight = 0f;
             slipAccumulation = 0f;
+            
+            // Скрываем линию удержания
+            HideGrabLineRenderer();
             
             // Сбрасываем состояние наведения
             if (currentLookingAt != null)
@@ -345,11 +361,6 @@ public class PickupableGrabSystem : MonoBehaviour
     /// </summary>
     void UpdateGrabbedObjectPrompt()
     {
-        if (currentGrabbedObject != null && currentGrabbedObject.CanUseItem())
-        {
-            // Показываем подсказку о возможности использования
-            Debug.Log($"E - Использовать {currentGrabbedObject.GetItemData()?.itemName ?? "предмет"}");
-        }
     }
     
     void RemoveHighlight(PickupableItem grabbable)
@@ -381,19 +392,13 @@ public class PickupableGrabSystem : MonoBehaviour
         if (currentGrabbedObject.CanUseItem())
         {
             string itemName = currentGrabbedObject.GetItemData()?.itemName ?? "предмет";
-            Debug.Log($"Используется {itemName}...");
             
             // Применяем эффекты предмета
             currentGrabbedObject.ApplyItemEffects();
             
             // Сохраняем ссылку на объект перед сбросом состояния
             GameObject objectToDestroy = currentGrabbedObject.gameObject;
-            
-            // НЕ СБРАСЫВАЕМ СОСТОЯНИЕ СРАЗУ - даем время InventorySystem понять что предмет используется
-            // currentGrabbedObject остается не null до уничтожения объекта
-            // Это гарантирует что IsHoldingObject() вернет true
-            
-            // Сбрасываем состояние наведения
+
             currentLookingAt = null;
             
             // Уничтожаем предмет
@@ -405,11 +410,9 @@ public class PickupableGrabSystem : MonoBehaviour
             currentWeight = 0f;
             slipAccumulation = 0f;
             
-            Debug.Log($"{itemName} использован и удален!");
-        }
-        else
-        {
-            Debug.Log("Этот предмет нельзя использовать");
+            // Скрываем линию удержания
+            HideGrabLineRenderer();
+            
         }
     }
     
@@ -417,10 +420,107 @@ public class PickupableGrabSystem : MonoBehaviour
     public bool IsHoldingObject() 
     {
         bool isHolding = currentGrabbedObject != null;
-        Debug.Log($"IsHoldingObject: {isHolding}, currentGrabbedObject={currentGrabbedObject?.name ?? "null"}");
         return isHolding;
     }
     public float GetCurrentWeight() => currentWeight;
     public float GetSlipAmount() => slipAccumulation;
     public PickupableItem GetCurrentObject() => currentGrabbedObject;
+    
+    /// <summary>
+    /// Создает LineRenderer для визуализации удержания предмета
+    /// </summary>
+    void CreateGrabLineRenderer()
+    {
+        GameObject lineObj = new GameObject("GrabLineRenderer");
+        lineObj.transform.parent = transform;
+        
+        grabLineRenderer = lineObj.AddComponent<LineRenderer>();
+        grabLineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+        grabLineRenderer.startColor = Color.cyan;
+        grabLineRenderer.endColor = Color.cyan;
+        grabLineRenderer.startWidth = 0.1f;
+        grabLineRenderer.endWidth = 0.06f;
+        grabLineRenderer.positionCount = lineSegments + 1; // +1 для плавности
+        grabLineRenderer.useWorldSpace = true;
+        grabLineRenderer.enabled = false;
+    }
+    
+    /// <summary>
+    /// Обновляет позиции LineRenderer для визуализации удержания
+    /// </summary>
+    void UpdateGrabLineRenderer()
+    {
+        if (grabLineRenderer == null || currentGrabbedObject == null) return;
+        
+        // Показываем линию только когда держим предмет
+        grabLineRenderer.enabled = true;
+        
+        // Определяем начальную точку линии
+        Vector3 startPos = (lineStartPoint != null) ? lineStartPoint.position : holdPoint.position;
+        
+        // Позиция конца линии - точка захвата на объекте
+        Vector3 grabPointWorld = grabbedRigidbody.transform.TransformPoint(grabLocalOffset);
+        
+        // Создаем анимированную линию с волнами
+        CreateAnimatedLine(startPos, grabPointWorld);
+        
+        // Меняем цвет в зависимости от скольжения
+        Color lineColor = Color.Lerp(Color.cyan, Color.red, slipAccumulation);
+        grabLineRenderer.startColor = lineColor;
+        grabLineRenderer.endColor = lineColor;
+    }
+    
+    /// <summary>
+    /// Создает анимированную линию с волнами
+    /// </summary>
+    void CreateAnimatedLine(Vector3 startPos, Vector3 endPos)
+    {
+        Vector3[] linePoints = new Vector3[lineSegments + 1];
+        
+        // Вычисляем направление и расстояние
+        Vector3 direction = endPos - startPos;
+        float distance = direction.magnitude;
+        Vector3 normalizedDirection = direction.normalized;
+        
+        // Вычисляем перпендикуляр для волн
+        Vector3 perpendicular = Vector3.Cross(normalizedDirection, Vector3.up).normalized;
+        if (perpendicular.magnitude < 0.1f)
+        {
+            perpendicular = Vector3.Cross(normalizedDirection, Vector3.right).normalized;
+        }
+        
+        // Интенсивность волн зависит от скольжения
+        float waveIntensity = slipAccumulation;
+        float currentAmplitude = waveAmplitude * waveIntensity;
+        float currentFrequency = waveFrequency * (1f + waveIntensity);
+        
+        for (int i = 0; i <= lineSegments; i++)
+        {
+            float t = (float)i / lineSegments;
+            Vector3 basePosition = Vector3.Lerp(startPos, endPos, t);
+            
+            // Добавляем волны только если есть скольжение
+            if (waveIntensity > 0.01f)
+            {
+                float waveOffset = Mathf.Sin(t * currentFrequency * Mathf.PI + Time.time * 3f) * currentAmplitude;
+                basePosition += perpendicular * waveOffset;
+            }
+            
+            linePoints[i] = basePosition;
+        }
+        
+        // Устанавливаем все точки линии
+        grabLineRenderer.SetPositions(linePoints);
+    }
+    
+    /// <summary>
+    /// Скрывает LineRenderer когда предмет не захвачен
+    /// </summary>
+    void HideGrabLineRenderer()
+    {
+        if (grabLineRenderer != null)
+        {
+            grabLineRenderer.enabled = false;
+        }
+    }
 }

@@ -87,8 +87,6 @@ public class SettingsMenuController : MonoBehaviour
         {
             // AudioSettingsUI сохраняет настройки автоматически при нажатии Apply
         }
-        
-        Debug.Log("All settings saved!");
     }
     
     public void ResetAllSettings()
@@ -102,7 +100,5 @@ public class SettingsMenuController : MonoBehaviour
         {
             // Можно добавить метод ResetToDefaults в AudioSettingsUI
         }
-        
-        Debug.Log("All settings reset to defaults!");
     }
 }

@@ -35,6 +35,7 @@ public class InventoryItem
     public float healthAmount = 0f;
     public float maxHealthAmount = 0f;
     public float maxStaminaAmount = 0f;
+    public float strengthAmount = 0f;
     
     public InventoryItem(string name, string desc, Sprite itemIcon, GameObject prefab)
     {

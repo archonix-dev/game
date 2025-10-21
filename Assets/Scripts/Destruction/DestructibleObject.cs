@@ -131,6 +131,12 @@ public class DestructibleObject : MonoBehaviour
     
     void OnCollisionEnter(Collision collision)
     {
+        // Проверяем теги объектов - не получаем урон от объектов с тегами Item и Grabbable
+        if (collision.gameObject.CompareTag("Item") || collision.gameObject.CompareTag("Grabbable"))
+        {
+            return; // Выходим из метода, не обрабатывая урон
+        }
+        
         // Вычисляем силу удара с учетом относительной скорости
         Vector3 relativeVelocity = lastVelocity;
         
@@ -152,7 +158,7 @@ public class DestructibleObject : MonoBehaviour
         if (otherDestructible != null)
         {
             // Передаем информацию об ударе другому разрушаемому объекту
-            otherDestructible.TakeHit(impactForce, impactPoint, impactDirection);
+            otherDestructible.TakeHit(impactForce, impactPoint, impactDirection, gameObject);
         }
         
         // ВАЖНО: Этот объект тоже получает урон от столкновения с любыми объектами
@@ -165,7 +171,7 @@ public class DestructibleObject : MonoBehaviour
                 // Дополнительная проверка: не получаем урон если объект захвачен и удар очень слабый
                 if (!isGrabbed || impactForce >= objectData.MinimumImpactForce * 2f)
                 {
-                    TakeHit(impactForce, impactPoint, impactDirection);
+                    TakeHit(impactForce, impactPoint, impactDirection, collision.gameObject);
                 }
             }
         }
@@ -180,9 +186,15 @@ public class DestructibleObject : MonoBehaviour
     /// <summary>
     /// Вызывается когда объект получает удар
     /// </summary>
-    public void TakeHit(float impactForce, Vector3 impactPoint, Vector3 impactDirection)
+    public void TakeHit(float impactForce, Vector3 impactPoint, Vector3 impactDirection, GameObject sourceObject = null)
     {
         if (objectData == null) return;
+        
+        // Дополнительная проверка: не получаем урон от объектов с тегами Item и Grabbable
+        if (sourceObject != null && (sourceObject.CompareTag("Item") || sourceObject.CompareTag("Grabbable")))
+        {
+            return;
+        }
         
         // Проверка cooldown
         if (Time.time - lastHitTime < hitCooldown) return;

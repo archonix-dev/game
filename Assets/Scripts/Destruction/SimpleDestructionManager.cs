@@ -320,6 +320,9 @@ public class SimpleDestructionManager : MonoBehaviour
         SimpleFragment fragmentComponent = fragment.AddComponent<SimpleFragment>();
         fragmentComponent.Initialize(rb);
         
+        // Устанавливаем тег Grabbable для возможности захвата фрагментов
+        fragment.tag = "Grabbable";
+        
         return fragment;
     }
 
@@ -406,6 +409,9 @@ public class SimpleDestructionManager : MonoBehaviour
         SimpleFragment fragmentComponent = fragment.AddComponent<SimpleFragment>();
         fragmentComponent.Initialize(rb);
         
+        // Устанавливаем тег Grabbable для возможности захвата фрагментов
+        fragment.tag = "Grabbable";
+        
         return fragment;
     }
 
@@ -454,7 +460,6 @@ public class SimpleDestructionManager : MonoBehaviour
 
         if (renderer == null)
         {
-            Debug.LogWarning($"Объект {objectToDestroy.name} не имеет Renderer!");
             return;
         }
 
@@ -508,13 +513,14 @@ public class SimpleDestructionManager : MonoBehaviour
             // Компонент осколка
             SimpleFragment fragmentComponent = fragment.AddComponent<SimpleFragment>();
             fragmentComponent.Initialize(rb);
+            
+            // Устанавливаем тег Grabbable для возможности захвата фрагментов
+            fragment.tag = "Grabbable";
 
             // Удаление
             Destroy(fragment, destroyAfter);
         }
 
-        Debug.Log($"[SimpleDestruction] Создано {fragmentCount} {fragmentPrimitiveType} осколков для {objectToDestroy.name} с цветом {fragmentColor}");
-        
         OnObjectDestroyed?.Invoke(objectToDestroy, fragmentCount);
     }
 
@@ -531,7 +537,6 @@ public class SimpleDestructionManager : MonoBehaviour
 
         if (renderer == null)
         {
-            Debug.LogWarning($"Объект {objectToDestroy.name} не имеет Renderer!");
             return;
         }
 
@@ -584,6 +589,9 @@ public class SimpleDestructionManager : MonoBehaviour
             // Компонент осколка
             SimpleFragment fragmentComponent = fragment.AddComponent<SimpleFragment>();
             fragmentComponent.Initialize(rb);
+            
+            // Устанавливаем тег Grabbable для возможности захвата фрагментов
+            fragment.tag = "Grabbable";
 
             // Удаление
             Destroy(fragment, destroyAfter);

@@ -8,7 +8,8 @@ public enum ItemType
     Normal,         // Обычный предмет (не расходуется)
     Health,         // Предмет который лечит
     MaxHealth,      // Предмет который увеличивает максимальный запас здоровья
-    MaxStamina      // Предмет который увеличивает максимальный запас стамины
+    MaxStamina,     // Предмет который увеличивает максимальный запас стамины
+    Strength        // Предмет который увеличивает силу хвата
 }
 
 /// <summary>
@@ -39,6 +40,9 @@ public class ItemData : ScriptableObject
     [Tooltip("Количество максимальной стамины для увеличения (только для MaxStamina)")]
     public float maxStaminaAmount = 0f;
     
+    [Tooltip("Количество силы хвата для увеличения (только для Strength)")]
+    public float strengthAmount = 0f;
+    
     [Header("Визуальные настройки")]
     public GameObject itemPrefab;
     
@@ -63,6 +67,8 @@ public class ItemData : ScriptableObject
                 return $"Увеличивает максимальное здоровье на {maxHealthAmount}";
             case ItemType.MaxStamina:
                 return $"Увеличивает максимальную стамину на {maxStaminaAmount}";
+            case ItemType.Strength:
+                return $"Увеличивает силу хвата на {strengthAmount}";
             default:
                 return "Обычный предмет";
         }

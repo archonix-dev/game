@@ -18,11 +18,15 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
     [Header("Ground Check")]
     [SerializeField] private Transform groundCheck;
     [SerializeField] private float groundDistance = 0.4f;
-    [SerializeField] private LayerMask groundMask;
+    [SerializeField] private LayerMask groundMask = -1; // -1 означает все слои
     
     [Header("Stamina Settings")]
     [SerializeField] private float runStaminaCost = 5f;
     [SerializeField] private PlayerHealthStamina playerHealthStamina;
+    
+    [Header("Grab System References")]
+    [SerializeField] private ObjectGrabSystem objectGrabSystem;
+    [SerializeField] private PickupableGrabSystem pickupableGrabSystem;
     
     private CharacterController controller;
     private Vector3 velocity;
@@ -63,6 +67,17 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
         {
             playerHealthStamina = GetComponent<PlayerHealthStamina>();
         }
+        
+        // Находим системы захвата если не назначены
+        if (objectGrabSystem == null)
+        {
+            objectGrabSystem = GetComponent<ObjectGrabSystem>();
+        }
+        
+        if (pickupableGrabSystem == null)
+        {
+            pickupableGrabSystem = GetComponent<PickupableGrabSystem>();
+        }
     }
     
     void Update()
@@ -80,6 +95,7 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
     
     void HandleGroundCheck()
     {
+        // Проверяем землю с учетом слоев, но по умолчанию все слои включены
         isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask);
         
         if (isGrounded && velocity.y < 0)
@@ -120,6 +136,16 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
     {
         bool isRunning = Input.GetKey(KeyCode.LeftShift);
         bool hasMovement = Input.GetAxis("Horizontal") != 0 || Input.GetAxis("Vertical") != 0;
+        
+        // Проверяем, держит ли игрок предмет в любой из систем захвата
+        bool isHoldingObject = (objectGrabSystem != null && objectGrabSystem.IsHoldingObject()) ||
+                              (pickupableGrabSystem != null && pickupableGrabSystem.IsHoldingObject());
+        
+        // Если держит предмет - не может бегать
+        if (isHoldingObject)
+        {
+            return walkSpeed;
+        }
         
         if (isRunning && hasMovement && playerHealthStamina != null && playerHealthStamina.HasEnoughStamina(runStaminaCost * Time.deltaTime))
         {
