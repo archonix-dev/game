@@ -87,6 +87,15 @@ public class PickupableGrabSystem : MonoBehaviour
             }
         }
         
+        // Обработка использования захваченного предмета на E
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            if (currentGrabbedObject != null)
+            {
+                TryUseGrabbedObject();
+            }
+        }
+        
         // Вращение предмета колесиком мыши
         if (currentGrabbedObject != null && Input.GetAxis("Mouse ScrollWheel") != 0)
         {
@@ -109,6 +118,7 @@ public class PickupableGrabSystem : MonoBehaviour
         if (currentGrabbedObject != null)
         {
             HandleWeightAndSlipping();
+            UpdateGrabbedObjectPrompt();
         }
     }
     
@@ -330,6 +340,18 @@ public class PickupableGrabSystem : MonoBehaviour
         }
     }
     
+    /// <summary>
+    /// Обновляет подсказку для захваченного предмета
+    /// </summary>
+    void UpdateGrabbedObjectPrompt()
+    {
+        if (currentGrabbedObject != null && currentGrabbedObject.CanUseItem())
+        {
+            // Показываем подсказку о возможности использования
+            Debug.Log($"E - Использовать {currentGrabbedObject.GetItemData()?.itemName ?? "предмет"}");
+        }
+    }
+    
     void RemoveHighlight(PickupableItem grabbable)
     {
         if (highlightedMaterial != null)
@@ -348,8 +370,56 @@ public class PickupableGrabSystem : MonoBehaviour
         }
     }
     
+    /// <summary>
+    /// Пытается использовать захваченный предмет
+    /// </summary>
+    void TryUseGrabbedObject()
+    {
+        if (currentGrabbedObject == null) return;
+        
+        // Проверяем, можно ли использовать предмет
+        if (currentGrabbedObject.CanUseItem())
+        {
+            string itemName = currentGrabbedObject.GetItemData()?.itemName ?? "предмет";
+            Debug.Log($"Используется {itemName}...");
+            
+            // Применяем эффекты предмета
+            currentGrabbedObject.ApplyItemEffects();
+            
+            // Сохраняем ссылку на объект перед сбросом состояния
+            GameObject objectToDestroy = currentGrabbedObject.gameObject;
+            
+            // НЕ СБРАСЫВАЕМ СОСТОЯНИЕ СРАЗУ - даем время InventorySystem понять что предмет используется
+            // currentGrabbedObject остается не null до уничтожения объекта
+            // Это гарантирует что IsHoldingObject() вернет true
+            
+            // Сбрасываем состояние наведения
+            currentLookingAt = null;
+            
+            // Уничтожаем предмет
+            Destroy(objectToDestroy);
+            
+            // ТЕПЕРЬ сбрасываем состояние захвата
+            currentGrabbedObject = null;
+            grabbedRigidbody = null;
+            currentWeight = 0f;
+            slipAccumulation = 0f;
+            
+            Debug.Log($"{itemName} использован и удален!");
+        }
+        else
+        {
+            Debug.Log("Этот предмет нельзя использовать");
+        }
+    }
+    
     // Публичные методы для получения информации о состоянии
-    public bool IsHoldingObject() => currentGrabbedObject != null;
+    public bool IsHoldingObject() 
+    {
+        bool isHolding = currentGrabbedObject != null;
+        Debug.Log($"IsHoldingObject: {isHolding}, currentGrabbedObject={currentGrabbedObject?.name ?? "null"}");
+        return isHolding;
+    }
     public float GetCurrentWeight() => currentWeight;
     public float GetSlipAmount() => slipAccumulation;
     public PickupableItem GetCurrentObject() => currentGrabbedObject;

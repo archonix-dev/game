@@ -29,7 +29,9 @@ public class ObjectInteraction : MonoBehaviour
 
         if (Physics.Raycast(ray, out hit, interactionDistance))
         {
-            if (hit.collider.CompareTag("leftdoor") || hit.collider.CompareTag("rightdoor"))
+            // Проверяем, что взаимодействие происходит именно с этой дверью
+            if ((hit.collider.CompareTag("leftdoor") || hit.collider.CompareTag("rightdoor")) && 
+                (hit.collider.transform.IsChildOf(transform) || hit.collider.transform == transform))
             {
                 currentDoorSide = hit.collider.tag;
                 
@@ -43,16 +45,11 @@ public class ObjectInteraction : MonoBehaviour
                     StartInteraction();
                 }
             }
-            else
-            {
-                if (interactionUI != null)
-                {
-                    interactionUI.HideInteraction();
-                }
-            }
+            // Не скрываем UI если игрок смотрит на другую дверь - пусть другая дверь сама управляет своим UI
         }
         else
         {
+            // Скрываем UI только если игрок не смотрит ни на что
             if (interactionUI != null)
             {
                 interactionUI.HideInteraction();

@@ -7,7 +7,7 @@ using TMPro;
 public class PickupableItem : MonoBehaviour, IPickupable
 {
     [Header("Item Settings")]
-    [SerializeField] private InventoryItem inventoryItem;
+    [SerializeField] private ItemData itemData;
     [SerializeField] private bool canBePickedUp = true;
     
     [Header("Visual Feedback")]
@@ -29,10 +29,10 @@ public class PickupableItem : MonoBehaviour, IPickupable
     
     void Start()
     {
-        // Автоматически создаем InventoryItem если не назначен
-        if (inventoryItem == null)
+        // Автоматически создаем ItemData если не назначен
+        if (itemData == null)
         {
-            CreateDefaultInventoryItem();
+            CreateDefaultItemData();
         }
         
         // Ищем игрока
@@ -51,9 +51,9 @@ public class PickupableItem : MonoBehaviour, IPickupable
     }
     
     /// <summary>
-    /// Создает стандартный InventoryItem на основе компонентов объекта
+    /// Создает стандартный ItemData на основе компонентов объекта
     /// </summary>
-    void CreateDefaultInventoryItem()
+    void CreateDefaultItemData()
     {
         string itemName = gameObject.name.Replace("(Clone)", "");
         
@@ -65,36 +65,27 @@ public class PickupableItem : MonoBehaviour, IPickupable
             icon = CreateSimpleIcon();
         }
         
-        inventoryItem = new InventoryItem(
-            itemName,
-            $"Подобранный {itemName}",
-            icon,
-            gameObject
-        );
-        
-        // Настраиваем категорию на основе тега
-        if (gameObject.CompareTag("Tool"))
-            inventoryItem.category = ItemCategory.Tool;
-        else if (gameObject.CompareTag("Weapon"))
-            inventoryItem.category = ItemCategory.Weapon;
-        else if (gameObject.CompareTag("Material"))
-            inventoryItem.category = ItemCategory.Material;
-        else
-            inventoryItem.category = ItemCategory.Misc;
+        // Создаем ItemData в рантайме
+        itemData = ScriptableObject.CreateInstance<ItemData>();
+        itemData.itemName = itemName;
+        itemData.description = $"Подобранный {itemName}";
+        itemData.icon = icon;
+        itemData.itemType = ItemType.Normal;
         
         // Настраиваем вес на основе Rigidbody
         Rigidbody rb = GetComponent<Rigidbody>();
         if (rb != null)
         {
-            inventoryItem.weight = rb.mass;
+            itemData.weight = rb.mass;
         }
         
         // Сохраняем тег и слой
-        inventoryItem.itemTag = gameObject.tag;
-        inventoryItem.itemLayer = gameObject.layer;
+        itemData.itemTag = gameObject.tag;
+        itemData.itemLayer = gameObject.layer;
         
         // Предметы в инвентаре не разбиваются
-        inventoryItem.isBreakable = false;
+        itemData.isBreakable = false;
+        itemData.itemPrefab = gameObject;
     }
     
     /// <summary>
@@ -191,7 +182,7 @@ public class PickupableItem : MonoBehaviour, IPickupable
     /// </summary>
     void UpdatePickupPrompt()
     {
-        if (!showPickupPrompt || inventoryItem == null) return;
+        if (!showPickupPrompt || itemData == null) return;
         
         if (playerTransform == null)
         {
@@ -303,26 +294,54 @@ public class PickupableItem : MonoBehaviour, IPickupable
     /// </summary>
     string GetPickupPromptText()
     {
-        if (inventoryItem == null) 
+        if (itemData == null) 
         {
             return "E - Подобрать";
         }
         
-        string itemName = inventoryItem.itemName;
+        string itemName = itemData.itemName;
         return $"E - {itemName}";
     }
     
     /// <summary>
-    /// Устанавливает данные предмета для инвентаря
+    /// Устанавливает данные предмета
     /// </summary>
-    public void SetInventoryItem(InventoryItem item)
+    public void SetItemData(ItemData data)
     {
-        inventoryItem = item;
+        itemData = data;
+    }
+    
+    /// <summary>
+    /// Получает данные предмета
+    /// </summary>
+    public ItemData GetItemData()
+    {
+        return itemData;
     }
     
     // Реализация интерфейса IPickupable
     public InventoryItem GetInventoryItem()
     {
+        if (itemData == null) return null;
+        
+        // Создаем InventoryItem из ItemData
+        InventoryItem inventoryItem = new InventoryItem(
+            itemData.itemName,
+            itemData.description,
+            itemData.icon,
+            itemData.itemPrefab != null ? itemData.itemPrefab : gameObject
+        );
+        
+        // Копируем дополнительные свойства из ItemData
+        inventoryItem.weight = itemData.weight;
+        inventoryItem.isBreakable = itemData.isBreakable;
+        inventoryItem.itemTag = itemData.itemTag;
+        inventoryItem.itemLayer = itemData.itemLayer;
+        inventoryItem.itemType = itemData.itemType;
+        inventoryItem.healthAmount = itemData.healthAmount;
+        inventoryItem.maxHealthAmount = itemData.maxHealthAmount;
+        inventoryItem.maxStaminaAmount = itemData.maxStaminaAmount;
+        
         return inventoryItem;
     }
     
@@ -337,6 +356,55 @@ public class PickupableItem : MonoBehaviour, IPickupable
         
         // Уничтожаем объект
         Destroy(gameObject);
+    }
+    
+    /// <summary>
+    /// Применяет эффекты предмета к игроку
+    /// </summary>
+    public void ApplyItemEffects()
+    {
+        if (itemData == null) return;
+        
+        // Ищем компонент здоровья игрока
+        PlayerHealthStamina playerHealth = FindObjectOfType<PlayerHealthStamina>();
+        if (playerHealth == null) return;
+        
+        switch (itemData.itemType)
+        {
+            case ItemType.Health:
+                playerHealth.Heal(itemData.healthAmount);
+                Debug.Log($"Восстановлено {itemData.healthAmount} здоровья");
+                break;
+                
+            case ItemType.MaxHealth:
+                playerHealth.IncreaseMaxHealth(itemData.maxHealthAmount);
+                Debug.Log($"Увеличено максимальное здоровье на {itemData.maxHealthAmount}");
+                break;
+                
+            case ItemType.MaxStamina:
+                playerHealth.IncreaseMaxStamina(itemData.maxStaminaAmount);
+                Debug.Log($"Увеличена максимальная стамина на {itemData.maxStaminaAmount}");
+                break;
+                
+            case ItemType.Normal:
+                // Обычные предметы не расходуются
+                break;
+        }
+    }
+    
+    /// <summary>
+    /// Проверяет, можно ли использовать предмет
+    /// </summary>
+    public bool CanUseItem()
+    {
+        if (itemData == null) return false;
+        
+        // Обычные предметы не расходуются
+        if (itemData.itemType == ItemType.Normal) return false;
+        
+        // Проверяем, есть ли игрок
+        PlayerHealthStamina playerHealth = FindObjectOfType<PlayerHealthStamina>();
+        return playerHealth != null;
     }
     
     public bool CanBePickedUp()

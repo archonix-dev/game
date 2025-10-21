@@ -18,6 +18,7 @@ public class InventoryDragDrop : MonoBehaviour, IBeginDragHandler, IDragHandler,
     private Vector3 originalPosition;
     private Transform originalParent;
     private int originalSiblingIndex;
+    private InventorySystem inventorySystem;
     
     void Start()
     {
@@ -37,6 +38,9 @@ public class InventoryDragDrop : MonoBehaviour, IBeginDragHandler, IDragHandler,
         {
             graphicRaycaster = dragCanvas.GetComponent<GraphicRaycaster>();
         }
+        
+        // Находим InventorySystem
+        inventorySystem = FindObjectOfType<InventorySystem>();
     }
     
     public void OnBeginDrag(PointerEventData eventData)
@@ -82,6 +86,12 @@ public class InventoryDragDrop : MonoBehaviour, IBeginDragHandler, IDragHandler,
             slotCanvasGroup = sourceSlot.gameObject.AddComponent<CanvasGroup>();
         }
         slotCanvasGroup.alpha = 0.5f;
+        
+        // Уведомляем InventorySystem о начале перетаскивания
+        if (inventorySystem != null)
+        {
+            inventorySystem.SetDraggingState(true);
+        }
     }
     
     public void OnDrag(PointerEventData eventData)
@@ -106,6 +116,12 @@ public class InventoryDragDrop : MonoBehaviour, IBeginDragHandler, IDragHandler,
         // Уничтожаем объект перетаскивания
         Destroy(dragObject);
         dragObject = null;
+        
+        // Уведомляем InventorySystem о конце перетаскивания
+        if (inventorySystem != null)
+        {
+            inventorySystem.SetDraggingState(false);
+        }
     }
     
     public void OnDrop(PointerEventData eventData)

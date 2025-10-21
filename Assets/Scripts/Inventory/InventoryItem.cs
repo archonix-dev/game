@@ -28,6 +28,14 @@ public class InventoryItem
     public string itemTag = "Untagged";
     public int itemLayer = 0;
     
+    [Header("Тип предмета")]
+    public ItemType itemType = ItemType.Normal;
+    
+    [Header("Эффекты предмета")]
+    public float healthAmount = 0f;
+    public float maxHealthAmount = 0f;
+    public float maxStaminaAmount = 0f;
+    
     public InventoryItem(string name, string desc, Sprite itemIcon, GameObject prefab)
     {
         itemName = name;

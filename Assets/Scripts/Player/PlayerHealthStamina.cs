@@ -52,6 +52,12 @@ public class PlayerHealthStamina : MonoBehaviour
     
     void CreateUI()
     {
+        CreateHealthUI();
+        CreateStaminaUI();
+    }
+    
+    void CreateHealthUI()
+    {
         if (healthPrefabParent != null && healthPrefab != null)
         {
             int healthPrefabCount = Mathf.CeilToInt(maxHealth / 10f);
@@ -64,7 +70,10 @@ public class PlayerHealthStamina : MonoBehaviour
                 healthImages[i] = healthPrefabs[i].GetComponent<Image>();
             }
         }
-        
+    }
+    
+    void CreateStaminaUI()
+    {
         if (staminaPrefabParent != null && staminaPrefab != null)
         {
             int staminaPrefabCount = Mathf.CeilToInt(maxStamina / 10f);
@@ -209,6 +218,13 @@ public class PlayerHealthStamina : MonoBehaviour
         UpdateTextUI();
     }
     
+    public void Heal(float amount)
+    {
+        currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
+        UpdateHealthUI();
+        UpdateTextUI();
+    }
+    
     public bool HasEnoughStamina(float amount)
     {
         return currentStamina >= amount;
@@ -245,7 +261,7 @@ public class PlayerHealthStamina : MonoBehaviour
         
         healthPrefabs = null;
         healthImages = null;
-        CreateUI();
+        CreateHealthUI();
     }
     
     void RecreateStaminaUI()
@@ -263,7 +279,7 @@ public class PlayerHealthStamina : MonoBehaviour
         
         staminaPrefabs = null;
         staminaImages = null;
-        CreateUI();
+        CreateStaminaUI();
     }
     
     

@@ -36,22 +36,38 @@ public class InventorySystem : MonoBehaviour
     [SerializeField] private string defaultDropTag = "Untagged"; // Тег по умолчанию для выброшенных предметов
     [SerializeField] private int defaultDropLayer = 0; // Слой по умолчанию для выброшенных предметов
     
+    [Header("Grab System Reference")]
+    [SerializeField] private PickupableGrabSystem grabSystem; // Ссылка на систему захвата
+    
     private InventorySlot[] hotbarSlotsArray;
     private int currentSelectedSlot = 0;
     private GameObject currentHandItem;
     private Camera playerCamera;
     private PickupableItem currentLookingAtPickupable;
     private Coroutine itemNameDisplayCoroutine;
+    private bool isDraggingItem = false;
     
     // События для UI
     public System.Action<int> OnSlotChanged;
     public System.Action<InventoryItem> OnItemPickedUp;
     public System.Action<InventoryItem> OnItemDropped;
     
+    // События для перетаскивания
+    public System.Action OnDragStarted;
+    public System.Action OnDragEnded;
+
+    private bool isDraggingItemplus = false;
+    
     void Start()
     {
         InitializeInventory();
         playerCamera = Camera.main;
+        
+        // Автоматически находим систему захвата если не назначена
+        if (grabSystem == null)
+        {
+            grabSystem = FindObjectOfType<PickupableGrabSystem>();
+        }
         
         if (dropPoint == null)
         {
@@ -76,6 +92,15 @@ public class InventorySystem : MonoBehaviour
         HandleInput();
         UpdateHandDisplay();
         CheckForPickupableObjects();
+
+        if(Input.GetMouseButton(0))
+        {
+            isDraggingItemplus = true;
+        }
+        else
+        {
+            isDraggingItemplus = false;
+        }
     }
     
     /// <summary>
@@ -317,10 +342,17 @@ public class InventorySystem : MonoBehaviour
             SelectSlot((currentSelectedSlot - 1 + hotbarSlots) % hotbarSlots);
         }
         
-        // Подбор предметов на E
+        // Подбор предметов на E (только если не перетаскиваем)
         if (Input.GetKeyDown(KeyCode.E))
         {
-            TryPickupItem();
+            if (isDraggingItem)
+            {
+                TryUseDraggedItem();
+            }
+            else
+            {
+                TryPickupItem();
+            }
         }
         
         // Выбрасывание предметов на Q
@@ -370,8 +402,17 @@ public class InventorySystem : MonoBehaviour
         // Убираем подсказку с предыдущего объекта
         if (currentLookingAtPickupable != null)
         {
-            currentLookingAtPickupable.SetPlayerLookingAt(false);
-            currentLookingAtPickupable = null;
+            // Проверяем, что объект не уничтожен
+            if (currentLookingAtPickupable.gameObject == null)
+            {
+                Debug.Log("CheckForPickupableObjects: Объект уничтожен, сбрасываем ссылку");
+                currentLookingAtPickupable = null;
+            }
+            else
+            {
+                currentLookingAtPickupable.SetPlayerLookingAt(false);
+                currentLookingAtPickupable = null;
+            }
         }
         
         if (Physics.Raycast(ray, out RaycastHit hit, pickupDistance, pickupLayerMask))
@@ -385,22 +426,23 @@ public class InventorySystem : MonoBehaviour
             }
         }
     }
-    
-    /// <summary>
-    /// Пытается подобрать предмет
-    /// </summary>
+
     void TryPickupItem()
     {
         if (currentLookingAtPickupable != null)
         {
-            IPickupable pickupable = currentLookingAtPickupable.GetComponent<IPickupable>();
-            if (pickupable != null)
+
+            if (currentLookingAtPickupable.CompareTag("Item") && !isDraggingItemplus)
             {
-                InventoryItem item = pickupable.GetInventoryItem();
-                if (item != null && AddItemToInventory(item))
+                IPickupable pickupable = currentLookingAtPickupable.GetComponent<IPickupable>();
+                if (pickupable != null)
                 {
-                    pickupable.OnPickedUp();
-                    OnItemPickedUp?.Invoke(item);
+                    InventoryItem item = pickupable.GetInventoryItem();
+                    if (item != null && AddItemToInventory(item))
+                    {
+                        pickupable.OnPickedUp();
+                        OnItemPickedUp?.Invoke(item);
+                    }
                 }
             }
         }
@@ -449,6 +491,154 @@ public class InventorySystem : MonoBehaviour
     }
     void UseItem(InventoryItem item)
     {
+    }
+    
+    /// <summary>
+    /// Устанавливает состояние перетаскивания
+    /// </summary>
+    public void SetDraggingState(bool dragging)
+    {
+        isDraggingItem = dragging;
+        if (dragging)
+        {
+            OnDragStarted?.Invoke();
+        }
+        else
+        {
+            OnDragEnded?.Invoke();
+        }
+    }
+    
+    /// <summary>
+    /// Проверяет, идет ли перетаскивание
+    /// </summary>
+    public bool IsDragging()
+    {
+        return isDraggingItem;
+    }
+    
+    /// <summary>
+    /// Пытается использовать перетаскиваемый предмет
+    /// </summary>
+    void TryUseDraggedItem()
+    {
+        // Находим перетаскиваемый предмет
+        InventoryDragDrop dragDrop = FindObjectOfType<InventoryDragDrop>();
+        if (dragDrop == null) return;
+        
+        // Получаем слот с перетаскиваемым предметом
+        InventorySlot draggedSlot = dragDrop.GetComponent<InventorySlot>();
+        if (draggedSlot == null || draggedSlot.IsEmpty) return;
+        
+        InventoryItem item = draggedSlot.Item;
+        
+        // Проверяем, можно ли использовать предмет
+        if (item != null && CanUseDraggedItem(item))
+        {
+            UseDraggedItem(item, draggedSlot);
+        }
+    }
+    
+    /// <summary>
+    /// Проверяет, можно ли использовать перетаскиваемый предмет
+    /// </summary>
+    bool CanUseDraggedItem(InventoryItem item)
+    {
+        // Создаем временный PickupableItem для проверки
+        GameObject tempObject = new GameObject("TempPickupable");
+        PickupableItem tempPickupable = tempObject.AddComponent<PickupableItem>();
+        
+        // Создаем ItemData из InventoryItem
+        ItemData tempItemData = ScriptableObject.CreateInstance<ItemData>();
+        tempItemData.itemName = item.itemName;
+        tempItemData.description = item.description;
+        tempItemData.icon = item.icon;
+        tempItemData.itemType = ItemType.Normal; // По умолчанию
+        
+        // Определяем тип предмета по названию
+        DetermineItemTypeFromName(item.itemName, tempItemData);
+        
+        tempPickupable.SetItemData(tempItemData);
+        
+        bool canUse = tempPickupable.CanUseItem();
+        
+        // Очищаем временные объекты
+        DestroyImmediate(tempObject);
+        
+        return canUse;
+    }
+    
+    /// <summary>
+    /// Использует перетаскиваемый предмет
+    /// </summary>
+    void UseDraggedItem(InventoryItem item, InventorySlot slot)
+    {
+        // Создаем временный PickupableItem для применения эффектов
+        GameObject tempObject = new GameObject("TempPickupable");
+        PickupableItem tempPickupable = tempObject.AddComponent<PickupableItem>();
+        
+        // Создаем ItemData из InventoryItem
+        ItemData tempItemData = ScriptableObject.CreateInstance<ItemData>();
+        tempItemData.itemName = item.itemName;
+        tempItemData.description = item.description;
+        tempItemData.icon = item.icon;
+        tempItemData.itemType = ItemType.Normal; // По умолчанию
+        
+        // Определяем тип предмета и эффекты
+        DetermineItemTypeFromName(item.itemName, tempItemData);
+        
+        tempPickupable.SetItemData(tempItemData);
+        
+        // Применяем эффекты
+        tempPickupable.ApplyItemEffects();
+        
+        // Если предмет расходуемый, удаляем его из инвентаря
+        if (tempItemData.IsConsumable())
+        {
+            slot.ClearSlot();
+            Debug.Log($"Использован предмет: {item.itemName}");
+        }
+        
+        // Очищаем временные объекты
+        DestroyImmediate(tempObject);
+    }
+    
+    /// <summary>
+    /// Определяет тип предмета по его названию
+    /// </summary>
+    void DetermineItemTypeFromName(string itemName, ItemData itemData)
+    {
+        string lowerName = itemName.ToLower();
+        
+        // Проверяем на предметы лечения
+        if (lowerName.Contains("health") || lowerName.Contains("лечение") || 
+            lowerName.Contains("heal") || lowerName.Contains("аптечка") ||
+            lowerName.Contains("зелье") || lowerName.Contains("potion"))
+        {
+            itemData.itemType = ItemType.Health;
+            itemData.healthAmount = 25f; // Значение по умолчанию
+        }
+        // Проверяем на предметы увеличения максимального здоровья
+        else if (lowerName.Contains("maxhealth") || lowerName.Contains("здоровье") ||
+                 lowerName.Contains("max_health") || lowerName.Contains("сердце") ||
+                 lowerName.Contains("heart") || lowerName.Contains("vitality"))
+        {
+            itemData.itemType = ItemType.MaxHealth;
+            itemData.maxHealthAmount = 10f; // Значение по умолчанию
+        }
+        // Проверяем на предметы увеличения максимальной стамины
+        else if (lowerName.Contains("stamina") || lowerName.Contains("стамина") ||
+                 lowerName.Contains("max_stamina") || lowerName.Contains("энергия") ||
+                 lowerName.Contains("energy") || lowerName.Contains("endurance"))
+        {
+            itemData.itemType = ItemType.MaxStamina;
+            itemData.maxStaminaAmount = 10f; // Значение по умолчанию
+        }
+        // По умолчанию обычный предмет
+        else
+        {
+            itemData.itemType = ItemType.Normal;
+        }
     }
     /// <summary>
     /// Добавляет предмет в инвентарь
@@ -525,12 +715,10 @@ public class InventorySystem : MonoBehaviour
         Vector3 dropDirection = dropPoint.forward;
         rb.AddForce(dropDirection * dropForce, ForceMode.Impulse);
         
-        // Применяем тег и слой
-        string tagToApply = !string.IsNullOrEmpty(item.itemTag) ? item.itemTag : defaultDropTag;
-        int layerToApply = item.itemLayer != 0 ? item.itemLayer : defaultDropLayer;
-        
-        droppedItem.tag = tagToApply;
-        droppedItem.layer = layerToApply;
+        // Применяем тег и слой - принудительно устанавливаем тег "Item" для предметов инвентаря
+        droppedItem.tag = "Item";
+        // Устанавливаем слой "Item" (обычно это слой 6, но можно настроить)
+        droppedItem.layer = LayerMask.NameToLayer("Item");
         
         // Добавляем компонент для повторного подбора
         PickupableItem pickupable = droppedItem.GetComponent<PickupableItem>();
@@ -539,22 +727,24 @@ public class InventorySystem : MonoBehaviour
             pickupable = droppedItem.AddComponent<PickupableItem>();
         }
         
-        // Создаем точную копию InventoryItem для сохранения всех свойств
-        InventoryItem droppedItemData = new InventoryItem();
+        // Создаем ItemData для сохранения всех свойств
+        ItemData droppedItemData = ScriptableObject.CreateInstance<ItemData>();
         droppedItemData.itemName = item.itemName;
         droppedItemData.description = item.description;
         droppedItemData.icon = item.icon;
         droppedItemData.itemPrefab = item.itemPrefab;
-        droppedItemData.maxStackSize = item.maxStackSize;
-        droppedItemData.category = item.category;
         droppedItemData.weight = item.weight;
         droppedItemData.isBreakable = item.isBreakable;
-        droppedItemData.canBeUsed = item.canBeUsed;
-        droppedItemData.useCooldown = item.useCooldown;
         droppedItemData.itemTag = item.itemTag;
         droppedItemData.itemLayer = item.itemLayer;
+        droppedItemData.itemType = item.itemType; // Сохраняем оригинальный тип предмета
         
-        pickupable.SetInventoryItem(droppedItemData);
+        // Копируем эффекты предмета из InventoryItem
+        droppedItemData.healthAmount = item.healthAmount;
+        droppedItemData.maxHealthAmount = item.maxHealthAmount;
+        droppedItemData.maxStaminaAmount = item.maxStaminaAmount;
+        
+        pickupable.SetItemData(droppedItemData);
     }
     /// <summary>
     /// Обновляет отображение предмета в руке
