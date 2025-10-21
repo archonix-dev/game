@@ -7,6 +7,10 @@ TagManager:
   - Grabbable
   - Other
   - Item
+  - interaction
+  - 'Door '
+  - leftdoor
+  - rightdoor
   layers:
   - Default
   - TransparentFX
