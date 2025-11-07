@@ -1,30 +1,59 @@
-﻿Локализация;Русский;English;Deutsch;Français;Español;Italiano;中文
-text_volume;Настройки громкости;Volume Settings;Lautstärkeeinstellungen;Paramètres de volume;Ajustes de volumen;Impostazioni volume;音量设置
-text_volume_global;Общая громкость;Master Volume;Hauptlautstärke;Volume principal;Volumen principal;Volume principale;主音量
-text_volume_music;Громкость музыки;Music Volume;Musiklautstärke;Volume de la musique;Volumen de la música;Volume musica;音乐音量
-text_volume_players;Громкость игроков;Player Volume;Playerlautstärke;Volume du lecteur;Volumen del reproductor;Volume lettore;玩家音量
-text_volume_ui;Громкость SFX;SFX Volume;SFX-Lautstärke;Volume des effets sonores;Volumen de efectos de sonido;Volume effetti sonori;音效音量
-text_volume_steps;Громкость шагов;Footstep Volume;Schrittlautstärke;Volume des bruits de pas;Volumen de los pasos;Volume passi;脚步声音量
-text_volume_reset;Сбросить;Reset;Zurücksetzen;Réinitialiser;Restablecer;Reimposta;重置
-text_volume_apply;Применить;Apply;Anwenden;Appliquer;Aplicar;Applica;应用
-text_language;Язык;Language;Sprache;Langue;Idioma;Lingua;语言
-text_graphic;Настройки графики;Graphics Settings;Grafikeinstellungen;Paramètres graphiques;Ajustes de gráficos;Impostazioni grafiche;图形设置
-text_graphic_screenresolution;Разрешение экрана;Screen Resolution;Bildschirmauflösung;Résolution d'écran;Resolución de pantalla;Risoluzione schermo;屏幕分辨率
-text_graphic_msaa;Сглаживание;Anti-Aliasing;Anti-Aliasing;Anticrénelage;Suavizado;Anti-aliasing;抗锯齿
-text_graphic_scalingfilter;Масштабирующий фильтр;Scaling Filter;Skalierungsfilter;Filtre de mise à l'échelle;Filtro de escala;Filtro ridimensionamento;缩放滤镜
-text_graphic_shadowresolution;Разрешение теней;Shadow Resolution;Schattenauflösung;Résolution des ombres;Resolución de sombras;Risoluzione ombre;阴影分辨率
-text_graphic_textureresolution;Разрешение текстур;Texture Resolution;Texturauflösung;Résolution des textures;Resolución de texturas;Risoluzione texture;纹理分辨率
-text_graphic_fps;FPS;FPS;FPS;IPS;FPS;FPS;FPS
-text_graphic_fpsmonitor;Использовать частоту монитора?;Use Monitor Frame Rate?;Monitor-Bildrate verwenden?;Utiliser la fréquence d'images du moniteur ?;¿Usar frecuencia de imagen del monitor?;Usa frame rate monitor?;使用显示器帧率？
-text_graphic_costshadow;Включить тени?;Enable Shadows?;Schatten aktivieren?;Activer les ombres ?;¿Activar sombras?;Abilita ombre?;启用阴影？
-text_graphic_hdr;Использовать HDR?;Use HDR?;HDR verwenden?;Utiliser le HDR ?;¿Usar HDR?;Usa HDR?;使用 HDR？
-text_graphic_vsync;Включить Vsync?;Enable Vsync?;V-Sync aktivieren?;Activer la synchronisation verticale ?;¿Activar sincronización vertical?;Abilita Vsync?;启用垂直同步？
-text_graphic_postprocessing;Включить пост-обработку?;Enable Post-Processing?;Nachbearbeitung aktivieren?;Activer le post-traitement ?;¿Activar posprocesamiento?;Abilita post-elaborazione?;启用后处理？
-text_graphic_renderscale;Разрешение рендера;Render Resolution;Renderauflösung;Résolution de rendu;Resolución de renderizado;Risoluzione rendering;渲染分辨率
-text_graphic_reset;Сбросить;Reset;Zurücksetzen;Réinitialiser;Restablecer;Reimposta;重置
-text_graphic_apply;Применить;Apply;Anwenden;Appliquer;Aplicar;Applica;应用
-text_global_money;Монеты;Coins;Münzen;Pièces;Monedas;Monete;金币
-text_lobby;Лобби;Lobby;Lobby;Panneau d'accueil;Lobby;Lobby;大厅
-text_password;Пароль;Password;Passwort;Mot de passe;Contraseña;Password;密码
-text_lobby_join;Войти;Login;Anmelden;Connexion;Iniciar sesión;Accedi;登录
-text_lobby_create;Создать;Create;Erstellen;Créer;Crear;Crea;创建
+"Локализация","Русский","English","Deutsch","Français","Español","Italiano","中文"
+"text_volume","Настройки громкости","Volume Settings","Lautstärkeeinstellungen","Paramètres de volume","Ajustes de volumen","Impostazioni volume","音量设置"
+"text_volume_global","Общая громкость","Master Volume","Hauptlautstärke","Volume principal","Volumen principal","Volume principale","主音量"
+"text_volume_music","Громкость музыки","Music Volume","Musiklautstärke","Volume de la musique","Volumen de la música","Volume musica","音乐音量"
+"text_volume_players","Громкость игроков","Player Volume","Playerlautstärke","Volume du lecteur","Volumen del reproductor","Volume lettore","玩家音量"
+"text_volume_ui","Громкость SFX","SFX Volume","SFX-Lautstärke","Volume des effets sonores","Volumen de efectos de sonido","Volume effetti sonori","音效音量"
+"text_volume_steps","Громкость шагов","Footstep Volume","Schrittlautstärke","Volume des bruits de pas","Volumen de los pasos","Volume passi","脚步声音量"
+"text_volume_reset","Сбросить","Reset","Zurücksetzen","Réinitialiser","Restablecer","Reimposta","重置"
+"text_volume_apply","Применить","Apply","Anwenden","Appliquer","Aplicar","Applica","应用"
+"text_language","Язык","Language","Sprache","Langue","Idioma","Lingua","语言"
+"text_graphic","Настройки графики","Graphics Settings","Grafikeinstellungen","Paramètres graphiques","Ajustes de gráficos","Impostazioni grafiche","图形设置"
+"text_graphic_screenresolution","Разрешение экрана","Screen Resolution","Bildschirmauflösung","Résolution d'écran","Resolución de pantalla","Risoluzione schermo","屏幕分辨率"
+"text_graphic_msaa","Сглаживание","Anti-Aliasing","Anti-Aliasing","Anticrénelage","Suavizado","Anti-aliasing","抗锯齿"
+"text_graphic_scalingfilter","Масштабирующий фильтр","Scaling Filter","Skalierungsfilter","Filtre de mise à l'échelle","Filtro de escala","Filtro ridimensionamento","缩放滤镜"
+"text_graphic_shadowresolution","Разрешение теней","Shadow Resolution","Schattenauflösung","Résolution des ombres","Resolución de sombras","Risoluzione ombre","阴影分辨率"
+"text_graphic_textureresolution","Разрешение текстур","Texture Resolution","Texturauflösung","Résolution des textures","Resolución de texturas","Risoluzione texture","纹理分辨率"
+"text_graphic_fps","Ограничение кадров в секунду","Flames per second limit","Begrenzung der Bilder pro Sekunde","Limite d'images par seconde","Límite de fotogramas por segundo","Limite di fotogrammi al secondo","每秒帧数限制"
+"text_graphic_fpsmonitor","Использовать частоту монитора?","Use Monitor Frame Rate?","Monitor-Bildrate verwenden?","Utiliser la fréquence d'images du moniteur ?","¿Usar frecuencia de imagen del monitor?","Usa frame rate monitor?","使用显示器帧率？"
+"text_graphic_costshadow","Включить тени?","Enable Shadows?","Schatten aktivieren?","Activer les ombres ?","¿Activar sombras?","Abilita ombre?","启用阴影？"
+"text_graphic_hdr","Использовать HDR?","Use HDR?","HDR verwenden?","Utiliser le HDR ?","¿Usar HDR?","Usa HDR?","使用 HDR？"
+"text_graphic_vsync","Включить вертикальную синхронизацию?","Enable Vsync?","V-Sync aktivieren?","Activer la synchronisation verticale ?","¿Activar sincronización vertical?","Abilita Vsync?","启用垂直同步？"
+"text_graphic_postprocessing","Включить пост-обработку?","Enable Post-Processing?","Nachbearbeitung aktivieren?","Activer le post-traitement ?","¿Activar posprocesamiento?","Abilita post-elaborazione?","启用后处理？"
+"text_graphic_renderscale","Разрешение рендера","Render Resolution","Renderauflösung","Résolution de rendu","Resolución de renderizado","Risoluzione rendering","渲染分辨率"
+"text_graphic_reset","Сбросить","Reset","Zurücksetzen","Réinitialiser","Restablecer","Reimposta","重置"
+"text_graphic_apply","Применить","Apply","Anwenden","Appliquer","Aplicar","Applica","应用"
+"text_global_money","Монеты","Coins","Münzen","Pièces","Monedas","Monete","金币"
+"text_lobby","Лобби","Lobby","Lobby","Panneau d'accueil","Lobby","Lobby","大厅"
+"text_password","Пароль","Password","Passwort","Mot de passe","Contraseña","Password","密码"
+"text_lobby_join","Войти","Login","Anmelden","Connexion","Iniciar sesión","Accedi","登录"
+"text_lobby_create","Создать","Create","Erstellen","Créer","Crear","Crea","创建"
+"text_menu_play","Играть","Play","Spielen","Jouer","Jugar","Gioca","开始游戏"
+"text_menu_settings","Настройки","Settings","Einstellungen","Paramètres","Ajustes","Impostazioni","设置"
+"text_menu_editor","Редактор карт","Map Editor","Karteneditor","Éditeur de carte","Editor de mapas","Editor di mappe","地图编辑器"
+"text_menu_mods","Модификации","Modifications","Modifikationen","Modifications","Modificaciones","Modifiche","修改"
+"text_menu_exit","Выход","Exit","Beenden","Quitter","Salir","Esci","退出"
+"text_about_game","Lastrite inc. bulid 0.12a","Lastrite inc. bulid 0.12a","Lastrite Inc. Build 0.12a","Lastrite inc. version 0.12a","Lastrite Inc. versión 0.12a","Lastrite inc. versione 0.12a","Lastrite 公司出品 0.12a 版本"
+"text_about_users","Все права защищены Archonix. Копирование запрещено.","All rights reserved Archonix. Copying prohibited.","Alle Rechte vorbehalten. Archonix. Kopieren verboten.","Tous droits réservés Archonix. Reproduction interdite.","Todos los derechos reservados Archonix. Prohibida su reproducción.","Tutti i diritti riservati Archonix. Vietata la copia.","Archonix 版权所有。禁止复制。"
+"text_menu_graphic","Графика","Graphics","Grafik","Graphismes","Gráficos","Grafica","画面"
+"text_menu_volume","Аудио","Audio","Audio","Audio","Audio","Audio","音频"
+"text_menu_gameplay","Геймплей","Gameplay","Gameplay","Gameplay","Jugabilidad","Gioco","游戏玩法"
+"text_menu_online","Онлайн","Online","Online","En ligne","En línea","Online","在线"
+"text_online","Настройки игрового процесса","Gameplay Settings","Spieleinstellungen","Paramètres de jeu","Ajustes de juego","Impostazioni di gioco","游戏设置"
+"text_gameplay","Настройки кооператива и другие настройки","Co-op and Other Settings","Koop- und sonstige Einstellungen","Paramètres coopératifs et autres","Modo cooperativo y otros ajustes","Co-op e altre impostazioni","合作模式及其他设置"
+"text_multiplayer_IP","IP адрес лобби","Lobby IP address","Lobby-IP-Adresse","Adresse IP du lobby","Dirección IP del lobby","Indirizzo IP della lobby","大厅 IP 地址"
+"text_multiplayer_IP_IP","Введите IP адрес","Enter IP address","IP-Adresse eingeben","Saisir l'adresse IP","Introducir dirección IP","Inserisci l'indirizzo IP","输入 IP 地址"
+"text_multiplayer_password","Пароль лобби","Lobby password","Lobby-Passwort eingeben","Mot de passe du lobby","Contraseña del lobby","Password della lobby","大厅密码"
+"text_multiplayer_password_pass","Введите пароль лобби","Enter lobby password","Lobby-Passwort eingeben","Saisir le mot de passe du lobby","Introducir contraseña del lobby","Inserisci la password della lobby","输入大厅密码"
+"text_graphic_fps_fps","Введите FPS...","Enter FPS...","FPS eingeben...","Saisir les FPS...","Introducir FPS...","Inserisci FPS...","输入 FPS..."
+"text_menu_continue","Продолжить","Continue","Weiter","Continuer","Continuar","Continua","继续"
+"text_menu_exit_main_menu","Выйти в меню","Exit to menu","Zum Menü zurückkehren","Retour au menu","Salir al menú","Esci al menu","返回菜单"
+"text_load_launching","Запуск...","Starting...","Startet...","Démarrage…","Iniciando… ","Avvio in corso...","开始……"
+"text_load_1phase","Загрузка игры...","Loading game...","Spiel wird geladen...","Chargement du jeu…","Cargando juego…","Caricamento gioco in corso...","正在加载游戏……"
+"text_load_2phase","Загрузка текстур...","Loading textures...","Texturen werden geladen...","Chargement des textures…","Cargando texturas…","Caricamento texture in corso...","正在加载纹理……"
+"text_load_3phase","Финализация...","Finalizing...","Abschließend","Finalisation","Finalizando","Finalizzazione in corso...","正在完成……"
+"text_menu_unactive","Неактивные","Inactive","Inaktiv","Inactif","Inactivo","Inattivo","不活跃"
+"text_menu_active","Активные","Active","Aktiv","Actif","Activo","Attivo","活跃"
+"text_menu_back","Назад","Back","Zurück","Retour","Atrás","Indietro","返回"
+"text_menu_confirm_comfirm","Действительно ли вы хотите выйти из игры?","Are you sure you want to exit the game?","Möchten Sie das Spiel wirklich beenden?","Êtes-vous sûr de vouloir quitter le jeu ?","¿Seguro que quieres salir del juego?","Sei sicuro di voler uscire dal gioco?","您确定要退出游戏吗？"
+"text_menu_confirm","Выход из игры","Exit the game","Spiel beenden","Quitter le jeu","Salir del juego","Esci dal gioco","退出游戏"

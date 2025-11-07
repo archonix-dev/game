@@ -9,15 +9,21 @@ public class SettingsMenuController : MonoBehaviour
     public PlayerController playerController;
     public MouseLook mouseLook;
     
-    [Header("Settings UI References")]
-    public GraphicsSettingsUI graphicsSettingsUI;
-    public AudioSettingsUI audioSettingsUI;
+    [Header("Buttons")]
+    [Tooltip("Кнопка для закрытия меню (продолжить)")]
+    public Button continueButton;
     
     private bool isMenuOpen = false;
     
     void Start()
     {
         SetMenuState(false);
+        
+        // Подписываемся на событие нажатия кнопки "Продолжить"
+        if (continueButton != null)
+        {
+            continueButton.onClick.AddListener(OnContinueButtonClicked);
+        }
     }
     
     void Update()
@@ -50,9 +56,6 @@ public class SettingsMenuController : MonoBehaviour
         {
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
-            
-            // Обновляем настройки при открытии меню
-            RefreshSettingsUI();
         }
         else
         {
@@ -61,44 +64,20 @@ public class SettingsMenuController : MonoBehaviour
         }
     }
     
-    private void RefreshSettingsUI()
+    /// <summary>
+    /// Вызывается при нажатии на кнопку "Продолжить"
+    /// </summary>
+    private void OnContinueButtonClicked()
     {
-        // Обновляем UI настроек при открытии меню
-        if (graphicsSettingsUI != null)
-        {
-            graphicsSettingsUI.LoadCurrentSettings();
-        }
-        
-        if (audioSettingsUI != null)
-        {
-            audioSettingsUI.LoadCurrentSettings();
-        }
+        SetMenuState(false);
     }
     
-    // Методы для кнопок меню (если нужны)
-    public void SaveAllSettings()
+    void OnDestroy()
     {
-        if (graphicsSettingsUI != null)
+        // Отписываемся от события при уничтожении объекта
+        if (continueButton != null)
         {
-            // GraphicsSettingsUI сохраняет настройки автоматически при нажатии Apply
-        }
-        
-        if (audioSettingsUI != null)
-        {
-            // AudioSettingsUI сохраняет настройки автоматически при нажатии Apply
-        }
-    }
-    
-    public void ResetAllSettings()
-    {
-        if (graphicsSettingsUI != null)
-        {
-            // Можно добавить метод ResetToDefaults в GraphicsSettingsUI
-        }
-        
-        if (audioSettingsUI != null)
-        {
-            // Можно добавить метод ResetToDefaults в AudioSettingsUI
+            continueButton.onClick.RemoveListener(OnContinueButtonClicked);
         }
     }
 }

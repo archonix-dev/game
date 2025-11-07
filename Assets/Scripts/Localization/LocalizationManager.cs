@@ -33,7 +33,6 @@ namespace Game.Localization
 				return;
 			}
 			Instance = this;
-			DontDestroyOnLoad(gameObject);
 
 			LoadCsv();
 			SetupInitialLanguage();

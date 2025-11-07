@@ -2,58 +2,33 @@ using UnityEngine;
 using UnityEngine.UI;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
-using TMPro;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Collections.Generic;
+using System.Linq;
 
 public class MultiplayerManager : MonoBehaviour
 {
     [Header("UI Elements")]
-    [SerializeField] private InputField lobbyIdInput;
-    [SerializeField] private InputField passwordInput;
-    [SerializeField] private Button createLobbyButton;
-    [SerializeField] private Button joinLobbyButton;
+    [SerializeField] private InputField hostIpInput;
+    [SerializeField] private InputField portInput;
+    [SerializeField] private Button startHostButton;
+    [SerializeField] private Button connectClientButton;
+    [SerializeField] private Button disconnectButton;
     [SerializeField] private Text statusText;
+    [SerializeField] private Text localIpText;
     
     [Header("Network Settings")]
-    // maxPlayers настраивается индивидуально для каждого сервера в dedicatedServers
+    [SerializeField] private ushort defaultPort = 7777;
+    [SerializeField] private int maxPlayers = 8;
     
-    [Header("Lobby Settings")]
-    [SerializeField] private string currentLobbyId = "";
-    [SerializeField] private string currentPassword = "";
+    [Header("VPN Detection")]
+    [SerializeField] private bool autoDetectVpnIp = true;
+    [SerializeField] private string[] vpnAdapterNames = { "Hamachi", "Radmin VPN", "TAP", "VirtualBox" };
     
     [Header("Debug Settings")]
     [SerializeField] private bool enableTransportFailureDetection = true;
-    
-    [Header("Dedicated Servers")]
-    [SerializeField] public bool useDedicatedServers = false;
-    [SerializeField] private List<DedicatedServer> dedicatedServers = new List<DedicatedServer>();
-    [SerializeField] private string currentServerId = "";
-    
-    // Словарь для хранения активных лобби (в реальном проекте это должно быть на сервере)
-    private static Dictionary<string, LobbyData> activeLobbies = new Dictionary<string, LobbyData>();
-    
-    [System.Serializable]
-    public class LobbyData
-    {
-        public string lobbyId;
-        public string password;
-        public string relayJoinCode;
-        public string hostPlayerId;
-        public string serverId; // ID выделенного сервера
-    }
-    
-    [System.Serializable]
-    public class DedicatedServer
-    {
-        public string serverId;        // Уникальный ID сервера
-        public string serverName;      // Отображаемое имя сервера
-        public string ipAddress;       // IP адрес сервера
-        public ushort port;           // Порт сервера
-        public int maxPlayers;        // Максимальное количество игроков для этого сервера
-        public bool isAvailable;      // Доступен ли сервер для новых лобби
-        public string region;         // Регион сервера (Europe, America, Asia, etc.)
-        public int currentPlayers;    // Текущее количество игроков на сервере
-    }
     
     private NetworkManager networkManager;
     private UnityTransport transport;
@@ -61,12 +36,14 @@ public class MultiplayerManager : MonoBehaviour
     private bool wasConnected = false;
     private bool isHandlingTransportFailure = false;
     private float connectionTime = 0f;
-    private const float MIN_CONNECTION_TIME = 3f; // Минимум 3 секунды подключения
+    private const float MIN_CONNECTION_TIME = 3f;
+    private string localIpAddress = "";
     
     void Start()
     {
         InitializeNetworkManager();
         SetupUI();
+        UpdateLocalIpDisplay();
 
         isInitialized = true;
         UpdateStatusText("Готов к подключению");
@@ -76,7 +53,7 @@ public class MultiplayerManager : MonoBehaviour
     {
         if (!isInitialized || networkManager == null || isHandlingTransportFailure || !enableTransportFailureDetection) return;
         
-        bool isCurrentlyConnected = networkManager.IsClient;
+        bool isCurrentlyConnected = networkManager.IsClient || networkManager.IsHost;
         
         // Отслеживаем время подключения
         if (isCurrentlyConnected && wasConnected)
@@ -89,7 +66,6 @@ public class MultiplayerManager : MonoBehaviour
         }
         
         // Проверяем, не произошла ли неожиданная потеря соединения
-        // Только если мы были подключены достаточно долго
         if (wasConnected && !isCurrentlyConnected && connectionTime >= MIN_CONNECTION_TIME)
         {
             HandleTransportFailure();
@@ -116,212 +92,154 @@ public class MultiplayerManager : MonoBehaviour
             return;
         }
         
-        // Транспорт будет настроен при создании/подключении к лобби
-        
         // Подписываемся на события NetworkManager
         networkManager.OnClientConnectedCallback += OnClientConnected;
         networkManager.OnClientDisconnectCallback += OnClientDisconnected;
-        
+        networkManager.OnServerStarted += OnServerStarted;
     }
-    
-    
     
     void SetupUI()
     {
-        if (createLobbyButton != null)
-            createLobbyButton.onClick.AddListener(CreateLobby);
+        if (startHostButton != null)
+            startHostButton.onClick.AddListener(StartHost);
             
-        if (joinLobbyButton != null)
-            joinLobbyButton.onClick.AddListener(JoinLobby);
-    }
-
-    public void CreateLobby()
-    {
+        if (connectClientButton != null)
+            connectClientButton.onClick.AddListener(ConnectAsClient);
+            
+        if (disconnectButton != null)
+            disconnectButton.onClick.AddListener(Disconnect);
         
+        // Устанавливаем порт по умолчанию
+        if (portInput != null)
+        {
+            portInput.text = defaultPort.ToString();
+        }
+    }
+    
+    void UpdateLocalIpDisplay()
+    {
+        string vpnIp = GetVpnIpAddress();
+        localIpAddress = vpnIp;
+        
+        if (localIpText != null)
+        {
+            if (!string.IsNullOrEmpty(vpnIp))
+            {
+                localIpText.text = $"Ваш VPN IP: {vpnIp}";
+            }
+            else
+            {
+                string localIp = GetLocalIpAddress();
+                localIpText.text = $"Ваш IP: {localIp}";
+            }
+        }
+    }
+    
+    public void StartHost()
+    {
         if (!isInitialized || networkManager == null)
         {
             UpdateStatusText("Ошибка: NetworkManager не инициализирован!");
             return;
         }
         
-        if (lobbyIdInput == null || passwordInput == null) 
+        if (networkManager.IsHost || networkManager.IsClient)
         {
-            UpdateStatusText("Ошибка: UI элементы не назначены!");
+            UpdateStatusText("Уже подключен!");
             return;
         }
         
-        string lobbyId = lobbyIdInput.text.Trim();
-        string password = passwordInput.text.Trim();
-        
-        if (string.IsNullOrEmpty(lobbyId) || string.IsNullOrEmpty(password))
+        // Получаем порт
+        ushort port = defaultPort;
+        if (portInput != null && !string.IsNullOrEmpty(portInput.text))
         {
-            UpdateStatusText("Введите ID лобби и пароль!");
-            return;
+            if (!ushort.TryParse(portInput.text, out port))
+            {
+                UpdateStatusText("Неверный порт!");
+                return;
+            }
         }
-        
-        if (networkManager.IsClient)
-        {
-            UpdateStatusText("Уже подключен к серверу!");
-            return;
-        }
-        
-        // Проверяем, не существует ли уже лобби с таким ID
-        if (activeLobbies.ContainsKey(lobbyId))
-        {
-            UpdateStatusText("Лобби с таким ID уже существует!");
-            return;
-        }
-        
-        UpdateStatusText("Создание лобби...");
         
         try
         {
-            // Ищем свободный выделенный сервер
-            UpdateStatusText("Поиск свободного сервера...");
-            DedicatedServer availableServer = FindAvailableServer();
+            // Настраиваем транспорт для хоста
+            transport.ConnectionData.Port = port;
             
-            if (availableServer == null)
-            {
-                UpdateStatusText("Нет доступных серверов!\nПопробуйте позже.");
-                return;
-            }
+            UpdateStatusText("Запуск сервера...");
             
-            // Настраиваем транспорт для выделенного сервера
-            transport.ConnectionData.Address = availableServer.ipAddress;
-            transport.ConnectionData.Port = availableServer.port;
-            
-            // Помечаем сервер как занятый
-            MarkServerAsOccupied(availableServer.serverId);
-            currentServerId = availableServer.serverId;
-            
-            // Сохраняем данные лобби в глобальном словаре
-            LobbyData lobbyData = new LobbyData
-            {
-                lobbyId = lobbyId,
-                password = password,
-                relayJoinCode = "",
-                hostPlayerId = "dedicated",
-                serverId = availableServer.serverId
-            };
-            activeLobbies[lobbyId] = lobbyData;
-            
-            UpdateStatusText($"Сервер найден!\n{availableServer.serverName}\nIP: {availableServer.ipAddress}:{availableServer.port}\nПодключение...");
-            
-            // Сохраняем данные лобби
-            currentLobbyId = lobbyId;
-            currentPassword = password;
-            
-            // Подключаемся к серверу как клиент
-            
-            bool success = networkManager.StartClient();
+            // Запускаем хост
+            bool success = networkManager.StartHost();
             if (success)
             {
-                string statusMessage = $"Лобби создано!\nID: {lobbyId}\nПароль: {password}\nСервер: {availableServer.serverName}\nIP: {availableServer.ipAddress}:{availableServer.port}\nПодключение к серверу...";
-                UpdateStatusText(statusMessage);
+                string vpnIp = GetVpnIpAddress();
+                string ipDisplay = !string.IsNullOrEmpty(vpnIp) ? vpnIp : GetLocalIpAddress();
+                UpdateStatusText($"Сервер запущен!\nIP: {ipDisplay}\nПорт: {port}\nОжидание подключений...");
             }
             else
             {
-                UpdateStatusText("Ошибка подключения к серверу!");
-                // Удаляем лобби из словаря при ошибке
-                activeLobbies.Remove(lobbyId);
-                // Освобождаем сервер
-                MarkServerAsAvailable(availableServer.serverId);
-                currentServerId = "";
+                UpdateStatusText("Ошибка запуска сервера!");
             }
         }
         catch (System.Exception e)
         {
-            
-            // Очищаем лобби из словаря при ошибке
-            if (activeLobbies.ContainsKey(lobbyId))
-            {
-                activeLobbies.Remove(lobbyId);
-            }
-            
-            // Освобождаем сервер при ошибке
-            if (!string.IsNullOrEmpty(currentServerId))
-            {
-                MarkServerAsAvailable(currentServerId);
-                currentServerId = "";
-            }
-            
-            UpdateStatusText($"Ошибка создания лобби: {e.Message}");
+            UpdateStatusText($"Ошибка запуска сервера: {e.Message}");
         }
         
         UpdateUI();
     }
     
-    public void JoinLobby()
+    public void ConnectAsClient()
     {
-        
         if (!isInitialized || networkManager == null)
         {
             UpdateStatusText("Ошибка: NetworkManager не инициализирован!");
             return;
         }
         
-        if (lobbyIdInput == null || passwordInput == null) 
+        if (networkManager.IsHost || networkManager.IsClient)
         {
-            UpdateStatusText("Ошибка: UI элементы не назначены!");
+            UpdateStatusText("Уже подключен!");
             return;
         }
         
-        string lobbyId = lobbyIdInput.text.Trim();
-        string password = passwordInput.text.Trim();
-        
-        if (string.IsNullOrEmpty(lobbyId) || string.IsNullOrEmpty(password))
+        // Получаем IP адрес хоста
+        string hostIp = "";
+        if (hostIpInput != null)
         {
-            UpdateStatusText("Введите ID лобби и пароль!");
+            hostIp = hostIpInput.text.Trim();
+        }
+        
+        if (string.IsNullOrEmpty(hostIp))
+        {
+            UpdateStatusText("Введите IP адрес хоста!");
             return;
         }
         
-        if (networkManager.IsClient)
+        // Проверяем валидность IP
+        if (!IsValidIpAddress(hostIp))
         {
-            UpdateStatusText("Уже подключен к серверу!");
+            UpdateStatusText("Неверный формат IP адреса!");
             return;
         }
         
-        UpdateStatusText("Поиск лобби...");
+        // Получаем порт
+        ushort port = defaultPort;
+        if (portInput != null && !string.IsNullOrEmpty(portInput.text))
+        {
+            if (!ushort.TryParse(portInput.text, out port))
+            {
+                UpdateStatusText("Неверный порт!");
+                return;
+            }
+        }
         
         try
         {
-            // Ищем лобби в словаре
-            if (!activeLobbies.ContainsKey(lobbyId))
-            {
-                UpdateStatusText("Лобби не найдено!");
-                return;
-            }
+            // Настраиваем транспорт для клиента
+            transport.ConnectionData.Address = hostIp;
+            transport.ConnectionData.Port = port;
             
-            LobbyData lobbyData = activeLobbies[lobbyId];
-            
-            // Проверяем пароль
-            if (lobbyData.password != password)
-            {
-                UpdateStatusText("Неверный пароль!");
-                return;
-            }
-            
-            UpdateStatusText("Подключение к лобби...");
-            
-            // Подключаемся к выделенному серверу
-            if (string.IsNullOrEmpty(lobbyData.serverId))
-            {
-                UpdateStatusText("Ошибка: Лобби не имеет назначенного сервера!");
-                return;
-            }
-            
-            DedicatedServer server = FindServerById(lobbyData.serverId);
-            if (server != null)
-            {
-                transport.ConnectionData.Address = server.ipAddress;
-                transport.ConnectionData.Port = server.port;
-                UpdateStatusText($"Подключение к серверу {server.serverName}...");
-            }
-            else
-            {
-                UpdateStatusText("Ошибка: Сервер не найден!");
-                return;
-            }
+            UpdateStatusText($"Подключение к {hostIp}:{port}...");
             
             // Запускаем клиент
             bool success = networkManager.StartClient();
@@ -342,37 +260,35 @@ public class MultiplayerManager : MonoBehaviour
         UpdateUI();
     }
     
-    
     public void Disconnect()
     {
-        if (networkManager.IsClient)
+        if (networkManager == null) return;
+        
+        if (networkManager.IsHost || networkManager.IsClient)
         {
-            // Освобождаем выделенный сервер при отключении
-            if (!string.IsNullOrEmpty(currentServerId))
-            {
-                DecrementServerPlayerCount(currentServerId);
-            }
-            
             networkManager.Shutdown();
             UpdateStatusText("Отключено");
         }
         
-        // Сбрасываем текущие данные лобби
-        currentLobbyId = "";
-        currentPassword = "";
-        currentServerId = "";
-        
+        UpdateUI();
+    }
+    
+    void OnServerStarted()
+    {
+        UpdateStatusText("Сервер запущен и готов к подключениям");
         UpdateUI();
     }
     
     void OnClientConnected(ulong clientId)
     {
-        UpdateStatusText("Подключен к лобби");
-        
-        // Обновляем счетчик игроков на сервере
-        if (!string.IsNullOrEmpty(currentServerId))
+        if (networkManager.IsHost)
         {
-            IncrementServerPlayerCount(currentServerId);
+            int playerCount = networkManager.ConnectedClients.Count;
+            UpdateStatusText($"Игрок подключен! Игроков: {playerCount}/{maxPlayers}");
+        }
+        else
+        {
+            UpdateStatusText("Подключен к серверу!");
         }
         
         wasConnected = true;
@@ -381,50 +297,39 @@ public class MultiplayerManager : MonoBehaviour
     
     void OnClientDisconnected(ulong clientId)
     {
-        UpdateStatusText("Отключен от лобби");
-        
-        // Уменьшаем счетчик игроков на сервере
-        if (!string.IsNullOrEmpty(currentServerId))
+        if (networkManager.IsHost)
         {
-            DecrementServerPlayerCount(currentServerId);
+            int playerCount = networkManager.ConnectedClients.Count;
+            UpdateStatusText($"Игрок отключен. Игроков: {playerCount}/{maxPlayers}");
+        }
+        else
+        {
+            UpdateStatusText("Отключен от сервера");
         }
         
         UpdateUI();
     }
     
-    
     void HandleTransportFailure()
     {
-        if (isHandlingTransportFailure) return; // Предотвращаем множественные вызовы
+        if (isHandlingTransportFailure) return;
         
         isHandlingTransportFailure = true;
         
-        UpdateStatusText("Ошибка подключения к серверу!\nПопытка переподключения...");
-        
-        // Уменьшаем счетчик игроков на сервере при ошибке
-        if (!string.IsNullOrEmpty(currentServerId))
-        {
-            DecrementServerPlayerCount(currentServerId);
-        }
+        UpdateStatusText("Соединение потеряно!");
         
         // Отключаемся от сети
-        if (networkManager.IsClient)
+        if (networkManager.IsHost || networkManager.IsClient)
         {
             networkManager.Shutdown();
         }
         
-        // Сбрасываем состояние
-        currentLobbyId = "";
-        currentPassword = "";
         wasConnected = false;
         connectionTime = 0f;
         
         UpdateUI();
         
-        // Показываем сообщение пользователю
-        UpdateStatusText("Соединение потеряно!\nСоздайте новое лобби или попробуйте подключиться снова.");
-        
-        // Сбрасываем флаг через небольшую задержку
+        // Сбрасываем флаг через задержку
         Invoke(nameof(ResetTransportFailureFlag), 2f);
     }
     
@@ -437,19 +342,22 @@ public class MultiplayerManager : MonoBehaviour
     {
         if (networkManager == null) return;
         
-        bool isConnected = networkManager.IsClient;
+        bool isConnected = networkManager.IsHost || networkManager.IsClient;
         
-        if (createLobbyButton != null)
-            createLobbyButton.interactable = !isConnected;
+        if (startHostButton != null)
+            startHostButton.interactable = !isConnected;
             
-        if (joinLobbyButton != null)
-            joinLobbyButton.interactable = !isConnected;
+        if (connectClientButton != null)
+            connectClientButton.interactable = !isConnected;
             
-        if (lobbyIdInput != null)
-            lobbyIdInput.interactable = !isConnected;
+        if (hostIpInput != null)
+            hostIpInput.interactable = !isConnected;
             
-        if (passwordInput != null)
-            passwordInput.interactable = !isConnected;
+        if (portInput != null)
+            portInput.interactable = !isConnected;
+        
+        if (disconnectButton != null)
+            disconnectButton.interactable = isConnected;
     }
     
     void UpdateStatusText(string message)
@@ -458,143 +366,138 @@ public class MultiplayerManager : MonoBehaviour
         {
             statusText.text = message;
         }
+        Debug.Log($"[MultiplayerManager] {message}");
+    }
+    
+    // Получение VPN IP адреса
+    string GetVpnIpAddress()
+    {
+        if (!autoDetectVpnIp) return "";
+        
+        try
+        {
+            NetworkInterface[] interfaces = NetworkInterface.GetAllNetworkInterfaces();
+            
+            foreach (NetworkInterface ni in interfaces)
+            {
+                // Проверяем, активен ли интерфейс
+                if (ni.OperationalStatus != OperationalStatus.Up)
+                    continue;
+                
+                // Проверяем, является ли это VPN адаптером
+                bool isVpnAdapter = false;
+                foreach (string vpnName in vpnAdapterNames)
+                {
+                    if (ni.Description.Contains(vpnName) || ni.Name.Contains(vpnName))
+                    {
+                        isVpnAdapter = true;
+                        break;
+                    }
+                }
+                
+                // Также проверяем по IP диапазонам VPN
+                // Hamachi: 25.0.0.0/8 или 5.0.0.0/8
+                // Radmin VPN: обычно 26.0.0.0/8
+                IPInterfaceProperties ipProps = ni.GetIPProperties();
+                foreach (UnicastIPAddressInformation ip in ipProps.UnicastAddresses)
+                {
+                    if (ip.Address.AddressFamily == AddressFamily.InterNetwork)
+                    {
+                        string ipString = ip.Address.ToString();
+                        byte[] bytes = ip.Address.GetAddressBytes();
+                        
+                        // Проверяем диапазоны VPN
+                        bool isVpnRange = bytes[0] == 25 || bytes[0] == 5 || bytes[0] == 26;
+                        
+                        if (isVpnAdapter || isVpnRange)
+                        {
+                            // Исключаем loopback
+                            if (!IPAddress.IsLoopback(ip.Address))
+                            {
+                                return ipString;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[MultiplayerManager] Ошибка определения VPN IP: {e.Message}");
+        }
+        
+        return "";
+    }
+    
+    // Получение локального IP адреса
+    string GetLocalIpAddress()
+    {
+        try
+        {
+            string hostName = Dns.GetHostName();
+            IPHostEntry hostEntry = Dns.GetHostEntry(hostName);
+            
+            foreach (IPAddress ip in hostEntry.AddressList)
+            {
+                if (ip.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(ip))
+                {
+                    return ip.ToString();
+                }
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[MultiplayerManager] Ошибка получения локального IP: {e.Message}");
+        }
+        
+        return "Не определен";
+    }
+    
+    // Проверка валидности IP адреса
+    bool IsValidIpAddress(string ipString)
+    {
+        if (string.IsNullOrEmpty(ipString))
+            return false;
+        
+        string[] parts = ipString.Split('.');
+        if (parts.Length != 4)
+            return false;
+        
+        foreach (string part in parts)
+        {
+            if (!int.TryParse(part, out int num) || num < 0 || num > 255)
+                return false;
+        }
+        
+        return true;
     }
     
     // Публичные методы для получения информации
     public bool IsConnected()
     {
-        return networkManager.IsClient;
+        return networkManager != null && (networkManager.IsHost || networkManager.IsClient);
+    }
+    
+    public bool IsHost()
+    {
+        return networkManager != null && networkManager.IsHost;
     }
     
     public bool IsClient()
     {
-        return networkManager.IsClient;
+        return networkManager != null && networkManager.IsClient;
     }
     
-    public string GetLobbyId()
+    public string GetLocalIp()
     {
-        return lobbyIdInput != null ? lobbyIdInput.text.Trim() : "";
+        return localIpAddress;
     }
     
-    public string GetPassword()
+    public int GetPlayerCount()
     {
-        return passwordInput != null ? passwordInput.text.Trim() : "";
+        if (networkManager == null) return 0;
+        return networkManager.ConnectedClients.Count;
     }
-    
-    public string GetCurrentLobbyId()
-    {
-        return currentLobbyId;
-    }
-    
-    public string GetCurrentPassword()
-    {
-        return currentPassword;
-    }
-    
-    public bool CheckLobbyCredentials(string lobbyId, string password)
-    {
-        return currentLobbyId == lobbyId && currentPassword == password;
-    }
-    
-    
-    public static Dictionary<string, LobbyData> GetActiveLobbies()
-    {
-        return activeLobbies;
-    }
-    
-    public static void ClearActiveLobbies()
-    {
-        activeLobbies.Clear();
-    }
-    
-    // Методы для работы с выделенными серверами
-    public void AddDedicatedServer(string serverId, string serverName, string ipAddress, ushort port, int maxPlayers, string region = "")
-    {
-        DedicatedServer server = new DedicatedServer
-        {
-            serverId = serverId,
-            serverName = serverName,
-            ipAddress = ipAddress,
-            port = port,
-            maxPlayers = maxPlayers,
-            isAvailable = true,
-            region = region,
-            currentPlayers = 0
-        };
-        
-        dedicatedServers.Add(server);
-    }
-    
-    public void RemoveDedicatedServer(string serverId)
-    {
-        dedicatedServers.RemoveAll(server => server.serverId == serverId);
-    }
-    
-    public DedicatedServer FindAvailableServer()
-    {
-        return dedicatedServers.Find(server => server.isAvailable && server.currentPlayers < server.maxPlayers);
-    }
-    
-    public DedicatedServer FindServerById(string serverId)
-    {
-        return dedicatedServers.Find(server => server.serverId == serverId);
-    }
-    
-    public void MarkServerAsOccupied(string serverId)
-    {
-        DedicatedServer server = FindServerById(serverId);
-        if (server != null)
-        {
-            server.isAvailable = false;
-            server.currentPlayers = 1; // Первый игрок подключился
-        }
-    }
-    
-    public void MarkServerAsAvailable(string serverId)
-    {
-        DedicatedServer server = FindServerById(serverId);
-        if (server != null)
-        {
-            server.isAvailable = true;
-            server.currentPlayers = 0;
-        }
-    }
-    
-    public List<DedicatedServer> GetAllServers()
-    {
-        return new List<DedicatedServer>(dedicatedServers);
-    }
-    
-    public void UpdateServerPlayerCount(string serverId, int playerCount)
-    {
-        DedicatedServer server = FindServerById(serverId);
-        if (server != null)
-        {
-            server.currentPlayers = playerCount;
-            server.isAvailable = playerCount < server.maxPlayers;
-        }
-    }
-    
-    public void IncrementServerPlayerCount(string serverId)
-    {
-        DedicatedServer server = FindServerById(serverId);
-        if (server != null)
-        {
-            server.currentPlayers++;
-            server.isAvailable = server.currentPlayers < server.maxPlayers;
-        }
-    }
-    
-    public void DecrementServerPlayerCount(string serverId)
-    {
-        DedicatedServer server = FindServerById(serverId);
-        if (server != null)
-        {
-            server.currentPlayers = Mathf.Max(0, server.currentPlayers - 1);
-            server.isAvailable = server.currentPlayers < server.maxPlayers;
-        }
-    }
-    
     
     void OnDestroy()
     {
@@ -603,6 +506,7 @@ public class MultiplayerManager : MonoBehaviour
         {
             networkManager.OnClientConnectedCallback -= OnClientConnected;
             networkManager.OnClientDisconnectCallback -= OnClientDisconnected;
+            networkManager.OnServerStarted -= OnServerStarted;
         }
     }
 }

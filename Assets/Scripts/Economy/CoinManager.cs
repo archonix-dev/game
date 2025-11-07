@@ -11,8 +11,6 @@ public class CoinManager : MonoBehaviour
     
     [Header("UI Настройки")]
     [SerializeField] private Text coinsText; // Для обычного UI Text
-    [SerializeField] private TextMeshProUGUI coinsTMPText; // Для TextMeshPro
-    [SerializeField] private string coinsPrefix = "Монеты: ";
     
     [Header("Настройки")]
     [SerializeField] private int startingCoins = 0;
@@ -22,7 +20,6 @@ public class CoinManager : MonoBehaviour
     [Header("Визуальная обратная связь")]
     [SerializeField] private bool animateOnChange = true;
     [SerializeField] private float animationDuration = 0.5f;
-    [SerializeField] private AudioClip coinCollectSound;
     
     private int currentCoins = 0;
     private AudioSource audioSource;
@@ -41,15 +38,6 @@ public class CoinManager : MonoBehaviour
             return;
         }
         Instance = this;
-        DontDestroyOnLoad(gameObject);
-        
-        // Аудио источник
-        audioSource = GetComponent<AudioSource>();
-        if (audioSource == null)
-        {
-            audioSource = gameObject.AddComponent<AudioSource>();
-        }
-        audioSource.playOnAwake = false;
     }
     
     void Start()
@@ -99,11 +87,6 @@ public class CoinManager : MonoBehaviour
         currentCoins += amount;
         targetCoins = currentCoins;
         
-        // Воспроизводим звук
-        if (coinCollectSound != null && audioSource != null)
-        {
-            audioSource.PlayOneShot(coinCollectSound);
-        }
         
         if (!animateOnChange)
         {
@@ -181,18 +164,12 @@ public class CoinManager : MonoBehaviour
     /// </summary>
     private void UpdateUI()
     {
-        string coinText = coinsPrefix + displayedCoins.ToString();
+        string coinText = displayedCoins.ToString();
         
         // Обновляем обычный Text
         if (coinsText != null)
         {
             coinsText.text = coinText;
-        }
-        
-        // Обновляем TextMeshPro
-        if (coinsTMPText != null)
-        {
-            coinsTMPText.text = coinText;
         }
     }
     
@@ -230,7 +207,6 @@ public class CoinManager : MonoBehaviour
     /// </summary>
     public void SetUITextTMP(TextMeshProUGUI text)
     {
-        coinsTMPText = text;
         UpdateUI();
     }
     
