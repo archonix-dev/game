@@ -1,11 +1,17 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using Diagnostics = System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.Networking;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 /// <summary>
 /// Главный скрипт для управления модами
@@ -35,6 +41,25 @@ public class ModConfiguration : MonoBehaviour
     [Tooltip("Кнопка 'Сбросить'")]
     public Button resetButton;
     
+    [Tooltip("Кнопка 'Вверх' для изменения приоритета мода")]
+    public Button moveUpButton;
+    
+    [Tooltip("Кнопка 'Вниз' для изменения приоритета мода")]
+    public Button moveDownButton;
+    
+    [Header("Настройки музыки и звуков")]
+    [Tooltip("Оригинальный AudioClip для музыки меню (используется для получения пути к файлу в проекте)")]
+    public AudioClip originalMenuMusicClip;
+    
+    [Tooltip("Оригинальный AudioClip для звука кнопки 'Применить' (используется для получения пути к файлу в проекте)")]
+    public AudioClip originalApplyButtonClip;
+    
+    [Tooltip("Оригинальный AudioClip для звука кнопки 'Назад' (используется для получения пути к файлу в проекте)")]
+    public AudioClip originalBackButtonClip;
+    
+    [Tooltip("Путь к папке со звуками в проекте относительно Assets (например: UI/sounds)")]
+    public string projectSoundsFolderPath = "UI/sounds";
+    
     [Header("Версия игры")]
     [Tooltip("Текущая версия игры (например: 0.12a)")]
     public string currentGameVersion = "0.12a";
@@ -51,11 +76,37 @@ public class ModConfiguration : MonoBehaviour
     private List<GameObject> inactiveModInstances = new List<GameObject>();
     private List<GameObject> activeModInstances = new List<GameObject>();
     
+    private ModData selectedMod = null; // Выбранный мод для изменения приоритета
+    
+    // Хранилище для временной замены AudioClip
+    private Dictionary<AudioSource, AudioClip> originalClipsBackup = new Dictionary<AudioSource, AudioClip>();
+    private AudioClip currentMenuMusicClip = null;
+    private AudioClip currentApplyButtonClip = null;
+    private AudioClip currentBackButtonClip = null;
+    
+    // Пути к файлам в проекте
+    private string projectMenuMusicPath;
+    private string projectApplyButtonPath;
+    private string projectBackButtonPath;
+    
+    // Пути к backup оригинальных файлов
+    private string backupMenuMusicPath;
+    private string backupApplyButtonPath;
+    private string backupBackButtonPath;
+    
     private string modsDirectoryPath;
+    private string projectAssetsPath;
     private const string MODS_FOLDER = "mods";
     private const string CONFIG_CLASS_NAME = "MainModClass";
     private const string CONFIG_METHOD_NAME = "ConfigurationMethod";
     private const string LOGO_FILE = "logo_mod.png";
+    private const string SOUNDS_FOLDER = "sounds";
+    private const string MENU_FOLDER = "menu";
+    private const string MENU_MUSIC_FILE = "menu.mp3";
+    private const string MISC_FOLDER = "misc";
+    private const string APPLY_BUTTON_FILE = "applybutton.mp3";
+    private const string BACK_BUTTON_FILE = "backbutton.mp3";
+    private const string REQUIRED_MOD_NAME = "LastRite"; // Обязательный мод, который всегда должен быть активен
     
     private static ModConfiguration instance;
     public static ModConfiguration Instance
@@ -84,21 +135,50 @@ public class ModConfiguration : MonoBehaviour
         
         // Построение пути к папке модов
         BuildModsDirectoryPath();
-    }
-    
-    void Start()
-    {
+        
+        // Построение путей к файлам в проекте
+        BuildProjectSoundPaths();
+        
         // Сканируем и загружаем все моды
         ScanAndLoadMods();
         
         // Загружаем активные моды из PlayerPrefs (после сканирования, чтобы можно было найти моды)
+        // Делаем это в Awake(), чтобы моды были готовы к загрузке в ShowAndHideAfterDelay
         LoadActiveModsFromPlayerPrefs();
-        
+    }
+    
+    void Start()
+    {
         // Настраиваем кнопки
         SetupButtons();
         
         // Обновляем отображение
         RefreshModDisplay();
+        
+        // НЕ применяем музыку сразу в Start()
+        // Музыка будет загружена и применена в ShowAndHideAfterDelay при загрузке активных модов
+        
+        // Подписываемся на событие загрузки сцены для применения звуков при переходах между сценами
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+    
+    void OnDestroy()
+    {
+        // Отписываемся от события
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+        
+        // Восстанавливаем оригинальные звуки при уничтожении объекта
+        RestoreAllOriginalAudioClips();
+    }
+    
+    /// <summary>
+    /// Обработчик загрузки сцены - применяет звуки из модов в новой сцене
+    /// </summary>
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // Файлы уже скопированы в проект при загрузке модов
+        // Unity автоматически обновит AudioClip, просто запускаем проигрывание музыки
+        StartMenuMusicPlayback();
     }
     
     /// <summary>
@@ -129,6 +209,66 @@ public class ModConfiguration : MonoBehaviour
     }
     
     /// <summary>
+    /// Построение путей к файлам звуков в проекте
+    /// </summary>
+    private void BuildProjectSoundPaths()
+    {
+        // Получаем путь к папке Assets проекта
+        projectAssetsPath = Application.dataPath;
+        
+        // Получаем пути к файлам на основе AudioClip
+        projectMenuMusicPath = GetAudioClipFilePath(originalMenuMusicClip, MENU_MUSIC_FILE);
+        projectApplyButtonPath = GetAudioClipFilePath(originalApplyButtonClip, APPLY_BUTTON_FILE);
+        projectBackButtonPath = GetAudioClipFilePath(originalBackButtonClip, BACK_BUTTON_FILE);
+        
+        // Создаем папку для backup, если её нет
+        string backupFolder = Path.Combine(projectAssetsPath, projectSoundsFolderPath, "backup");
+        if (!Directory.Exists(backupFolder))
+        {
+            try
+            {
+                Directory.CreateDirectory(backupFolder);
+                Debug.Log($"Создана папка для backup: {backupFolder}");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Не удалось создать папку для backup: {e.Message}");
+            }
+        }
+        
+        // Пути к backup файлам
+        backupMenuMusicPath = Path.Combine(backupFolder, MENU_MUSIC_FILE);
+        backupApplyButtonPath = Path.Combine(backupFolder, APPLY_BUTTON_FILE);
+        backupBackButtonPath = Path.Combine(backupFolder, BACK_BUTTON_FILE);
+    }
+    
+    /// <summary>
+    /// Получение пути к файлу AudioClip в проекте
+    /// </summary>
+    private string GetAudioClipFilePath(AudioClip clip, string defaultFileName)
+    {
+        if (clip == null)
+        {
+            // Если AudioClip не назначен, используем путь по умолчанию
+            return Path.Combine(Application.dataPath, projectSoundsFolderPath, defaultFileName);
+        }
+        
+        #if UNITY_EDITOR
+        // В редакторе используем AssetDatabase для получения пути
+        string assetPath = AssetDatabase.GetAssetPath(clip);
+        if (!string.IsNullOrEmpty(assetPath))
+        {
+            // Преобразуем путь относительно Assets в абсолютный путь
+            string relativePath = assetPath.Replace("Assets/", "").Replace("Assets\\", "");
+            return Path.Combine(Application.dataPath, relativePath);
+        }
+        #endif
+        
+        // Если не удалось получить путь через AssetDatabase, используем путь по умолчанию
+        return Path.Combine(Application.dataPath, projectSoundsFolderPath, defaultFileName);
+    }
+    
+    /// <summary>
     /// Сканирование и загрузка всех модов
     /// </summary>
     private void ScanAndLoadMods()
@@ -151,6 +291,13 @@ public class ModConfiguration : MonoBehaviour
             {
                 // Проверяем совместимость версии
                 modData.compatibility = CheckVersionCompatibility(modData.gameVersion);
+                
+                // Обязательный мод "LastRite" всегда совместим со всеми версиями
+                if (modData.modName == REQUIRED_MOD_NAME)
+                {
+                    modData.compatibility = VersionCompatibility.Compatible;
+                }
+                
                 allMods.Add(modData);
             }
         }
@@ -203,6 +350,12 @@ public class ModConfiguration : MonoBehaviour
             
             // Создаем ModData (используем путь к папке вместо zip файла)
             ModData modData = new ModData(modFolderPath, config.modName, config.modVersion, config.gameVersion, logo);
+            
+            // НЕ загружаем музыку здесь - она будет загружена в ShowAndHideAfterDelay
+            // при загрузке активных модов после нажатия кнопки "Применить"
+            // Проверяем только наличие файла для информации (опционально)
+            // string musicPath = Path.Combine(modFolderPath, SOUNDS_FOLDER, MENU_FOLDER, MENU_MUSIC_FILE);
+            // bool hasMusic = File.Exists(musicPath);
             
             return modData;
         }
@@ -346,6 +499,542 @@ public class ModConfiguration : MonoBehaviour
     }
     
     /// <summary>
+    /// Корутина для загрузки музыки меню из мода
+    /// </summary>
+    private IEnumerator LoadMenuMusicCoroutine(ModData modData, string musicPath)
+    {
+        string fileUrl = "file://" + musicPath;
+        
+        using (UnityWebRequest www = UnityWebRequestMultimedia.GetAudioClip(fileUrl, AudioType.MPEG))
+        {
+            yield return www.SendWebRequest();
+            
+            if (www.result == UnityWebRequest.Result.Success)
+            {
+                modData.menuMusicClip = DownloadHandlerAudioClip.GetContent(www);
+                Debug.Log($"Музыка меню загружена для мода {modData.modName}");
+                
+                // Если мод активен, применяем музыку сразу после загрузки
+                // Это происходит после перезагрузки сцены, когда моды уже применены из PlayerPrefs
+                if (activeMods.Contains(modData))
+                {
+                    Debug.Log($"Мод {modData.modName} активен, применяется музыка меню");
+                    ApplyMenuMusicFromMods();
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"Не удалось загрузить музыку из {musicPath}: {www.error}");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Загрузка всех ресурсов из активных модов с отслеживанием прогресса
+    /// Копирует файлы из модов в папку проекта, заменяя оригинальные файлы
+    /// </summary>
+    public IEnumerator LoadModResources(System.Action<float> progressCallback = null)
+    {
+        if (activeMods == null || activeMods.Count == 0)
+        {
+            // Если нет активных модов, восстанавливаем оригинальные файлы из backup
+            Debug.Log("[ModConfiguration] Нет активных модов, начинаем восстановление оригинальных файлов из backup...");
+            
+            // Восстанавливаем файлы из backup
+            RestoreOriginalSoundFiles();
+            
+            // Обновляем AssetDatabase, чтобы Unity подхватил изменения
+            RefreshAssetDatabase();
+            
+            // Перезагружаем AudioClip после восстановления файлов
+            ReloadAudioClipsAfterRestore();
+            
+            // Даем время Unity обновить файлы и перезагрузить AudioClip
+            yield return new WaitForSeconds(0.3f);
+            
+            // Запускаем проигрывание музыки меню с оригинальными файлами
+            StartMenuMusicPlayback();
+            
+            progressCallback?.Invoke(1f);
+            yield break;
+        }
+        
+        // Сначала сохраняем оригинальные файлы в backup (если еще не сохранены)
+        SaveOriginalSoundFilesToBackup();
+        
+        // Ищем первый мод с ресурсами (первый в списке = самый высокий приоритет)
+        ModData modWithResources = null;
+        string musicSourcePath = null;
+        string applyButtonSourcePath = null;
+        string backButtonSourcePath = null;
+        
+        foreach (ModData mod in activeMods)
+        {
+            string musicPath = Path.Combine(mod.modFilePath, SOUNDS_FOLDER, MENU_FOLDER, MENU_MUSIC_FILE);
+            string applyPath = Path.Combine(mod.modFilePath, SOUNDS_FOLDER, MISC_FOLDER, APPLY_BUTTON_FILE);
+            string backPath = Path.Combine(mod.modFilePath, SOUNDS_FOLDER, MISC_FOLDER, BACK_BUTTON_FILE);
+            
+            if (File.Exists(musicPath) || File.Exists(applyPath) || File.Exists(backPath))
+            {
+                modWithResources = mod;
+                if (File.Exists(musicPath)) musicSourcePath = musicPath;
+                if (File.Exists(applyPath)) applyButtonSourcePath = applyPath;
+                if (File.Exists(backPath)) backButtonSourcePath = backPath;
+                break;
+            }
+        }
+        
+        int totalFiles = 0;
+        int copiedFiles = 0;
+        
+        if (musicSourcePath != null) totalFiles++;
+        if (applyButtonSourcePath != null) totalFiles++;
+        if (backButtonSourcePath != null) totalFiles++;
+        
+        if (totalFiles == 0)
+        {
+            // Если нет файлов для копирования из модов, восстанавливаем оригинальные файлы из backup
+            Debug.Log("[ModConfiguration] Нет файлов в активных модах, восстанавливаем оригинальные файлы из backup...");
+            RestoreOriginalSoundFiles();
+            
+            // Обновляем AssetDatabase, чтобы Unity подхватил изменения
+            RefreshAssetDatabase();
+            
+            // Перезагружаем AudioClip после восстановления файлов
+            ReloadAudioClipsAfterRestore();
+            
+            // Даем время Unity обновить файлы
+            yield return new WaitForSeconds(0.3f);
+            
+            // Запускаем проигрывание музыки меню с оригинальными файлами
+            StartMenuMusicPlayback();
+            
+            progressCallback?.Invoke(1f);
+            yield break;
+        }
+        
+        // Копируем файлы из мода в папку проекта
+        yield return null; // Даем кадр для обновления UI
+        
+        // Копируем музыку меню
+        if (musicSourcePath != null && !string.IsNullOrEmpty(projectMenuMusicPath))
+        {
+            if (CopyFileFromModToProject(musicSourcePath, projectMenuMusicPath))
+            {
+                copiedFiles++;
+                progressCallback?.Invoke((float)copiedFiles / totalFiles);
+                Debug.Log($"[ModConfiguration] Скопирован файл музыки меню из мода {modWithResources.modName}");
+            }
+            yield return null;
+        }
+        
+        // Копируем звук кнопки "Применить"
+        if (applyButtonSourcePath != null && !string.IsNullOrEmpty(projectApplyButtonPath))
+        {
+            if (CopyFileFromModToProject(applyButtonSourcePath, projectApplyButtonPath))
+            {
+                copiedFiles++;
+                progressCallback?.Invoke((float)copiedFiles / totalFiles);
+                Debug.Log($"[ModConfiguration] Скопирован файл звука кнопки 'Применить' из мода {modWithResources.modName}");
+            }
+            yield return null;
+        }
+        
+        // Копируем звук кнопки "Назад"
+        if (backButtonSourcePath != null && !string.IsNullOrEmpty(projectBackButtonPath))
+        {
+            if (CopyFileFromModToProject(backButtonSourcePath, projectBackButtonPath))
+            {
+                copiedFiles++;
+                progressCallback?.Invoke((float)copiedFiles / totalFiles);
+                Debug.Log($"[ModConfiguration] Скопирован файл звука кнопки 'Назад' из мода {modWithResources.modName}");
+            }
+            yield return null;
+        }
+        
+        // Обновляем AssetDatabase, чтобы Unity подхватил изменения
+        RefreshAssetDatabase();
+        
+        // Перезагружаем AudioClip после копирования файлов
+        ReloadAudioClipsAfterCopy();
+        
+        // Небольшая задержка для завершения обновления
+        yield return new WaitForSeconds(0.1f);
+        
+        // Запускаем проигрывание музыки меню
+        StartMenuMusicPlayback();
+        
+        // Убеждаемся, что прогресс = 100%
+        progressCallback?.Invoke(1f);
+    }
+    
+    /// <summary>
+    /// Перезагрузка AudioClip после копирования файлов из мода
+    /// </summary>
+    private void ReloadAudioClipsAfterCopy()
+    {
+        #if UNITY_EDITOR
+        try
+        {
+            // Перезагружаем AudioClip для музыки меню
+            if (originalMenuMusicClip != null)
+            {
+                string assetPath = AssetDatabase.GetAssetPath(originalMenuMusicClip);
+                if (!string.IsNullOrEmpty(assetPath))
+                {
+                    // Импортируем заново, чтобы Unity подхватил изменения
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+                    Debug.Log($"[ModConfiguration] AudioClip музыки меню перезагружен после копирования: {assetPath}");
+                }
+            }
+            
+            // Перезагружаем AudioClip для звука кнопки "Применить"
+            if (originalApplyButtonClip != null)
+            {
+                string assetPath = AssetDatabase.GetAssetPath(originalApplyButtonClip);
+                if (!string.IsNullOrEmpty(assetPath))
+                {
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+                    Debug.Log($"[ModConfiguration] AudioClip звука 'Применить' перезагружен после копирования: {assetPath}");
+                }
+            }
+            
+            // Перезагружаем AudioClip для звука кнопки "Назад"
+            if (originalBackButtonClip != null)
+            {
+                string assetPath = AssetDatabase.GetAssetPath(originalBackButtonClip);
+                if (!string.IsNullOrEmpty(assetPath))
+                {
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+                    Debug.Log($"[ModConfiguration] AudioClip звука 'Назад' перезагружен после копирования: {assetPath}");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"Ошибка при перезагрузке AudioClip после копирования: {e.Message}");
+        }
+        #endif
+    }
+    
+    /// <summary>
+    /// Копирование файла из мода в папку проекта
+    /// </summary>
+    private bool CopyFileFromModToProject(string sourcePath, string destinationPath)
+    {
+        try
+        {
+            if (!File.Exists(sourcePath))
+            {
+                Debug.LogWarning($"Исходный файл не найден: {sourcePath}");
+                return false;
+            }
+            
+            // Создаем директорию назначения, если её нет
+            string destinationDir = Path.GetDirectoryName(destinationPath);
+            if (!string.IsNullOrEmpty(destinationDir) && !Directory.Exists(destinationDir))
+            {
+                Directory.CreateDirectory(destinationDir);
+            }
+            
+            // Копируем файл, перезаписывая существующий
+            File.Copy(sourcePath, destinationPath, true);
+            Debug.Log($"[ModConfiguration] Файл скопирован: {sourcePath} -> {destinationPath}");
+            return true;
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"Ошибка при копировании файла из {sourcePath} в {destinationPath}: {e.Message}");
+            return false;
+        }
+    }
+    
+    /// <summary>
+    /// Сохранение оригинальных файлов в backup
+    /// </summary>
+    private void SaveOriginalSoundFilesToBackup()
+    {
+        try
+        {
+            // Создаем папку backup, если её нет
+            string backupFolder = Path.GetDirectoryName(backupMenuMusicPath);
+            if (!string.IsNullOrEmpty(backupFolder) && !Directory.Exists(backupFolder))
+            {
+                Directory.CreateDirectory(backupFolder);
+                Debug.Log($"[ModConfiguration] Создана папка для backup: {backupFolder}");
+            }
+            
+            Debug.Log($"[ModConfiguration] Попытка сохранения оригинальных файлов в backup...");
+            Debug.Log($"[ModConfiguration] Путь проекта музыки меню: {projectMenuMusicPath}");
+            Debug.Log($"[ModConfiguration] Путь backup музыки меню: {backupMenuMusicPath}");
+            
+            // Сохраняем оригинальную музыку меню в backup (если еще не сохранена)
+            if (File.Exists(projectMenuMusicPath))
+            {
+                if (!File.Exists(backupMenuMusicPath))
+                {
+                    File.Copy(projectMenuMusicPath, backupMenuMusicPath, true);
+                    Debug.Log($"[ModConfiguration] Оригинальный файл музыки меню сохранен в backup: {projectMenuMusicPath} -> {backupMenuMusicPath}");
+                }
+                else
+                {
+                    Debug.Log($"[ModConfiguration] Backup файл музыки меню уже существует, пропускаем: {backupMenuMusicPath}");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[ModConfiguration] Файл проекта музыки меню не найден: {projectMenuMusicPath}");
+            }
+            
+            // Сохраняем оригинальный звук кнопки "Применить" в backup (если еще не сохранен)
+            if (File.Exists(projectApplyButtonPath))
+            {
+                if (!File.Exists(backupApplyButtonPath))
+                {
+                    File.Copy(projectApplyButtonPath, backupApplyButtonPath, true);
+                    Debug.Log($"[ModConfiguration] Оригинальный файл звука кнопки 'Применить' сохранен в backup: {projectApplyButtonPath} -> {backupApplyButtonPath}");
+                }
+                else
+                {
+                    Debug.Log($"[ModConfiguration] Backup файл звука 'Применить' уже существует, пропускаем: {backupApplyButtonPath}");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[ModConfiguration] Файл проекта звука 'Применить' не найден: {projectApplyButtonPath}");
+            }
+            
+            // Сохраняем оригинальный звук кнопки "Назад" в backup (если еще не сохранен)
+            if (File.Exists(projectBackButtonPath))
+            {
+                if (!File.Exists(backupBackButtonPath))
+                {
+                    File.Copy(projectBackButtonPath, backupBackButtonPath, true);
+                    Debug.Log($"[ModConfiguration] Оригинальный файл звука кнопки 'Назад' сохранен в backup: {projectBackButtonPath} -> {backupBackButtonPath}");
+                }
+                else
+                {
+                    Debug.Log($"[ModConfiguration] Backup файл звука 'Назад' уже существует, пропускаем: {backupBackButtonPath}");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[ModConfiguration] Файл проекта звука 'Назад' не найден: {projectBackButtonPath}");
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"Ошибка при сохранении оригинальных файлов в backup: {e.Message}\nStackTrace: {e.StackTrace}");
+        }
+    }
+    
+    /// <summary>
+    /// Восстановление оригинальных файлов из backup
+    /// </summary>
+    private void RestoreOriginalSoundFiles()
+    {
+        try
+        {
+            bool restored = false;
+            
+            Debug.Log($"[ModConfiguration] Попытка восстановления оригинальных файлов из backup...");
+            Debug.Log($"[ModConfiguration] Backup путь музыки меню: {backupMenuMusicPath}");
+            Debug.Log($"[ModConfiguration] Backup путь звука 'Применить': {backupApplyButtonPath}");
+            Debug.Log($"[ModConfiguration] Backup путь звука 'Назад': {backupBackButtonPath}");
+            
+            // Восстанавливаем оригинальную музыку меню из backup
+            if (File.Exists(backupMenuMusicPath))
+            {
+                // Создаем директорию назначения, если её нет
+                string destDir = Path.GetDirectoryName(projectMenuMusicPath);
+                if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                {
+                    Directory.CreateDirectory(destDir);
+                    Debug.Log($"[ModConfiguration] Создана директория: {destDir}");
+                }
+                
+                File.Copy(backupMenuMusicPath, projectMenuMusicPath, true);
+                Debug.Log($"[ModConfiguration] Восстановлен оригинальный файл музыки меню из backup: {backupMenuMusicPath} -> {projectMenuMusicPath}");
+                restored = true;
+            }
+            else
+            {
+                Debug.LogWarning($"[ModConfiguration] Backup файл музыки меню не найден: {backupMenuMusicPath}");
+            }
+            
+            // Восстанавливаем оригинальный звук кнопки "Применить" из backup
+            if (File.Exists(backupApplyButtonPath))
+            {
+                // Создаем директорию назначения, если её нет
+                string destDir = Path.GetDirectoryName(projectApplyButtonPath);
+                if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                {
+                    Directory.CreateDirectory(destDir);
+                    Debug.Log($"[ModConfiguration] Создана директория: {destDir}");
+                }
+                
+                File.Copy(backupApplyButtonPath, projectApplyButtonPath, true);
+                Debug.Log($"[ModConfiguration] Восстановлен оригинальный файл звука кнопки 'Применить' из backup: {backupApplyButtonPath} -> {projectApplyButtonPath}");
+                restored = true;
+            }
+            else
+            {
+                Debug.LogWarning($"[ModConfiguration] Backup файл звука 'Применить' не найден: {backupApplyButtonPath}");
+            }
+            
+            // Восстанавливаем оригинальный звук кнопки "Назад" из backup
+            if (File.Exists(backupBackButtonPath))
+            {
+                // Создаем директорию назначения, если её нет
+                string destDir = Path.GetDirectoryName(projectBackButtonPath);
+                if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                {
+                    Directory.CreateDirectory(destDir);
+                    Debug.Log($"[ModConfiguration] Создана директория: {destDir}");
+                }
+                
+                File.Copy(backupBackButtonPath, projectBackButtonPath, true);
+                Debug.Log($"[ModConfiguration] Восстановлен оригинальный файл звука кнопки 'Назад' из backup: {backupBackButtonPath} -> {projectBackButtonPath}");
+                restored = true;
+            }
+            else
+            {
+                Debug.LogWarning($"[ModConfiguration] Backup файл звука 'Назад' не найден: {backupBackButtonPath}");
+            }
+            
+            if (restored)
+            {
+                // Обновляем AssetDatabase, чтобы Unity подхватил изменения
+                RefreshAssetDatabase();
+                
+                // Перезагружаем AudioClip после восстановления файлов
+                ReloadAudioClipsAfterRestore();
+                
+                Debug.Log("[ModConfiguration] AssetDatabase обновлен после восстановления файлов");
+            }
+            else
+            {
+                Debug.LogWarning("[ModConfiguration] Не удалось восстановить ни один файл из backup. Возможно, backup файлы не были созданы.");
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"Ошибка при восстановлении оригинальных файлов из backup: {e.Message}\nStackTrace: {e.StackTrace}");
+        }
+    }
+    
+    /// <summary>
+    /// Перезагрузка AudioClip после восстановления файлов
+    /// </summary>
+    private void ReloadAudioClipsAfterRestore()
+    {
+        #if UNITY_EDITOR
+        try
+        {
+            // Получаем пути к файлам через абсолютные пути
+            string menuMusicAssetPath = GetAssetPathFromAbsolutePath(projectMenuMusicPath);
+            string applyButtonAssetPath = GetAssetPathFromAbsolutePath(projectApplyButtonPath);
+            string backButtonAssetPath = GetAssetPathFromAbsolutePath(projectBackButtonPath);
+            
+            Debug.Log($"[ModConfiguration] Перезагрузка AudioClip после восстановления:");
+            Debug.Log($"[ModConfiguration] Путь музыки меню (asset): {menuMusicAssetPath}");
+            Debug.Log($"[ModConfiguration] Путь звука 'Применить' (asset): {applyButtonAssetPath}");
+            Debug.Log($"[ModConfiguration] Путь звука 'Назад' (asset): {backButtonAssetPath}");
+            
+            // Перезагружаем AudioClip для музыки меню
+            if (!string.IsNullOrEmpty(menuMusicAssetPath) && File.Exists(projectMenuMusicPath))
+            {
+                AssetDatabase.ImportAsset(menuMusicAssetPath, ImportAssetOptions.ForceUpdate);
+                Debug.Log($"[ModConfiguration] AudioClip музыки меню переимпортирован: {menuMusicAssetPath}");
+            }
+            else if (originalMenuMusicClip != null)
+            {
+                // Если не удалось получить путь из абсолютного, используем путь из AudioClip
+                string assetPath = AssetDatabase.GetAssetPath(originalMenuMusicClip);
+                if (!string.IsNullOrEmpty(assetPath))
+                {
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+                    Debug.Log($"[ModConfiguration] AudioClip музыки меню переимпортирован (через AudioClip): {assetPath}");
+                }
+            }
+            
+            // Перезагружаем AudioClip для звука кнопки "Применить"
+            if (!string.IsNullOrEmpty(applyButtonAssetPath) && File.Exists(projectApplyButtonPath))
+            {
+                AssetDatabase.ImportAsset(applyButtonAssetPath, ImportAssetOptions.ForceUpdate);
+                Debug.Log($"[ModConfiguration] AudioClip звука 'Применить' переимпортирован: {applyButtonAssetPath}");
+            }
+            else if (originalApplyButtonClip != null)
+            {
+                string assetPath = AssetDatabase.GetAssetPath(originalApplyButtonClip);
+                if (!string.IsNullOrEmpty(assetPath))
+                {
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+                    Debug.Log($"[ModConfiguration] AudioClip звука 'Применить' переимпортирован (через AudioClip): {assetPath}");
+                }
+            }
+            
+            // Перезагружаем AudioClip для звука кнопки "Назад"
+            if (!string.IsNullOrEmpty(backButtonAssetPath) && File.Exists(projectBackButtonPath))
+            {
+                AssetDatabase.ImportAsset(backButtonAssetPath, ImportAssetOptions.ForceUpdate);
+                Debug.Log($"[ModConfiguration] AudioClip звука 'Назад' переимпортирован: {backButtonAssetPath}");
+            }
+            else if (originalBackButtonClip != null)
+            {
+                string assetPath = AssetDatabase.GetAssetPath(originalBackButtonClip);
+                if (!string.IsNullOrEmpty(assetPath))
+                {
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+                    Debug.Log($"[ModConfiguration] AudioClip звука 'Назад' переимпортирован (через AudioClip): {assetPath}");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"Ошибка при перезагрузке AudioClip: {e.Message}\nStackTrace: {e.StackTrace}");
+        }
+        #endif
+    }
+    
+    /// <summary>
+    /// Преобразование абсолютного пути в путь относительно Assets
+    /// </summary>
+    private string GetAssetPathFromAbsolutePath(string absolutePath)
+    {
+        if (string.IsNullOrEmpty(absolutePath))
+        {
+            return null;
+        }
+        
+        string dataPath = Application.dataPath;
+        if (absolutePath.StartsWith(dataPath))
+        {
+            // Убираем путь к Assets и добавляем "Assets/"
+            string relativePath = absolutePath.Substring(dataPath.Length);
+            relativePath = relativePath.Replace('\\', '/');
+            if (relativePath.StartsWith("/"))
+            {
+                relativePath = relativePath.Substring(1);
+            }
+            return "Assets/" + relativePath;
+        }
+        
+        return null;
+    }
+    
+    /// <summary>
+    /// Обновление AssetDatabase для применения изменений файлов
+    /// </summary>
+    private void RefreshAssetDatabase()
+    {
+        #if UNITY_EDITOR
+        // Обновляем AssetDatabase, чтобы Unity подхватил изменения файлов
+        AssetDatabase.Refresh();
+        #endif
+    }
+    
+    /// <summary>
     /// Проверка совместимости версии
     /// </summary>
     private VersionCompatibility CheckVersionCompatibility(string modGameVersion)
@@ -440,6 +1129,42 @@ public class ModConfiguration : MonoBehaviour
                 Debug.LogError($"Ошибка загрузки активных модов из PlayerPrefs: {e.Message}");
             }
         }
+        
+        // Автоматически добавляем обязательный мод "LastRite", если он доступен
+        EnsureRequiredModIsActive();
+    }
+    
+    /// <summary>
+    /// Убеждается, что обязательный мод "LastRite" всегда активен (если доступен)
+    /// </summary>
+    private void EnsureRequiredModIsActive()
+    {
+        // Ищем мод "LastRite" в списке всех модов
+        ModData lastRiteMod = allMods.Find(m => m.modName == REQUIRED_MOD_NAME);
+        
+        if (lastRiteMod != null)
+        {
+            // Устанавливаем совместимость как Compatible для обязательного мода "LastRite"
+            // Он всегда поддерживается на всех версиях
+            lastRiteMod.compatibility = VersionCompatibility.Compatible;
+            
+            // Если мод найден и он еще не активен, добавляем его
+            if (!activeMods.Contains(lastRiteMod))
+            {
+                activeMods.Add(lastRiteMod);
+                Debug.Log($"[ModConfiguration] Обязательный мод '{REQUIRED_MOD_NAME}' автоматически добавлен в активные моды");
+            }
+            // Если мод активен, но не в начале списка - перемещаем его в начало (самый высокий приоритет)
+            else if (activeMods.Count > 0 && activeMods[0] != lastRiteMod)
+            {
+                // Не перемещаем автоматически - пользователь может изменить приоритет через кнопки
+                // Но гарантируем, что он всегда активен
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[ModConfiguration] Обязательный мод '{REQUIRED_MOD_NAME}' не найден в списке модов");
+        }
     }
     
     /// <summary>
@@ -447,6 +1172,9 @@ public class ModConfiguration : MonoBehaviour
     /// </summary>
     private void SaveActiveModsToPlayerPrefs()
     {
+        // Убеждаемся, что обязательный мод "LastRite" всегда активен перед сохранением
+        EnsureRequiredModIsActive();
+        
         ActiveModsData data = new ActiveModsData();
         data.modPaths = activeMods.Select(m => m.modFilePath).ToArray();
         
@@ -471,6 +1199,38 @@ public class ModConfiguration : MonoBehaviour
             resetButton.onClick.RemoveAllListeners();
             resetButton.onClick.AddListener(OnResetButtonClicked);
         }
+        
+        if (moveUpButton != null)
+        {
+            moveUpButton.onClick.RemoveAllListeners();
+            moveUpButton.onClick.AddListener(OnMoveUpButtonClicked);
+            moveUpButton.interactable = false; // По умолчанию неактивна
+        }
+        
+        if (moveDownButton != null)
+        {
+            moveDownButton.onClick.RemoveAllListeners();
+            moveDownButton.onClick.AddListener(OnMoveDownButtonClicked);
+            moveDownButton.interactable = false; // По умолчанию неактивна
+        }
+        
+        UpdatePriorityButtonsState();
+    }
+    
+    /// <summary>
+    /// Обновление состояния кнопок приоритета
+    /// </summary>
+    private void UpdatePriorityButtonsState()
+    {
+        if (moveUpButton != null)
+        {
+            moveUpButton.interactable = (selectedMod != null && activeMods.IndexOf(selectedMod) > 0);
+        }
+        
+        if (moveDownButton != null)
+        {
+            moveDownButton.interactable = (selectedMod != null && activeMods.IndexOf(selectedMod) < activeMods.Count - 1);
+        }
     }
     
     /// <summary>
@@ -478,6 +1238,9 @@ public class ModConfiguration : MonoBehaviour
     /// </summary>
     private void RefreshModDisplay()
     {
+        // Убеждаемся, что обязательный мод "LastRite" всегда активен перед отображением
+        EnsureRequiredModIsActive();
+        
         // Проверяем, что префабы и родительские объекты назначены
         if (inactiveModPrefab == null || activeModPrefab == null)
         {
@@ -571,6 +1334,8 @@ public class ModConfiguration : MonoBehaviour
         if (modItem != null)
         {
             modItem.Initialize(mod, this);
+            // Устанавливаем состояние выбора
+            modItem.SetSelected(selectedMod == mod);
         }
         
         activeModInstances.Add(instance);
@@ -594,6 +1359,9 @@ public class ModConfiguration : MonoBehaviour
         }
         
         activeMods.Add(mod);
+        
+        // Только обновляем UI, но НЕ применяем изменения и НЕ сохраняем в PlayerPrefs
+        // Изменения будут применены только после нажатия кнопки "Применить"
         RefreshModDisplay();
     }
     
@@ -607,8 +1375,25 @@ public class ModConfiguration : MonoBehaviour
             return;
         }
         
+        // Запрещаем деактивацию обязательного мода "LastRite"
+        if (mod.modName == REQUIRED_MOD_NAME)
+        {
+            Debug.LogWarning($"[ModConfiguration] Нельзя деактивировать обязательный мод '{REQUIRED_MOD_NAME}'");
+            return;
+        }
+        
         activeMods.Remove(mod);
+        
+        // Только обновляем UI, но НЕ применяем изменения и НЕ сохраняем в PlayerPrefs
+        // Изменения будут применены только после нажатия кнопки "Применить"
         RefreshModDisplay();
+        
+        // Если удаленный мод был выбран, снимаем выбор
+        if (selectedMod == mod)
+        {
+            selectedMod = null;
+            UpdatePriorityButtonsState();
+        }
     }
     
     /// <summary>
@@ -616,7 +1401,8 @@ public class ModConfiguration : MonoBehaviour
     /// </summary>
     private void OnApplyButtonClicked()
     {
-        // Сохраняем активные моды
+        // Сохраняем активные моды в PlayerPrefs
+        // Это единственное место, где сохраняются изменения конфигурации модов
         SaveActiveModsToPlayerPrefs();
         
         // Показываем объект перезагрузки
@@ -631,21 +1417,39 @@ public class ModConfiguration : MonoBehaviour
             }
         }
         
-        // Перезагружаем сцену
+        // Перезагружаем сцену для применения всех изменений модов
+        // После перезагрузки сцены моды будут загружены из PlayerPrefs и применены
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
     
     /// <summary>
-    /// Обработчик нажатия кнопки "Сбросить"
+    /// Обработчик нажатия кнопки "Сбросить" - открывает проводник в папке модов
     /// </summary>
     private void OnResetButtonClicked()
     {
-        // Очищаем активные моды
-        activeMods.Clear();
-        SaveActiveModsToPlayerPrefs();
-        
-        // Обновляем отображение
-        RefreshModDisplay();
+        // Открываем проводник в папке модов
+        if (!string.IsNullOrEmpty(modsDirectoryPath))
+        {
+            try
+            {
+                // Создаем папку, если её нет
+                if (!Directory.Exists(modsDirectoryPath))
+                {
+                    Directory.CreateDirectory(modsDirectoryPath);
+                }
+                
+                // Открываем проводник Windows в указанной папке
+                Diagnostics.Process.Start("explorer.exe", modsDirectoryPath);
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogError($"Не удалось открыть папку модов: {e.Message}");
+            }
+        }
+        else
+        {
+            UnityEngine.Debug.LogWarning("Путь к папке модов не установлен");
+        }
     }
     
     /// <summary>
@@ -676,6 +1480,335 @@ public class ModConfiguration : MonoBehaviour
     {
         return modsDirectoryPath;
     }
+    
+    /// <summary>
+    /// Проверка наличия активных модов
+    /// </summary>
+    public bool HasActiveMods()
+    {
+        return activeMods != null && activeMods.Count > 0;
+    }
+    
+    /// <summary>
+    /// Проверка, является ли мод обязательным (не может быть деактивирован)
+    /// </summary>
+    public bool IsRequiredMod(ModData mod)
+    {
+        if (mod == null)
+        {
+            return false;
+        }
+        
+        return mod.modName == REQUIRED_MOD_NAME;
+    }
+    
+    /// <summary>
+    /// Проверка, является ли мод обязательным по имени
+    /// </summary>
+    public bool IsRequiredModName(string modName)
+    {
+        return modName == REQUIRED_MOD_NAME;
+    }
+    
+    /// <summary>
+    /// Применение музыки меню из активных модов с учетом приоритета
+    /// Файлы уже скопированы в проект, Unity автоматически обновит AudioClip
+    /// </summary>
+    private void ApplyMenuMusicFromMods()
+    {
+        // Файлы уже скопированы в проект в LoadModResources()
+        // Unity автоматически обновит AudioClip после RefreshAssetDatabase()
+        Debug.Log("[ModConfiguration] Файлы музыки уже применены через копирование в проект");
+    }
+    
+    /// <summary>
+    /// Восстановление оригинальной музыки меню
+    /// </summary>
+    private void RestoreOriginalMenuMusic()
+    {
+        if (currentMenuMusicClip == null || originalMenuMusicClip == null)
+        {
+            return;
+        }
+        
+        // Восстанавливаем оригинальный AudioClip во всех AudioSource
+        ReplaceAudioClipInAllAudioSources(currentMenuMusicClip, originalMenuMusicClip);
+        currentMenuMusicClip = null;
+        Debug.Log("[ModConfiguration] Восстановлен оригинальный AudioClip музыки меню");
+    }
+    
+    /// <summary>
+    /// Применение звуков кнопок из активных модов с учетом приоритета
+    /// Файлы уже скопированы в проект, Unity автоматически обновит AudioClip
+    /// </summary>
+    private void ApplyButtonSoundsFromMods()
+    {
+        // Файлы уже скопированы в проект в LoadModResources()
+        // Unity автоматически обновит AudioClip после RefreshAssetDatabase()
+        Debug.Log("[ModConfiguration] Файлы звуков кнопок уже применены через копирование в проект");
+    }
+    
+    /// <summary>
+    /// Восстановление оригинального звука кнопки "Применить"
+    /// </summary>
+    private void RestoreOriginalApplyButtonSound()
+    {
+        if (currentApplyButtonClip == null || originalApplyButtonClip == null)
+        {
+            return;
+        }
+        
+        ReplaceAudioClipInAllAudioSources(currentApplyButtonClip, originalApplyButtonClip);
+        currentApplyButtonClip = null;
+        Debug.Log("[ModConfiguration] Восстановлен оригинальный AudioClip кнопки 'Применить'");
+    }
+    
+    /// <summary>
+    /// Восстановление оригинального звука кнопки "Назад"
+    /// </summary>
+    private void RestoreOriginalBackButtonSound()
+    {
+        if (currentBackButtonClip == null || originalBackButtonClip == null)
+        {
+            return;
+        }
+        
+        ReplaceAudioClipInAllAudioSources(currentBackButtonClip, originalBackButtonClip);
+        currentBackButtonClip = null;
+        Debug.Log("[ModConfiguration] Восстановлен оригинальный AudioClip кнопки 'Назад'");
+    }
+    
+    /// <summary>
+    /// Замена AudioClip во всех AudioSource, которые используют оригинальный клип
+    /// Ищет во всех сценах и загруженных объектах
+    /// </summary>
+    private void ReplaceAudioClipInAllAudioSources(AudioClip originalClip, AudioClip newClip)
+    {
+        if (originalClip == null || newClip == null)
+        {
+            return;
+        }
+        
+        // Находим все AudioSource в текущей сцене и во всех загруженных объектах
+        AudioSource[] allAudioSources = Resources.FindObjectsOfTypeAll<AudioSource>();
+        
+        int replacedCount = 0;
+        foreach (AudioSource audioSource in allAudioSources)
+        {
+            // Пропускаем префабы и объекты, которые не находятся в сцене
+            // Проверяем, что объект активен в иерархии или является частью сцены
+            if (audioSource == null || audioSource.gameObject == null)
+            {
+                continue;
+            }
+            
+            // Пропускаем префабы в проекте (они не инстанцированы)
+            #if UNITY_EDITOR
+            if (PrefabUtility.IsPartOfPrefabAsset(audioSource))
+            {
+                continue;
+            }
+            #endif
+            
+            // Если AudioSource использует оригинальный клип, заменяем его
+            if (audioSource.clip == originalClip)
+            {
+                // Сохраняем оригинальный клип для восстановления (если еще не сохранен)
+                if (!originalClipsBackup.ContainsKey(audioSource))
+                {
+                    originalClipsBackup[audioSource] = originalClip;
+                }
+                
+                // Заменяем клип
+                audioSource.clip = newClip;
+                replacedCount++;
+            }
+        }
+        
+        if (replacedCount > 0)
+        {
+            Debug.Log($"[ModConfiguration] Заменен AudioClip '{originalClip.name}' на '{newClip.name}' в {replacedCount} AudioSource");
+        }
+    }
+    
+    /// <summary>
+    /// Запуск проигрывания музыки меню во всех AudioSource, которые используют музыку меню
+    /// После копирования файлов Unity автоматически обновит AudioClip, поэтому просто запускаем проигрывание
+    /// </summary>
+    private void StartMenuMusicPlayback()
+    {
+        if (originalMenuMusicClip == null)
+        {
+            return;
+        }
+        
+        // После копирования файлов и обновления AssetDatabase, Unity автоматически обновит AudioClip
+        // Находим все AudioSource, которые используют оригинальный клип (он теперь указывает на обновленный файл)
+        AudioSource[] allAudioSources = Resources.FindObjectsOfTypeAll<AudioSource>();
+        
+        int startedCount = 0;
+        
+        foreach (AudioSource audioSource in allAudioSources)
+        {
+            if (audioSource == null || audioSource.gameObject == null)
+            {
+                continue;
+            }
+            
+            #if UNITY_EDITOR
+            if (PrefabUtility.IsPartOfPrefabAsset(audioSource))
+            {
+                continue;
+            }
+            #endif
+            
+            // Если AudioSource использует оригинальный клип музыки меню
+            // После копирования файла Unity автоматически обновит этот AudioClip
+            if (audioSource.clip == originalMenuMusicClip)
+            {
+                // Перезагружаем клип, чтобы Unity подхватил изменения
+                #if UNITY_EDITOR
+                // В редакторе перезагружаем через AssetDatabase
+                string assetPath = AssetDatabase.GetAssetPath(originalMenuMusicClip);
+                if (!string.IsNullOrEmpty(assetPath))
+                {
+                    AudioClip reloadedClip = AssetDatabase.LoadAssetAtPath<AudioClip>(assetPath);
+                    if (reloadedClip != null)
+                    {
+                        audioSource.clip = reloadedClip;
+                    }
+                }
+                #endif
+                
+                // Запускаем проигрывание, если оно еще не начато
+                if (!audioSource.isPlaying && audioSource.clip != null)
+                {
+                    audioSource.Play();
+                    startedCount++;
+                    Debug.Log($"[ModConfiguration] Запущено проигрывание музыки меню в AudioSource на объекте: {audioSource.gameObject.name}");
+                }
+            }
+        }
+        
+        if (startedCount > 0)
+        {
+            Debug.Log($"[ModConfiguration] Запущено проигрывание музыки меню в {startedCount} AudioSource");
+        }
+        else
+        {
+            Debug.LogWarning("[ModConfiguration] Не найдено AudioSource, которые используют музыку меню. Убедитесь, что originalMenuMusicClip назначен в AudioSource компонентах.");
+        }
+    }
+    
+    /// <summary>
+    /// Восстановление всех оригинальных AudioClip
+    /// </summary>
+    private void RestoreAllOriginalAudioClips()
+    {
+        int restoredCount = 0;
+        
+        // Восстанавливаем все сохраненные оригинальные клипы
+        foreach (var kvp in originalClipsBackup)
+        {
+            AudioSource audioSource = kvp.Key;
+            AudioClip originalClip = kvp.Value;
+            
+            if (audioSource != null && originalClip != null)
+            {
+                audioSource.clip = originalClip;
+                restoredCount++;
+            }
+        }
+        
+        // Очищаем backup
+        originalClipsBackup.Clear();
+        currentMenuMusicClip = null;
+        currentApplyButtonClip = null;
+        currentBackButtonClip = null;
+        
+        if (restoredCount > 0)
+        {
+            Debug.Log($"[ModConfiguration] Восстановлено {restoredCount} оригинальных AudioClip");
+        }
+    }
+    
+    /// <summary>
+    /// Выбор мода для изменения приоритета
+    /// </summary>
+    public void SelectMod(ModData mod)
+    {
+        selectedMod = mod;
+        UpdatePriorityButtonsState();
+        
+        // Обновляем визуальное отображение выбранного мода
+        RefreshModDisplay();
+    }
+    
+    /// <summary>
+    /// Отмена выбора мода
+    /// </summary>
+    public void DeselectMod()
+    {
+        selectedMod = null;
+        UpdatePriorityButtonsState();
+        RefreshModDisplay();
+    }
+    
+    /// <summary>
+    /// Получить выбранный мод
+    /// </summary>
+    public ModData GetSelectedMod()
+    {
+        return selectedMod;
+    }
+    
+    /// <summary>
+    /// Обработчик нажатия кнопки "Вверх"
+    /// </summary>
+    private void OnMoveUpButtonClicked()
+    {
+        if (selectedMod == null)
+        {
+            return;
+        }
+        
+        int currentIndex = activeMods.IndexOf(selectedMod);
+        if (currentIndex > 0)
+        {
+            // Перемещаем мод вверх
+            activeMods.RemoveAt(currentIndex);
+            activeMods.Insert(currentIndex - 1, selectedMod);
+            
+            // Только обновляем UI, но НЕ применяем изменения и НЕ сохраняем в PlayerPrefs
+            // Изменения будут применены только после нажатия кнопки "Применить"
+            RefreshModDisplay();
+            UpdatePriorityButtonsState();
+        }
+    }
+    
+    /// <summary>
+    /// Обработчик нажатия кнопки "Вниз"
+    /// </summary>
+    private void OnMoveDownButtonClicked()
+    {
+        if (selectedMod == null)
+        {
+            return;
+        }
+        
+        int currentIndex = activeMods.IndexOf(selectedMod);
+        if (currentIndex < activeMods.Count - 1)
+        {
+            // Перемещаем мод вниз
+            activeMods.RemoveAt(currentIndex);
+            activeMods.Insert(currentIndex + 1, selectedMod);
+            
+            // Только обновляем UI, но НЕ применяем изменения и НЕ сохраняем в PlayerPrefs
+            // Изменения будут применены только после нажатия кнопки "Применить"
+            RefreshModDisplay();
+            UpdatePriorityButtonsState();
+        }
+    }
 }
 
 /// <summary>
@@ -697,4 +1830,5 @@ public class ActiveModsData
 {
     public string[] modPaths;
 }
+
 

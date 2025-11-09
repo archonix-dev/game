@@ -23,6 +23,12 @@ public class ShowAndHideAfterDelay : MonoBehaviour
     [Tooltip("Текст 'Финализация...'")]
     public GameObject finalizationText;
     
+    [Tooltip("Текст 'Загрузка модов...'")]
+    public GameObject loadingModsText;
+    
+    [Tooltip("Ссылка на ModConfiguration для загрузки ресурсов модов")]
+    public ModConfiguration modConfiguration;
+    
     [Header("Анимация")]
     [Tooltip("Animator компонент для управления анимацией")]
     public Animator animator;
@@ -102,6 +108,7 @@ public class ShowAndHideAfterDelay : MonoBehaviour
         SetTextVisibility(loadingGameText, false);
         SetTextVisibility(loadingTexturesText, false);
         SetTextVisibility(finalizationText, false);
+        SetTextVisibility(loadingModsText, false);
     }
     
     private void SetTextVisibility(GameObject textObject, bool visible)
@@ -129,14 +136,42 @@ public class ShowAndHideAfterDelay : MonoBehaviour
         isLoadingComplete = false;
         animationResumed = false;
         
-        // Этап 1: Загрузка игры (PlayerPrefs)
-        yield return StartCoroutine(LoadGameSettings());
+        // Проверяем, есть ли активные моды для загрузки
+        bool hasActiveMods = false;
+        if (modConfiguration != null)
+        {
+            // Получаем количество активных модов через публичный метод (нужно добавить)
+            // Пока проверяем через загрузку модов - если есть что загружать, то hasActiveMods = true
+            hasActiveMods = modConfiguration.HasActiveMods();
+        }
         
-        // Этап 2: Загрузка текстур
-        yield return StartCoroutine(LoadTextures());
-        
-        // Этап 3: Финализация
-        yield return StartCoroutine(FinalizeLoading());
+        // Если есть активные моды, загружаем их первыми (приоритет)
+        if (hasActiveMods)
+        {
+            // Этап 1: Загрузка модов и их ресурсов (приоритет)
+            yield return StartCoroutine(LoadMods());
+            
+            // Этап 2: Загрузка игры (PlayerPrefs)
+            yield return StartCoroutine(LoadGameSettings());
+            
+            // Этап 3: Загрузка текстур
+            yield return StartCoroutine(LoadTextures());
+            
+            // Этап 4: Финализация
+            yield return StartCoroutine(FinalizeLoading());
+        }
+        else
+        {
+            // Если модов нет, загружаем в стандартном порядке
+            // Этап 1: Загрузка игры (PlayerPrefs)
+            yield return StartCoroutine(LoadGameSettings());
+            
+            // Этап 2: Загрузка текстур
+            yield return StartCoroutine(LoadTextures());
+            
+            // Этап 3: Финализация
+            yield return StartCoroutine(FinalizeLoading());
+        }
         
         // Загрузка завершена
         isLoadingComplete = true;
@@ -175,11 +210,17 @@ public class ShowAndHideAfterDelay : MonoBehaviour
     {
         // Показываем текст загрузки игры
         SetTextVisibility(loadingGameText, true);
+        SetTextVisibility(loadingModsText, false);
         SetTextVisibility(loadingTexturesText, false);
         SetTextVisibility(finalizationText, false);
         
         float stageProgress = 0f;
         float elapsedTime = 0f;
+        
+        // Определяем диапазон прогресса в зависимости от того, загружались ли моды первыми
+        bool modsLoadedFirst = (modConfiguration != null && modConfiguration.HasActiveMods());
+        float progressStart = modsLoadedFirst ? 0.25f : 0f;
+        float progressRange = modsLoadedFirst ? 0.25f : 0.25f;
         
         while (stageProgress < 0.99f || elapsedTime < minLoadTimePerStage)
         {
@@ -221,16 +262,16 @@ public class ShowAndHideAfterDelay : MonoBehaviour
                 stageProgress = 1f;
             }
             
-            // Обновляем общий прогресс (этап 1 = 0-33%)
-            totalProgress = stageProgress * 0.33f;
+            // Обновляем общий прогресс
+            totalProgress = progressStart + (stageProgress * progressRange);
             UpdateProgress(totalProgress);
             
             yield return null;
         }
         
-        // Убеждаемся, что прогресс = 33%
+        // Убеждаемся, что прогресс правильный
         stageProgress = 1f;
-        totalProgress = 0.33f;
+        totalProgress = progressStart + progressRange;
         UpdateProgress(totalProgress);
         
         // Скрываем текст загрузки игры
@@ -241,9 +282,17 @@ public class ShowAndHideAfterDelay : MonoBehaviour
     {
         // Показываем текст загрузки текстур
         SetTextVisibility(loadingTexturesText, true);
+        SetTextVisibility(loadingGameText, false);
+        SetTextVisibility(loadingModsText, false);
+        SetTextVisibility(finalizationText, false);
         
         float stageProgress = 0f;
         float elapsedTime = 0f;
+        
+        // Определяем диапазон прогресса в зависимости от того, загружались ли моды первыми
+        bool modsLoadedFirst = (modConfiguration != null && modConfiguration.HasActiveMods());
+        float progressStart = modsLoadedFirst ? 0.5f : 0.25f;
+        float progressRange = 0.25f;
         
         // Минимальная задержка для этапа загрузки текстур
         while (stageProgress < 0.99f || elapsedTime < minLoadTimePerStage)
@@ -268,29 +317,81 @@ public class ShowAndHideAfterDelay : MonoBehaviour
                 stageProgress = 1f;
             }
             
-            // Обновляем общий прогресс (этап 2 = 33-66%)
-            totalProgress = 0.33f + (stageProgress * 0.33f);
+            // Обновляем общий прогресс
+            totalProgress = progressStart + (stageProgress * progressRange);
             UpdateProgress(totalProgress);
             
             yield return null;
         }
         
-        // Убеждаемся, что прогресс этапа = 66%
+        // Убеждаемся, что прогресс правильный
         stageProgress = 1f;
-        totalProgress = 0.66f;
+        totalProgress = progressStart + progressRange;
         UpdateProgress(totalProgress);
         
         // Скрываем текст загрузки текстур
         SetTextVisibility(loadingTexturesText, false);
     }
     
+    private IEnumerator LoadMods()
+    {
+        // Показываем текст загрузки модов
+        SetTextVisibility(loadingModsText, true);
+        SetTextVisibility(loadingGameText, false);
+        SetTextVisibility(loadingTexturesText, false);
+        SetTextVisibility(finalizationText, false);
+        
+        float stageProgress = 0f;
+        float elapsedTime = 0f;
+        
+        // Загружаем ресурсы модов через ModConfiguration
+        if (modConfiguration != null)
+        {
+            yield return StartCoroutine(modConfiguration.LoadModResources((progress) =>
+            {
+                stageProgress = progress;
+                // Обновляем общий прогресс (этап 1 = 0-25% если моды загружаются первыми)
+                totalProgress = stageProgress * 0.25f;
+                UpdateProgress(totalProgress);
+            }));
+        }
+        else
+        {
+            // Если ModConfiguration не назначен, просто ждем минимальное время
+            while (elapsedTime < minLoadTimePerStage)
+            {
+                elapsedTime += Time.deltaTime;
+                stageProgress = Mathf.Clamp01(elapsedTime / minLoadTimePerStage);
+                totalProgress = stageProgress * 0.25f;
+                UpdateProgress(totalProgress);
+                yield return null;
+            }
+            stageProgress = 1f;
+        }
+        
+        // Убеждаемся, что прогресс = 25%
+        totalProgress = 0.25f;
+        UpdateProgress(totalProgress);
+        
+        // Скрываем текст загрузки модов
+        SetTextVisibility(loadingModsText, false);
+    }
+    
     private IEnumerator FinalizeLoading()
     {
         // Показываем текст финализации
         SetTextVisibility(finalizationText, true);
+        SetTextVisibility(loadingGameText, false);
+        SetTextVisibility(loadingModsText, false);
+        SetTextVisibility(loadingTexturesText, false);
         
         float stageProgress = 0f;
         float elapsedTime = 0f;
+        
+        // Определяем диапазон прогресса в зависимости от того, загружались ли моды первыми
+        bool modsLoadedFirst = (modConfiguration != null && modConfiguration.HasActiveMods());
+        float progressStart = modsLoadedFirst ? 0.75f : 0.5f;
+        float progressRange = 0.25f;
         
         while (stageProgress < 0.99f || elapsedTime < minLoadTimePerStage)
         {
@@ -324,8 +425,8 @@ public class ShowAndHideAfterDelay : MonoBehaviour
                 stageProgress = 1f;
             }
             
-            // Обновляем общий прогресс (этап 3 = 66-100%)
-            totalProgress = 0.66f + (stageProgress * 0.34f);
+            // Обновляем общий прогресс
+            totalProgress = progressStart + (stageProgress * progressRange);
             UpdateProgress(totalProgress);
             
             yield return null;

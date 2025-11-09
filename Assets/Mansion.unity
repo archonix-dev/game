@@ -4192,6 +4192,10 @@ PrefabInstance:
       value: SM_Env_Fountain_02
       objectReference: {fileID: 0}
     - target: {fileID: 1825801170014546, guid: 95845f2d58c586d4c8bb7e3c8c7f8ba1, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1825801170014546, guid: 95845f2d58c586d4c8bb7e3c8c7f8ba1, type: 3}
       propertyPath: m_StaticEditorFlags
       value: 2147483647
       objectReference: {fileID: 0}
@@ -8846,6 +8850,10 @@ PrefabInstance:
     - target: {fileID: 990125333512618423, guid: adb4cec01f6ddfb4e9dd8c9565cb1ea4, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1168798007659827189, guid: adb4cec01f6ddfb4e9dd8c9565cb1ea4, type: 3}
+      propertyPath: groundMask.m_Bits
+      value: 200
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 3767951150812447365, guid: adb4cec01f6ddfb4e9dd8c9565cb1ea4, type: 3}
@@ -24679,8 +24687,8 @@ Light:
   m_Enabled: 1
   serializedVersion: 11
   m_Type: 1
-  m_Color: {r: 0, g: 0.3931322, b: 1, a: 1}
-  m_Intensity: 0.15
+  m_Color: {r: 0, g: 0.9023998, b: 1, a: 1}
+  m_Intensity: 0.1
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208

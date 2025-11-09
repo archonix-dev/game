@@ -356,6 +356,10 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
     {
         if (playerHealthStamina == null) return;
         
+        // Энергия тратится только когда игрок стоит и бежит
+        // В присяди или лежа ускорение не работает, поэтому энергия не должна тратиться
+        if (currentStance != PlayerStance.Standing) return;
+        
         bool isRunning = Input.GetKey(KeyCode.LeftShift);
         bool hasMovement = Input.GetAxis("Horizontal") != 0 || Input.GetAxis("Vertical") != 0;
         
