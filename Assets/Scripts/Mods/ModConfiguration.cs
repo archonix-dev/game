@@ -84,6 +84,11 @@ public class ModConfiguration : MonoBehaviour
     private AudioClip currentApplyButtonClip = null;
     private AudioClip currentBackButtonClip = null;
     
+    // Загруженные AudioClip из модов (для билда)
+    private AudioClip loadedMenuMusicClip = null;
+    private AudioClip loadedApplyButtonClip = null;
+    private AudioClip loadedBackButtonClip = null;
+    
     // Пути к файлам в проекте
     private string projectMenuMusicPath;
     private string projectApplyButtonPath;
@@ -123,15 +128,8 @@ public class ModConfiguration : MonoBehaviour
     
     void Awake()
     {
-        if (instance == null)
-        {
-            instance = this;
-        }
-        else if (instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
+        // Устанавливаем instance (без DontDestroyOnLoad, объект будет уничтожаться при перезагрузке сцены)
+        instance = this;
         
         // Построение пути к папке модов
         BuildModsDirectoryPath();
@@ -169,6 +167,25 @@ public class ModConfiguration : MonoBehaviour
         
         // Восстанавливаем оригинальные звуки при уничтожении объекта
         RestoreAllOriginalAudioClips();
+        
+        // Очищаем загруженные AudioClip (для билда)
+        #if !UNITY_EDITOR
+        if (loadedMenuMusicClip != null)
+        {
+            Destroy(loadedMenuMusicClip);
+            loadedMenuMusicClip = null;
+        }
+        if (loadedApplyButtonClip != null)
+        {
+            Destroy(loadedApplyButtonClip);
+            loadedApplyButtonClip = null;
+        }
+        if (loadedBackButtonClip != null)
+        {
+            Destroy(loadedBackButtonClip);
+            loadedBackButtonClip = null;
+        }
+        #endif
     }
     
     /// <summary>
@@ -176,9 +193,52 @@ public class ModConfiguration : MonoBehaviour
     /// </summary>
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        // Файлы уже скопированы в проект при загрузке модов
-        // Unity автоматически обновит AudioClip, просто запускаем проигрывание музыки
+        // Применяем все загруженные звуки из модов при загрузке каждой новой сцены
+        ApplyAllModSoundsToScene();
+    }
+    
+    /// <summary>
+    /// Применение всех звуков из модов к текущей сцене (для билда)
+    /// </summary>
+    private void ApplyAllModSoundsToScene()
+    {
+        #if !UNITY_EDITOR
+        // В билде применяем все загруженные звуки из модов
+        // Используем небольшую задержку, чтобы все AudioSource успели инициализироваться
+        StartCoroutine(ApplyAllModSoundsCoroutine());
+        #else
+        // В редакторе просто запускаем проигрывание музыки
         StartMenuMusicPlayback();
+        #endif
+    }
+    
+    /// <summary>
+    /// Корутина для применения всех звуков из модов с небольшой задержкой
+    /// </summary>
+    private IEnumerator ApplyAllModSoundsCoroutine()
+    {
+        // Небольшая задержка, чтобы все AudioSource успели инициализироваться в новой сцене
+        yield return new WaitForSeconds(0.1f);
+        
+        // Проверяем, что загруженные AudioClip существуют (моды уже загружены)
+        // Если они null, значит моды еще не загружены или не активны
+        bool hasLoadedClips = (loadedMenuMusicClip != null) || (loadedApplyButtonClip != null) || (loadedBackButtonClip != null);
+        
+        if (hasLoadedClips)
+        {
+            // Применяем музыку меню
+            StartMenuMusicPlayback();
+            
+            // Применяем звуки кнопок
+            ApplyButtonSoundsInBuild();
+            
+            Debug.Log("[ModConfiguration] Применены все звуки из модов к новой сцене");
+        }
+        else
+        {
+            // Если моды еще не загружены, просто запускаем оригинальную музыку
+            StartMenuMusicPlayback();
+        }
     }
     
     /// <summary>
@@ -543,14 +603,34 @@ public class ModConfiguration : MonoBehaviour
             // Восстанавливаем файлы из backup
             RestoreOriginalSoundFiles();
             
-            // Обновляем AssetDatabase, чтобы Unity подхватил изменения
+            #if !UNITY_EDITOR
+            // В билде загружаем оригинальные AudioClip из восстановленных файлов
+            if (!string.IsNullOrEmpty(projectMenuMusicPath) && File.Exists(projectMenuMusicPath))
+            {
+                yield return StartCoroutine(LoadAudioClipFromFile(projectMenuMusicPath, (clip) => {
+                    loadedMenuMusicClip = clip;
+                }));
+            }
+            if (!string.IsNullOrEmpty(projectApplyButtonPath) && File.Exists(projectApplyButtonPath))
+            {
+                yield return StartCoroutine(LoadAudioClipFromFile(projectApplyButtonPath, (clip) => {
+                    loadedApplyButtonClip = clip;
+                }));
+            }
+            if (!string.IsNullOrEmpty(projectBackButtonPath) && File.Exists(projectBackButtonPath))
+            {
+                yield return StartCoroutine(LoadAudioClipFromFile(projectBackButtonPath, (clip) => {
+                    loadedBackButtonClip = clip;
+                }));
+            }
+            // Применяем восстановленные звуки кнопок в билде
+            ApplyButtonSoundsInBuild();
+            #else
+            // В редакторе обновляем AssetDatabase
             RefreshAssetDatabase();
-            
-            // Перезагружаем AudioClip после восстановления файлов
             ReloadAudioClipsAfterRestore();
-            
-            // Даем время Unity обновить файлы и перезагрузить AudioClip
             yield return new WaitForSeconds(0.3f);
+            #endif
             
             // Запускаем проигрывание музыки меню с оригинальными файлами
             StartMenuMusicPlayback();
@@ -597,14 +677,34 @@ public class ModConfiguration : MonoBehaviour
             Debug.Log("[ModConfiguration] Нет файлов в активных модах, восстанавливаем оригинальные файлы из backup...");
             RestoreOriginalSoundFiles();
             
-            // Обновляем AssetDatabase, чтобы Unity подхватил изменения
+            #if !UNITY_EDITOR
+            // В билде загружаем оригинальные AudioClip из восстановленных файлов
+            if (!string.IsNullOrEmpty(projectMenuMusicPath) && File.Exists(projectMenuMusicPath))
+            {
+                yield return StartCoroutine(LoadAudioClipFromFile(projectMenuMusicPath, (clip) => {
+                    loadedMenuMusicClip = clip;
+                }));
+            }
+            if (!string.IsNullOrEmpty(projectApplyButtonPath) && File.Exists(projectApplyButtonPath))
+            {
+                yield return StartCoroutine(LoadAudioClipFromFile(projectApplyButtonPath, (clip) => {
+                    loadedApplyButtonClip = clip;
+                }));
+            }
+            if (!string.IsNullOrEmpty(projectBackButtonPath) && File.Exists(projectBackButtonPath))
+            {
+                yield return StartCoroutine(LoadAudioClipFromFile(projectBackButtonPath, (clip) => {
+                    loadedBackButtonClip = clip;
+                }));
+            }
+            // Применяем восстановленные звуки кнопок в билде
+            ApplyButtonSoundsInBuild();
+            #else
+            // В редакторе обновляем AssetDatabase
             RefreshAssetDatabase();
-            
-            // Перезагружаем AudioClip после восстановления файлов
             ReloadAudioClipsAfterRestore();
-            
-            // Даем время Unity обновить файлы
             yield return new WaitForSeconds(0.3f);
+            #endif
             
             // Запускаем проигрывание музыки меню с оригинальными файлами
             StartMenuMusicPlayback();
@@ -652,20 +752,142 @@ public class ModConfiguration : MonoBehaviour
             yield return null;
         }
         
-        // Обновляем AssetDatabase, чтобы Unity подхватил изменения
+        // Обновляем AssetDatabase, чтобы Unity подхватил изменения (только в редакторе)
         RefreshAssetDatabase();
         
-        // Перезагружаем AudioClip после копирования файлов
-        ReloadAudioClipsAfterCopy();
+        // В билде загружаем AudioClip напрямую из файлов
+        #if !UNITY_EDITOR
+        // Загружаем AudioClip из скопированных файлов
+        if (musicSourcePath != null && !string.IsNullOrEmpty(projectMenuMusicPath))
+        {
+            yield return StartCoroutine(LoadAudioClipFromFile(projectMenuMusicPath, (clip) => {
+                loadedMenuMusicClip = clip;
+            }));
+        }
         
-        // Небольшая задержка для завершения обновления
+        if (applyButtonSourcePath != null && !string.IsNullOrEmpty(projectApplyButtonPath))
+        {
+            yield return StartCoroutine(LoadAudioClipFromFile(projectApplyButtonPath, (clip) => {
+                loadedApplyButtonClip = clip;
+            }));
+        }
+        
+        if (backButtonSourcePath != null && !string.IsNullOrEmpty(projectBackButtonPath))
+        {
+            yield return StartCoroutine(LoadAudioClipFromFile(projectBackButtonPath, (clip) => {
+                loadedBackButtonClip = clip;
+            }));
+        }
+        
+        // Применяем загруженные звуки кнопок в билде
+        ApplyButtonSoundsInBuild();
+        #else
+        // В редакторе перезагружаем AudioClip через AssetDatabase
+        ReloadAudioClipsAfterCopy();
         yield return new WaitForSeconds(0.1f);
+        #endif
         
         // Запускаем проигрывание музыки меню
         StartMenuMusicPlayback();
         
         // Убеждаемся, что прогресс = 100%
         progressCallback?.Invoke(1f);
+    }
+    
+    /// <summary>
+    /// Применение звуков кнопок в билде (замена AudioClip в AudioSource)
+    /// Применяется ко всем сценам
+    /// </summary>
+    private void ApplyButtonSoundsInBuild()
+    {
+        #if !UNITY_EDITOR
+        if (originalApplyButtonClip == null && originalBackButtonClip == null)
+        {
+            return;
+        }
+        
+        // Находим все AudioSource в текущей сцене
+        AudioSource[] allAudioSources = Resources.FindObjectsOfTypeAll<AudioSource>();
+        
+        int replacedCount = 0;
+        
+        foreach (AudioSource audioSource in allAudioSources)
+        {
+            if (audioSource == null || audioSource.gameObject == null)
+            {
+                continue;
+            }
+            
+            // Заменяем звук кнопки "Применить"
+            if (originalApplyButtonClip != null && audioSource.clip == originalApplyButtonClip)
+            {
+                if (loadedApplyButtonClip != null)
+                {
+                    audioSource.clip = loadedApplyButtonClip;
+                    replacedCount++;
+                    Debug.Log($"[ModConfiguration] Заменен AudioClip звука 'Применить' на загруженный из мода в AudioSource: {audioSource.gameObject.name} (сцена: {audioSource.gameObject.scene.name})");
+                }
+            }
+            
+            // Заменяем звук кнопки "Назад"
+            if (originalBackButtonClip != null && audioSource.clip == originalBackButtonClip)
+            {
+                if (loadedBackButtonClip != null)
+                {
+                    audioSource.clip = loadedBackButtonClip;
+                    replacedCount++;
+                    Debug.Log($"[ModConfiguration] Заменен AudioClip звука 'Назад' на загруженный из мода в AudioSource: {audioSource.gameObject.name} (сцена: {audioSource.gameObject.scene.name})");
+                }
+            }
+        }
+        
+        if (replacedCount > 0)
+        {
+            Debug.Log($"[ModConfiguration] Заменено {replacedCount} AudioClip звуков кнопок в текущей сцене");
+        }
+        #endif
+    }
+    
+    /// <summary>
+    /// Загрузка AudioClip из файла (для билда)
+    /// </summary>
+    private IEnumerator LoadAudioClipFromFile(string filePath, System.Action<AudioClip> onComplete)
+    {
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+        {
+            Debug.LogWarning($"[ModConfiguration] Файл не найден для загрузки AudioClip: {filePath}");
+            onComplete?.Invoke(null);
+            yield break;
+        }
+        
+        string fileUrl = "file://" + filePath;
+        
+        using (UnityWebRequest www = UnityWebRequestMultimedia.GetAudioClip(fileUrl, AudioType.MPEG))
+        {
+            yield return www.SendWebRequest();
+            
+            if (www.result == UnityWebRequest.Result.Success)
+            {
+                AudioClip clip = DownloadHandlerAudioClip.GetContent(www);
+                if (clip != null)
+                {
+                    // Защищаем AudioClip от уничтожения при очистке памяти
+                    clip.hideFlags = HideFlags.DontUnloadUnusedAsset;
+                    Debug.Log($"[ModConfiguration] AudioClip загружен из файла: {filePath}");
+                    onComplete?.Invoke(clip);
+                }
+                else
+                {
+                    Debug.LogWarning($"[ModConfiguration] Не удалось создать AudioClip из файла: {filePath}");
+                    onComplete?.Invoke(null);
+                }
+            }
+            else
+            {
+                Debug.LogError($"[ModConfiguration] Ошибка загрузки AudioClip из {filePath}: {www.error}");
+                onComplete?.Invoke(null);
+            }
+        }
     }
     
     /// <summary>
@@ -1411,9 +1633,9 @@ public class ModConfiguration : MonoBehaviour
             // Сбрасываем состояние ShowAndHideAfterDelay для показа загрузки
             ShowAndHideAfterDelay.ResetShowState();
             
-            if (sceneReloadController.targetObject != null)
+            if (sceneReloadController.objectToHide != null)
             {
-                sceneReloadController.targetObject.SetActive(true);
+                sceneReloadController.objectToHide.SetActive(true);
             }
         }
         
@@ -1633,7 +1855,7 @@ public class ModConfiguration : MonoBehaviour
     
     /// <summary>
     /// Запуск проигрывания музыки меню во всех AudioSource, которые используют музыку меню
-    /// После копирования файлов Unity автоматически обновит AudioClip, поэтому просто запускаем проигрывание
+    /// Применяется ко всем сценам, не только к меню
     /// </summary>
     private void StartMenuMusicPlayback()
     {
@@ -1642,11 +1864,20 @@ public class ModConfiguration : MonoBehaviour
             return;
         }
         
-        // После копирования файлов и обновления AssetDatabase, Unity автоматически обновит AudioClip
-        // Находим все AudioSource, которые используют оригинальный клип (он теперь указывает на обновленный файл)
+        // Находим все AudioSource в текущей сцене
         AudioSource[] allAudioSources = Resources.FindObjectsOfTypeAll<AudioSource>();
         
+        int replacedCount = 0;
         int startedCount = 0;
+        AudioClip clipToUse = null;
+        
+        #if !UNITY_EDITOR
+        // В билде используем загруженный AudioClip из мода
+        clipToUse = loadedMenuMusicClip;
+        #else
+        // В редакторе используем оригинальный клип (он обновлен через AssetDatabase)
+        clipToUse = originalMenuMusicClip;
+        #endif
         
         foreach (AudioSource audioSource in allAudioSources)
         {
@@ -1663,11 +1894,17 @@ public class ModConfiguration : MonoBehaviour
             #endif
             
             // Если AudioSource использует оригинальный клип музыки меню
-            // После копирования файла Unity автоматически обновит этот AudioClip
             if (audioSource.clip == originalMenuMusicClip)
             {
-                // Перезагружаем клип, чтобы Unity подхватил изменения
-                #if UNITY_EDITOR
+                #if !UNITY_EDITOR
+                // В билде заменяем на загруженный AudioClip из мода
+                if (clipToUse != null)
+                {
+                    audioSource.clip = clipToUse;
+                    replacedCount++;
+                    Debug.Log($"[ModConfiguration] Заменен AudioClip музыки меню на загруженный из мода в AudioSource: {audioSource.gameObject.name} (сцена: {audioSource.gameObject.scene.name})");
+                }
+                #else
                 // В редакторе перезагружаем через AssetDatabase
                 string assetPath = AssetDatabase.GetAssetPath(originalMenuMusicClip);
                 if (!string.IsNullOrEmpty(assetPath))
@@ -1676,12 +1913,13 @@ public class ModConfiguration : MonoBehaviour
                     if (reloadedClip != null)
                     {
                         audioSource.clip = reloadedClip;
+                        replacedCount++;
                     }
                 }
                 #endif
                 
-                // Запускаем проигрывание, если оно еще не начато
-                if (!audioSource.isPlaying && audioSource.clip != null)
+                // Запускаем проигрывание, если оно еще не начато и AudioSource должен автоматически проигрываться
+                if (!audioSource.isPlaying && audioSource.clip != null && audioSource.playOnAwake)
                 {
                     audioSource.Play();
                     startedCount++;
@@ -1690,13 +1928,9 @@ public class ModConfiguration : MonoBehaviour
             }
         }
         
-        if (startedCount > 0)
+        if (replacedCount > 0)
         {
-            Debug.Log($"[ModConfiguration] Запущено проигрывание музыки меню в {startedCount} AudioSource");
-        }
-        else
-        {
-            Debug.LogWarning("[ModConfiguration] Не найдено AudioSource, которые используют музыку меню. Убедитесь, что originalMenuMusicClip назначен в AudioSource компонентах.");
+            Debug.Log($"[ModConfiguration] Заменено {replacedCount} AudioClip музыки меню в текущей сцене. Запущено проигрывание: {startedCount}");
         }
     }
     

@@ -46,6 +46,12 @@ public class HeadLookAtCamera : MonoBehaviour
             return;
         }
         
+        // Не двигаем голову, когда меню открыто (курсор разблокирован)
+        if (Cursor.lockState != CursorLockMode.Locked)
+        {
+            return;
+        }
+        
         Vector3 cameraForward = playerCamera.transform.forward;
         Transform parent = headTransform.parent;
         

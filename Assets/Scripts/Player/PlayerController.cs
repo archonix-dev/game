@@ -38,8 +38,35 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
     [SerializeField] private ObjectGrabSystem objectGrabSystem;
     [SerializeField] private PickupableGrabSystem pickupableGrabSystem;
     
-    [Header("Animation")]
-    [SerializeField] private Animator animator;
+    [Header("Body Parts")]
+    [Tooltip("Объект головы")]
+    [SerializeField] private GameObject headObject;
+    [Tooltip("Объект тела")]
+    [SerializeField] private GameObject bodyObject;
+    [Tooltip("Объекты, которые показываются когда игрок лежит")]
+    [SerializeField] private GameObject[] proneObjects = new GameObject[2];
+    [Tooltip("Объект, позиция которого меняется в зависимости от стойки")]
+    [SerializeField] private Transform stancePositionObject;
+    
+    [Header("Leg/Tentacle Settings")]
+	[Tooltip("4 Transform, от которых начинается каждая 'нога' (LineRenderer)")]
+	[SerializeField] private Transform[] legAnchors = new Transform[4];
+	[Tooltip("4 Transform, в которых заканчивается каждая 'нога'")]
+	[SerializeField] private Transform[] legFootTargets = new Transform[4];
+    [Tooltip("Количество точек на одной ноге")]
+    [SerializeField] private int pointsPerLeg = 8;
+	[Tooltip("Толщина линии для ног")]
+	[SerializeField] private float legLineWidth = 0.03f;
+    [Tooltip("Горизонтальная длина шага вперед/назад")]
+    [SerializeField] private float legStepForward = 0.35f;
+    [Tooltip("Боковое покачивание ноги")]
+    [SerializeField] private float legSway = 0.2f;
+    [Tooltip("Вертикальный подъем шага")]
+    [SerializeField] private float stepAmplitude = 0.15f;
+    [Tooltip("Частота шага")]
+    [SerializeField] private float waveFrequency = 3f;
+	[Tooltip("Ускорение анимации ног при беге")]
+	[SerializeField] private float runAnimSpeedMultiplier = 1.8f;
     
     [Header("Model Settings")]
     [Tooltip("Визуальная модель игрока (Transform модели)")]
@@ -71,6 +98,9 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
     private Camera cameraComponent;
     private Vector3 velocity;
     private bool isGrounded;
+    private float legAnimTime = 0f;
+	private LineRenderer[] legRenderers;
+	private Material legMaterial;
     
     private enum PlayerStance
     {
@@ -83,6 +113,22 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
     private float targetHeight;
     private bool ctrlPressedLastFrame = false;
     private bool zPressedLastFrame = false;
+    
+    /// <summary>
+    /// Проверяет, может ли игрок открыть меню (стоя или сидя)
+    /// </summary>
+    public bool CanOpenMenu()
+    {
+        return currentStance != PlayerStance.Prone;
+    }
+    
+    /// <summary>
+    /// Возвращает текущую стойку игрока
+    /// </summary>
+    public bool IsProne()
+    {
+        return currentStance == PlayerStance.Prone;
+    }
     
     /*public override void OnNetworkSpawn()
     {
@@ -120,11 +166,6 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
         if (playerHealthStamina == null)
         {
             playerHealthStamina = GetComponent<PlayerHealthStamina>();
-        }
-        
-        if (animator == null)
-        {
-            animator = GetComponent<Animator>();
         }
         
         if (playerCamera == null)
@@ -168,6 +209,46 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
         {
             cameraComponent.nearClipPlane = standingCameraNear;
         }
+        
+		// Подготовить дефолтный материал для LineRenderer (чтобы не было фиолетового цвета при отсутствии материала)
+		Shader legShader = Shader.Find("Sprites/Default");
+		if (legShader == null)
+		{
+			legShader = Shader.Find("Unlit/Color");
+		}
+		if (legShader != null)
+		{
+			legMaterial = new Material(legShader);
+			legMaterial.color = Color.black;
+		}
+
+		// Создать/настроить LineRenderer для каждой опоры ноги
+		if (legAnchors != null && legAnchors.Length > 0)
+		{
+			legRenderers = new LineRenderer[legAnchors.Length];
+			for (int i = 0; i < legAnchors.Length; i++)
+			{
+				var anchor = legAnchors[i];
+				if (anchor == null) continue;
+
+				LineRenderer lr = anchor.GetComponent<LineRenderer>();
+				if (lr == null) lr = anchor.gameObject.AddComponent<LineRenderer>();
+
+				lr.useWorldSpace = true;
+				lr.positionCount = Mathf.Max(2, pointsPerLeg);
+				lr.startColor = Color.black;
+				lr.endColor = Color.black;
+				if (legMaterial != null)
+				{
+					lr.material = legMaterial;
+				}
+				// Толщина линии
+				lr.widthMultiplier = Mathf.Max(0.001f, legLineWidth);
+				lr.startWidth = lr.widthMultiplier;
+				lr.endWidth = lr.widthMultiplier;
+				legRenderers[i] = lr;
+			}
+		}
     }
     
     void Update()
@@ -181,7 +262,13 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
         HandleMovement();
         HandleJump();
         ApplyGravity();
-        UpdateAnimations();
+        
+		// Обновляем тентакли-ноги
+        float horizontal = Input.GetAxis("Horizontal");
+        float vertical = Input.GetAxis("Vertical");
+        float inputMagnitude = new Vector2(horizontal, vertical).magnitude;
+		bool isRunningAnim = Input.GetKey(KeyCode.LeftShift) && currentStance == PlayerStance.Standing && inputMagnitude > 0.1f;
+		UpdateLegs(inputMagnitude, isRunningAnim);
         
         controller.Move(velocity * Time.deltaTime);
     }
@@ -314,6 +401,26 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
         {
             cameraComponent.nearClipPlane = Mathf.Lerp(cameraComponent.nearClipPlane, targetCameraNear, cameraNearChangeSpeed * Time.deltaTime);
         }
+        
+        // Изменение позиции объекта в зависимости от стойки (моментально)
+        if (stancePositionObject != null)
+        {
+            Vector3 targetPosition;
+            if (currentStance == PlayerStance.Crouching)
+            {
+                // Сидя: 0.005 -0.384 0.178
+                targetPosition = new Vector3(0.005f, -0.384f, 0.178f);
+            }
+            else
+            {
+                // Стоя (или лежа): 0.005 -0.092 0.178
+                targetPosition = new Vector3(0.005f, -0.092f, 0.178f);
+            }
+            stancePositionObject.localPosition = targetPosition;
+        }
+        
+        // Управление видимостью головы/тела/ног в зависимости от стойки
+        UpdateVisibilityByStance();
     }
     
     float GetCurrentSpeed()
@@ -383,19 +490,121 @@ public class PlayerController : /*NetworkBehaviour*/ MonoBehaviour
         velocity.y += gravity * Time.deltaTime;
     }
     
-    void UpdateAnimations()
+    void UpdateVisibilityByStance()
     {
-        if (animator == null) return;
+        bool showHead = true;
+        bool showBody = true;
+        bool showLegs = true;
+        bool isProne = currentStance == PlayerStance.Prone;
         
-        float horizontal = Input.GetAxis("Horizontal");
-        float vertical = Input.GetAxis("Vertical");
-        bool hasMovement = Mathf.Abs(horizontal) > 0.1f || Mathf.Abs(vertical) > 0.1f;
-        bool isRunning = Input.GetKey(KeyCode.LeftShift) && currentStance == PlayerStance.Standing;
+        switch (currentStance)
+        {
+            case PlayerStance.Prone:
+                showHead = false;
+                showBody = true;
+                showLegs = false;
+                break;
+            case PlayerStance.Crouching:
+                showHead = true;
+                showBody = false;
+                showLegs = false;
+                break;
+            case PlayerStance.Standing:
+                showHead = true;
+                showBody = true;
+                showLegs = true;
+                break;
+        }
         
-        // Устанавливаем параметры анимации
-        animator.SetInteger("Stance", (int)currentStance);
-        animator.SetBool("IsMoving", hasMovement);
-        animator.SetBool("IsRunning", isRunning);
+        if (headObject != null) headObject.SetActive(showHead);
+        if (bodyObject != null) bodyObject.SetActive(showBody);
+        SetLegsEnabled(showLegs);
+        
+        // Показываем/скрываем объекты для лежания
+        if (proneObjects != null)
+        {
+            foreach (GameObject obj in proneObjects)
+            {
+                if (obj != null)
+                {
+                    obj.SetActive(isProne);
+                }
+            }
+        }
+    }
+    
+    void SetLegsEnabled(bool enabled)
+    {
+		if (legRenderers == null) return;
+		for (int i = 0; i < legRenderers.Length; i++)
+        {
+			if (legRenderers[i] == null) continue;
+			legRenderers[i].enabled = enabled;
+        }
+    }
+    
+	void UpdateLegs(float inputMagnitude, bool isRunning)
+    {
+        // Ноги видны только когда мы стоим (или когда включены)
+		if (legAnchors == null || legAnchors.Length == 0 || legFootTargets == null || legFootTargets.Length == 0) return;
+        
+        // Небольшая анимация даже без движения
+        float movementFactor = Mathf.Clamp01(inputMagnitude);
+		float freq = Mathf.Lerp(1.0f, waveFrequency, movementFactor);
+		if (isRunning)
+		{
+			freq *= Mathf.Max(1f, runAnimSpeedMultiplier);
+		}
+        legAnimTime += Time.deltaTime * freq;
+        
+		int legCount = Mathf.Min(legAnchors.Length, legFootTargets.Length);
+		for (int i = 0; i < legCount; i++)
+        {
+			Transform anchorTransform = legAnchors[i];
+			Transform footTargetTransform = legFootTargets[i];
+			if (anchorTransform == null) continue;
+			if (footTargetTransform == null) continue;
+
+			LineRenderer lr = (legRenderers != null && i < legRenderers.Length) ? legRenderers[i] : null;
+			if (lr == null || !lr.enabled) continue;
+            
+            int count = Mathf.Max(2, pointsPerLeg);
+            lr.positionCount = count;
+            
+			// Точка начала ноги — позиция указанного якоря
+			Vector3 anchor = anchorTransform.position;
+			// Базовая цель ступни — указанный таргет
+			Vector3 baseFoot = footTargetTransform.position;
+            
+            // Фаза шага для конкретной ноги
+            float phase = legAnimTime + i * Mathf.PI * 0.5f;
+            
+            // Направление движения
+            Vector3 forward = transform.forward;
+            Vector3 right = transform.right;
+            
+            // Целевая точка ступни с шагом и покачиванием
+			Vector3 stepOffset = forward * (Mathf.Sin(phase) * legStepForward * (0.5f + 0.5f * movementFactor));
+			Vector3 swayOffset = right * (Mathf.Cos(phase) * legSway * (0.5f + 0.5f * movementFactor));
+			float lift = Mathf.Abs(Mathf.Sin(phase)) * stepAmplitude * (0.3f + 0.7f * movementFactor);
+            
+			Vector3 foot = baseFoot + stepOffset + swayOffset;
+			foot.y = baseFoot.y + lift;
+            
+            // Квадратичная Безье: anchor -> control -> foot, control чуть выше середины
+            Vector3 control = Vector3.Lerp(anchor, foot, 0.5f);
+            control.y += stepAmplitude * (0.5f + 0.5f * movementFactor);
+            
+            // Семплируем кривую Безье
+            for (int p = 0; p < count; p++)
+            {
+                float t = p / (float)(count - 1);
+                Vector3 a = Vector3.Lerp(anchor, control, t);
+                Vector3 b = Vector3.Lerp(control, foot, t);
+                Vector3 point = Vector3.Lerp(a, b, t);
+                lr.SetPosition(p, point);
+            }
+        }
     }
     
     void OnDrawGizmosSelected()

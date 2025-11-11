@@ -199,7 +199,10 @@ public class LobbyManager : MonoBehaviour
         CreateLobby();
     }
 
-    void CreateLobby()
+    /// <summary>
+    /// Публичный метод для создания лобби (вызывается из других скриптов)
+    /// </summary>
+    public void CreateLobby()
     {
         // Проверяем, что NetworkManager доступен
         if (networkManager == null)
@@ -627,6 +630,14 @@ public class LobbyManager : MonoBehaviour
         UpdateUI();
     }
 
+    /// <summary>
+    /// Публичный метод для закрытия и удаления лобби
+    /// </summary>
+    public void CloseAndDestroyLobby()
+    {
+        DisconnectFromCurrentLobby();
+    }
+    
     void DisconnectFromCurrentLobby()
     {
         if (networkManager == null)

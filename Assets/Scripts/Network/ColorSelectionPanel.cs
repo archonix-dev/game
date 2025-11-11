@@ -131,6 +131,13 @@ public class ColorSelectionPanel : MonoBehaviour
     {
         Debug.Log($"Выбран цвет: {color}");
         
+        // Сохраняем выбранный цвет для применения в другой сцене
+        PlayerPrefs.SetFloat("PlayerColor_R", color.r);
+        PlayerPrefs.SetFloat("PlayerColor_G", color.g);
+        PlayerPrefs.SetFloat("PlayerColor_B", color.b);
+        PlayerPrefs.SetFloat("PlayerColor_A", color.a);
+        PlayerPrefs.Save();
+        
         // Находим локального игрока в лобби
         FindLocalPlayerItem();
         
