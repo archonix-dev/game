@@ -1,17 +1,24 @@
 using UnityEngine;
 using UnityEngine.UI;
+using Unity.Netcode;
 
-public class PlayerHealthStamina : MonoBehaviour
+public class PlayerHealthStamina : NetworkBehaviour
 {
     [Header("Health Settings")]
-    [SerializeField] private float maxHealth = 100f;
-    [SerializeField] private float currentHealth = 100f;
     [SerializeField] private float baseHealth = 40f;
     
     [Header("Stamina Settings")]
-    [SerializeField] private float maxStamina = 100f;
-    [SerializeField] private float currentStamina = 100f;
     [SerializeField] private float baseStamina = 20f;
+    
+    // Сетевые переменные для синхронизации
+    private NetworkVariable<float> maxHealth = new NetworkVariable<float>(40f, 
+        NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    private NetworkVariable<float> currentHealth = new NetworkVariable<float>(40f,
+        NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    private NetworkVariable<float> maxStamina = new NetworkVariable<float>(20f,
+        NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+    private NetworkVariable<float> currentStamina = new NetworkVariable<float>(20f,
+        NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
     [SerializeField] private float staminaRegenRate = 10f;
     [SerializeField] private float staminaRegenDelay = 2f;
     
@@ -30,24 +37,89 @@ public class PlayerHealthStamina : MonoBehaviour
     private Image[] staminaImages;
     
     
-    void Start()
+    public override void OnNetworkSpawn()
     {
-        InitializeHealthStamina();
+        base.OnNetworkSpawn();
+        
+        // Подписываемся на изменения сетевых переменных
+        currentHealth.OnValueChanged += OnHealthChanged;
+        maxHealth.OnValueChanged += OnMaxHealthChanged;
+        currentStamina.OnValueChanged += OnStaminaChanged;
+        maxStamina.OnValueChanged += OnMaxStaminaChanged;
+        
+        if (IsServer)
+        {
+            InitializeHealthStamina();
+        }
+        
         CreateUI();
         UpdateUI();
     }
     
+    public override void OnNetworkDespawn()
+    {
+        // Отписываемся от событий
+        currentHealth.OnValueChanged -= OnHealthChanged;
+        maxHealth.OnValueChanged -= OnMaxHealthChanged;
+        currentStamina.OnValueChanged -= OnStaminaChanged;
+        maxStamina.OnValueChanged -= OnMaxStaminaChanged;
+        
+        base.OnNetworkDespawn();
+    }
+    
+    void Start()
+    {
+        // Если не в сети, инициализируем локально
+        if (!IsSpawned)
+        {
+            InitializeHealthStamina();
+            CreateUI();
+            UpdateUI();
+        }
+    }
+    
     void Update()
     {
-        RegenerateStamina();
+        // Регенерация стамины только на сервере
+        if (IsServer)
+        {
+            RegenerateStamina();
+        }
     }
     
     void InitializeHealthStamina()
     {
-        currentHealth = baseHealth;
-        maxHealth = baseHealth;
-        currentStamina = baseStamina;
-        maxStamina = baseStamina;
+        if (IsServer)
+        {
+            currentHealth.Value = baseHealth;
+            maxHealth.Value = baseHealth;
+            currentStamina.Value = baseStamina;
+            maxStamina.Value = baseStamina;
+        }
+    }
+    
+    void OnHealthChanged(float oldValue, float newValue)
+    {
+        UpdateHealthUI();
+        UpdateTextUI();
+    }
+    
+    void OnMaxHealthChanged(float oldValue, float newValue)
+    {
+        RecreateHealthUI();
+        UpdateUI();
+    }
+    
+    void OnStaminaChanged(float oldValue, float newValue)
+    {
+        UpdateStaminaUI();
+        UpdateTextUI();
+    }
+    
+    void OnMaxStaminaChanged(float oldValue, float newValue)
+    {
+        RecreateStaminaUI();
+        UpdateUI();
     }
     
     void CreateUI()
@@ -60,7 +132,7 @@ public class PlayerHealthStamina : MonoBehaviour
     {
         if (healthPrefabParent != null && healthPrefab != null)
         {
-            int healthPrefabCount = Mathf.CeilToInt(maxHealth / 10f);
+            int healthPrefabCount = Mathf.CeilToInt(maxHealth.Value / 10f);
             healthPrefabs = new GameObject[healthPrefabCount];
             healthImages = new Image[healthPrefabCount];
             
@@ -76,7 +148,7 @@ public class PlayerHealthStamina : MonoBehaviour
     {
         if (staminaPrefabParent != null && staminaPrefab != null)
         {
-            int staminaPrefabCount = Mathf.CeilToInt(maxStamina / 10f);
+            int staminaPrefabCount = Mathf.CeilToInt(maxStamina.Value / 10f);
             staminaPrefabs = new GameObject[staminaPrefabCount];
             staminaImages = new Image[staminaPrefabCount];
             
@@ -99,7 +171,7 @@ public class PlayerHealthStamina : MonoBehaviour
     {
         if (healthPrefabs == null || healthImages == null) return;
         
-        int activeHealthPrefabs = Mathf.CeilToInt(currentHealth / 10f);
+        int activeHealthPrefabs = Mathf.CeilToInt(currentHealth.Value / 10f);
         
         for (int i = 0; i < healthPrefabs.Length; i++)
         {
@@ -117,7 +189,7 @@ public class PlayerHealthStamina : MonoBehaviour
                 {
                     // Последний префаб с плавной прозрачностью
                     healthPrefabs[i].SetActive(true);
-                    float alpha = CalculateAlphaForLastPrefab(currentHealth, maxHealth);
+                    float alpha = CalculateAlphaForLastPrefab(currentHealth.Value, maxHealth.Value);
                     Color color = healthImages[i].color;
                     color.a = alpha;
                     healthImages[i].color = color;
@@ -135,7 +207,7 @@ public class PlayerHealthStamina : MonoBehaviour
     {
         if (staminaPrefabs == null || staminaImages == null) return;
         
-        int activeStaminaPrefabs = Mathf.CeilToInt(currentStamina / 10f);
+        int activeStaminaPrefabs = Mathf.CeilToInt(currentStamina.Value / 10f);
         
         for (int i = 0; i < staminaPrefabs.Length; i++)
         {
@@ -153,7 +225,7 @@ public class PlayerHealthStamina : MonoBehaviour
                 {
                     // Последний префаб с плавной прозрачностью
                     staminaPrefabs[i].SetActive(true);
-                    float alpha = CalculateAlphaForLastPrefab(currentStamina, maxStamina);
+                    float alpha = CalculateAlphaForLastPrefab(currentStamina.Value, maxStamina.Value);
                     Color color = staminaImages[i].color;
                     color.a = alpha;
                     staminaImages[i].color = color;
@@ -171,12 +243,12 @@ public class PlayerHealthStamina : MonoBehaviour
     {
         if (healthText != null)
         {
-            healthText.text = $"{Mathf.RoundToInt(currentHealth)}/{Mathf.RoundToInt(maxHealth)}";
+            healthText.text = $"{Mathf.RoundToInt(currentHealth.Value)}/{Mathf.RoundToInt(maxHealth.Value)}";
         }
         
         if (staminaText != null)
         {
-            staminaText.text = $"{Mathf.RoundToInt(currentStamina)}/{Mathf.RoundToInt(maxStamina)}";
+            staminaText.text = $"{Mathf.RoundToInt(currentStamina.Value)}/{Mathf.RoundToInt(maxStamina.Value)}";
         }
     }
     
@@ -195,55 +267,55 @@ public class PlayerHealthStamina : MonoBehaviour
     
     void RegenerateStamina()
     {
-        if (Time.time - lastStaminaUseTime >= staminaRegenDelay && currentStamina < maxStamina)
+        if (!IsServer) return;
+        
+        if (Time.time - lastStaminaUseTime >= staminaRegenDelay && currentStamina.Value < maxStamina.Value)
         {
-            currentStamina = Mathf.Min(maxStamina, currentStamina + staminaRegenRate * Time.deltaTime);
-            UpdateStaminaUI();
-            UpdateTextUI();
+            currentStamina.Value = Mathf.Min(maxStamina.Value, currentStamina.Value + staminaRegenRate * Time.deltaTime);
         }
     }
     
     public void UseStamina(float amount)
     {
-        currentStamina = Mathf.Max(0f, currentStamina - amount);
+        if (!IsServer) return;
+        
+        currentStamina.Value = Mathf.Max(0f, currentStamina.Value - amount);
         lastStaminaUseTime = Time.time;
-        UpdateStaminaUI();
-        UpdateTextUI();
     }
     
     public void UseHealth(float amount)
     {
-        currentHealth = Mathf.Max(0f, currentHealth - amount);
-        UpdateHealthUI();
-        UpdateTextUI();
+        if (!IsServer) return;
+        
+        currentHealth.Value = Mathf.Max(0f, currentHealth.Value - amount);
     }
     
     public void Heal(float amount)
     {
-        currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
-        UpdateHealthUI();
-        UpdateTextUI();
+        if (!IsServer) return;
+        
+        currentHealth.Value = Mathf.Min(maxHealth.Value, currentHealth.Value + amount);
     }
     
     public bool HasEnoughStamina(float amount)
     {
-        return currentStamina >= amount;
+        return currentStamina.Value >= amount;
     }
     
     public void IncreaseMaxHealth(float amount)
     {
-        maxHealth = Mathf.Min(300f, maxHealth + amount);
-        currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
-        RecreateHealthUI();
-        UpdateUI();
+        if (!IsServer) return;
+        
+        maxHealth.Value = Mathf.Min(300f, maxHealth.Value + amount);
+        currentHealth.Value = Mathf.Min(maxHealth.Value, currentHealth.Value + amount);
     }
     
     public void IncreaseMaxStamina(float amount)
     {
-        maxStamina = Mathf.Min(300f, maxStamina + amount);
-        currentStamina = Mathf.Min(maxStamina, currentStamina + amount);
-        RecreateStaminaUI();
-        UpdateUI();
+        if (!IsServer) return;
+        
+        maxStamina.Value = Mathf.Min(300f, maxStamina.Value + amount);
+        currentStamina.Value = Mathf.Min(maxStamina.Value, currentStamina.Value + amount);
     }
     
     void RecreateHealthUI()
@@ -283,8 +355,8 @@ public class PlayerHealthStamina : MonoBehaviour
     }
     
     
-    public float GetCurrentHealth() => currentHealth;
-    public float GetMaxHealth() => maxHealth;
-    public float GetCurrentStamina() => currentStamina;
-    public float GetMaxStamina() => maxStamina;
+    public float GetCurrentHealth() => currentHealth.Value;
+    public float GetMaxHealth() => maxHealth.Value;
+    public float GetCurrentStamina() => currentStamina.Value;
+    public float GetMaxStamina() => maxStamina.Value;
 }

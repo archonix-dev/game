@@ -2,11 +2,12 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Netcode;
 
 /// <summary>
 /// Основная система инвентаря с хотбаром
 /// </summary>
-public class InventorySystem : MonoBehaviour
+public class InventorySystem : NetworkBehaviour
 {
     [Header("Hotbar Settings")]
     [SerializeField] private int hotbarSlots = 3;
@@ -89,6 +90,9 @@ public class InventorySystem : MonoBehaviour
     
     void Update()
     {
+        // Обрабатываем ввод только для владельца
+        if (IsSpawned && !IsOwner) return;
+        
         HandleInput();
         UpdateHandDisplay();
         CheckForPickupableObjects();

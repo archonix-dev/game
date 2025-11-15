@@ -1,6 +1,7 @@
 using UnityEngine;
+using Unity.Netcode;
 
-public class ObjectGrabSystem : MonoBehaviour
+public class ObjectGrabSystem : NetworkBehaviour
 {
     [Header("Grab Settings")]
     [SerializeField] private float grabDistance = 3f;
@@ -122,6 +123,9 @@ public class ObjectGrabSystem : MonoBehaviour
     
     void Update()
     {
+        // Обрабатываем ввод только для владельца
+        if (IsSpawned && !IsOwner) return;
+        
         // Проверяем, на что смотрит игрок
         CheckForGrabbableObject();
         

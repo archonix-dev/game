@@ -33,9 +33,12 @@ public class SettingsMenuController : MonoBehaviour
 	[Header("Auto-hide Objects")]
 	[Tooltip("Объект, который скрывается при открытом меню и показывается при закрытом")]
 	public GameObject hideWhenMenuOpenA;
+	[Tooltip("Дополнительный объект, который скрывается при открытом меню и показывается при закрытом")]
+	public GameObject hideWhenMenuOpenB;
 	
 	// Авто-привязываемый LineRenderer из VoiceWaveVisualizer
 	private LineRenderer voiceWaveLine;
+	private VoiceWaveVisualizer voiceWaveVisualizer;
     
     [Header("Buttons")]
     [Tooltip("Кнопка для закрытия меню (продолжить)")]
@@ -64,15 +67,8 @@ public class SettingsMenuController : MonoBehaviour
 			}
 		}
 		
-		// Автоматически находим LineRenderer из VoiceWaveVisualizer
-		if (voiceWaveLine == null)
-		{
-			var voice = FindObjectOfType<VoiceWaveVisualizer>();
-			if (voice != null)
-			{
-				voiceWaveLine = voice.GetComponentInChildren<LineRenderer>(true);
-			}
-		}
+		// Автоматически находим VoiceWaveVisualizer и его LineRenderer
+		FindVoiceWaveLineRenderer();
     }
     
     void Update()
@@ -116,15 +112,19 @@ public class SettingsMenuController : MonoBehaviour
 		
 		// Скрыть/показать дополнительные объекты
 		if (hideWhenMenuOpenA != null) hideWhenMenuOpenA.SetActive(!open);
+		if (hideWhenMenuOpenB != null) hideWhenMenuOpenB.SetActive(!open);
 		
 		// Скрыть/показать линию голоса (если найдена)
+		// Пытаемся найти LineRenderer если еще не найден (например, объект появился позже)
 		if (voiceWaveLine == null)
 		{
-			// попробуем найти ещё раз (например, объект появился позже)
-			var voice = FindObjectOfType<VoiceWaveVisualizer>();
-			if (voice != null) voiceWaveLine = voice.GetComponentInChildren<LineRenderer>(true);
+			FindVoiceWaveLineRenderer();
 		}
-		if (voiceWaveLine != null) voiceWaveLine.enabled = !open;
+		
+		if (voiceWaveLine != null)
+		{
+			voiceWaveLine.enabled = !open;
+		}
         
 		// Движение/поворот камеры
 		StartCameraTransition(open);
@@ -214,5 +214,42 @@ public class SettingsMenuController : MonoBehaviour
 		cameraTransform.position = endPos;
 		cameraTransform.rotation = endRot;
 		cameraMoveRoutine = null;
+	}
+	
+	/// <summary>
+	/// Находит VoiceWaveVisualizer и его LineRenderer в сцене
+	/// </summary>
+	private void FindVoiceWaveLineRenderer()
+	{
+		// Сначала ищем VoiceWaveVisualizer
+		if (voiceWaveVisualizer == null)
+		{
+			voiceWaveVisualizer = FindObjectOfType<VoiceWaveVisualizer>();
+		}
+		
+		// Если нашли VoiceWaveVisualizer, ищем LineRenderer
+		if (voiceWaveVisualizer != null && voiceWaveLine == null)
+		{
+			// LineRenderer может быть на самом объекте, в дочерних объектах, или на lineParent
+			voiceWaveLine = voiceWaveVisualizer.GetComponent<LineRenderer>();
+			
+			if (voiceWaveLine == null)
+			{
+				// Ищем в дочерних объектах (включая неактивные)
+				voiceWaveLine = voiceWaveVisualizer.GetComponentInChildren<LineRenderer>(true);
+			}
+			
+			// Если все еще не найден, пробуем найти через lineParent
+			if (voiceWaveLine == null)
+			{
+				// Используем рефлексию или публичное поле, если оно есть
+				// Но проще просто поискать по имени "VoiceWaveLine" который создается в SetupLineRenderer
+				Transform lineParent = voiceWaveVisualizer.transform.Find("VoiceWaveLine");
+				if (lineParent != null)
+				{
+					voiceWaveLine = lineParent.GetComponent<LineRenderer>();
+				}
+			}
+		}
 	}
 }

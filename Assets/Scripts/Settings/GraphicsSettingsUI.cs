@@ -52,6 +52,7 @@ public class GraphicsSettings
 	public int resolutionIndex = 0; // index in filtered resolutions list
 	public int targetFrameRate = 60;
 	public bool fpsMatchMonitor = false;
+	public FullScreenMode screenMode = FullScreenMode.Windowed;
     
     [Header("Post Processing")]
     public bool postProcessDataEnabled = true;
@@ -136,7 +137,7 @@ public class GraphicsSettings
 		{
 			int clampedIndex = Mathf.Clamp(resolutionIndex, 0, filteredResolutions.Count - 1);
 			var res = filteredResolutions[clampedIndex];
-			Screen.SetResolution(res.width, res.height, Screen.fullScreenMode, 0);
+			Screen.SetResolution(res.width, res.height, screenMode, 0);
 		}
 
 		if (fpsMatchMonitor)
@@ -188,6 +189,7 @@ public class GraphicsSettings
         resolutionIndex = Mathf.Max(0, PlayerPrefs.GetInt("ResolutionIndex", 0));
         targetFrameRate = Mathf.Max(0, PlayerPrefs.GetInt("TargetFrameRate", 60));
 		fpsMatchMonitor = PlayerPrefs.GetInt("FPSMatchMonitor", 0) == 1;
+		screenMode = (FullScreenMode)Mathf.Clamp(PlayerPrefs.GetInt("ScreenMode", (int)FullScreenMode.Windowed), (int)FullScreenMode.Windowed, (int)FullScreenMode.FullScreenWindow);
     }
 
     // Сохранение настроек в PlayerPrefs
@@ -205,6 +207,7 @@ public class GraphicsSettings
 		PlayerPrefs.SetInt("ResolutionIndex", resolutionIndex);
 		PlayerPrefs.SetInt("TargetFrameRate", targetFrameRate);
 		PlayerPrefs.SetInt("FPSMatchMonitor", fpsMatchMonitor ? 1 : 0);
+		PlayerPrefs.SetInt("ScreenMode", (int)screenMode);
         PlayerPrefs.Save();
     }
 }
@@ -221,6 +224,7 @@ public class GraphicsSettingsUI : MonoBehaviour
     public Dropdown shadowResolutionDropdown;
     public Dropdown textureMipmapLimitDropdown;
 	public Dropdown resolutionDropdown;
+	public Dropdown screenModeDropdown;
 
     [Header("Toggles")]
     public Toggle mainLightShadowsToggle;
@@ -313,6 +317,19 @@ public class GraphicsSettingsUI : MonoBehaviour
 		{
 			BuildResolutionOptions();
 			resolutionDropdown.onValueChanged.AddListener(OnResolutionChanged);
+		}
+
+		// Настройка Screen Mode Dropdown
+		if (screenModeDropdown != null)
+		{
+			screenModeDropdown.ClearOptions();
+			screenModeDropdown.AddOptions(new System.Collections.Generic.List<string>
+			{
+				"В окне",
+				"Полноэкранный",
+				"В окне без рамки"
+			});
+			screenModeDropdown.onValueChanged.AddListener(OnScreenModeChanged);
 		}
 
         // Настройка Toggles
@@ -440,6 +457,19 @@ public class GraphicsSettingsUI : MonoBehaviour
 				BuildResolutionOptions();
 			}
 			resolutionDropdown.value = Mathf.Clamp(currentSettings.resolutionIndex, 0, Mathf.Max(0, resolutionDropdown.options.Count - 1));
+		}
+
+		if (screenModeDropdown != null)
+		{
+			// Маппинг FullScreenMode на индексы dropdown
+			int screenModeIndex = currentSettings.screenMode switch
+			{
+				FullScreenMode.Windowed => 0,
+				FullScreenMode.ExclusiveFullScreen => 1,
+				FullScreenMode.FullScreenWindow => 2,
+				_ => 0
+			};
+			screenModeDropdown.value = screenModeIndex;
 		}
 
         // Обновляем Toggles
@@ -659,6 +689,21 @@ public class GraphicsSettingsUI : MonoBehaviour
 		if (currentSettings == null) return;
 		currentSettings.fpsMatchMonitor = value;
 		if (fpsInputField != null) fpsInputField.interactable = !value;
+		currentSettings.ApplyDisplaySettings(filteredResolutions);
+	}
+
+	private void OnScreenModeChanged(int value)
+	{
+		if (currentSettings == null) return;
+		// Маппинг индексов dropdown на FullScreenMode
+		FullScreenMode mode = value switch
+		{
+			0 => FullScreenMode.Windowed,
+			1 => FullScreenMode.ExclusiveFullScreen,
+			2 => FullScreenMode.FullScreenWindow,
+			_ => FullScreenMode.Windowed
+		};
+		currentSettings.screenMode = mode;
 		currentSettings.ApplyDisplaySettings(filteredResolutions);
 	}
 

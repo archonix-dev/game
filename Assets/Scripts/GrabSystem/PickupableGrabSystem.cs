@@ -1,9 +1,10 @@
 using UnityEngine;
+using Unity.Netcode;
 
 /// <summary>
 /// Система захвата для PickupableItem объектов (без разрушения)
 /// </summary>
-public class PickupableGrabSystem : MonoBehaviour
+public class PickupableGrabSystem : NetworkBehaviour
 {
     [Header("Grab Settings")]
     [SerializeField] private float grabDistance = 3f;
@@ -79,6 +80,9 @@ public class PickupableGrabSystem : MonoBehaviour
     
     void Update()
     {
+        // Обрабатываем ввод только для владельца
+        if (IsSpawned && !IsOwner) return;
+        
         // Проверяем, на что смотрит игрок
         CheckForGrabbableObject();
         

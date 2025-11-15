@@ -1,6 +1,7 @@
 using UnityEngine;
+using Unity.Netcode;
 
-public class MouseLook : MonoBehaviour
+public class MouseLook : NetworkBehaviour
 {
     [Header("Mouse Settings")]
     [SerializeField] private float mouseSensitivity = 100f;
@@ -13,14 +14,33 @@ public class MouseLook : MonoBehaviour
     
     private float xRotation = 0f;
     
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+        
+        // Настраиваем курсор только для владельца
+        if (IsOwner)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+    }
+    
     void Start()
     {
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        // Если не в сети, настраиваем курсор
+        if (!IsSpawned)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
     }
     
     void Update()
     {
+        // Обрабатываем ввод только для владельца
+        if (IsSpawned && !IsOwner) return;
+        
         HandleMouseLook();
         HandleCursorToggle();
     }

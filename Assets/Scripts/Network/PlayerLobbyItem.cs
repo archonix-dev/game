@@ -6,6 +6,7 @@ using System.Text;
 
 /// <summary>
 /// Компонент для отображения игрока в лобби. Показывает имя, пинг, цвет и статус админа.
+/// Локальный UI элемент (не NetworkObject), создается каждым клиентом отдельно.
 /// </summary>
 public class PlayerLobbyItem : MonoBehaviour
 {
@@ -29,18 +30,15 @@ public class PlayerLobbyItem : MonoBehaviour
     private NetworkManager networkManager;
     private float pingUpdateInterval = 0.5f;
     private float lastPingUpdate = 0f;
+    private bool isInitialized = false;
+    
+    // Публичные свойства для доступа к данным
+    public string PlayerName => playerName;
+    public Color PlayerColor => playerColor;
 
     void Start()
     {
         networkManager = NetworkManager.Singleton;
-        
-        // Генерируем случайное имя игрока
-        if (string.IsNullOrEmpty(playerName))
-        {
-            playerName = GenerateRandomPlayerName();
-        }
-        
-        UpdateUI();
     }
 
     void Update()
@@ -54,17 +52,79 @@ public class PlayerLobbyItem : MonoBehaviour
     }
 
     /// <summary>
-    /// Инициализирует элемент игрока в лобби
+    /// Инициализирует элемент игрока в лобби (вызывается локально на каждом клиенте)
     /// </summary>
-    public void Initialize(ulong clientId, bool isAdmin)
+    public void Initialize(ulong clientId, bool isAdmin, string playerName = null, Color? playerColor = null)
     {
         this.clientId = clientId;
         this.isAdmin = isAdmin;
         
-        // Генерируем случайное имя
-        playerName = GenerateRandomPlayerName();
+        // Генерируем случайное имя, если не указано
+        if (string.IsNullOrEmpty(playerName))
+        {
+            playerName = GenerateRandomPlayerName();
+        }
+        this.playerName = playerName;
         
+        // Используем переданный цвет или цвет по умолчанию
+        if (playerColor.HasValue)
+        {
+            this.playerColor = playerColor.Value;
+        }
+        
+        // Сохраняем имя в PlayerPrefs для использования в игровой сцене
+        // Только для локального игрока
+        // Убеждаемся, что networkManager инициализирован
+        if (networkManager == null)
+        {
+            networkManager = NetworkManager.Singleton;
+        }
+        
+        if (networkManager != null && clientId == networkManager.LocalClientId)
+        {
+            PlayerPrefs.SetString("PlayerName", playerName);
+            PlayerPrefs.Save();
+            Debug.Log($"[PlayerLobbyItem] Имя сохранено в PlayerPrefs: {playerName} (clientId={clientId}, LocalClientId={networkManager.LocalClientId})");
+        }
+        else
+        {
+            Debug.Log($"[PlayerLobbyItem] Имя НЕ сохранено в PlayerPrefs (не локальный игрок): {playerName} (clientId={clientId}, LocalClientId={(networkManager != null ? networkManager.LocalClientId.ToString() : "NULL")})");
+        }
+        
+        isInitialized = true;
         UpdateUI();
+        
+        // Уведомляем LobbyManager о появлении нового PlayerLobbyItem
+        NotifyLobbyManager();
+    }
+
+    /// <summary>
+    /// Уведомляет LobbyManager о появлении этого PlayerLobbyItem
+    /// </summary>
+    private void NotifyLobbyManager()
+    {
+        // Находим LobbyManager и добавляем себя в его словарь
+        LobbyManager lobbyManager = FindObjectOfType<LobbyManager>();
+        if (lobbyManager != null)
+        {
+            StartCoroutine(NotifyLobbyManagerDelayed());
+        }
+    }
+
+    System.Collections.IEnumerator NotifyLobbyManagerDelayed()
+    {
+        // Ждем немного, чтобы убедиться, что clientId установлен
+        yield return new WaitForSeconds(0.1f);
+        
+        if (clientId != 0)
+        {
+            LobbyManager lobbyManager = FindObjectOfType<LobbyManager>();
+            if (lobbyManager != null)
+            {
+                // Вызываем метод для регистрации PlayerLobbyItem
+                lobbyManager.RegisterPlayerLobbyItem(clientId, gameObject);
+            }
+        }
     }
 
     void UpdateUI()
@@ -204,7 +264,7 @@ public class PlayerLobbyItem : MonoBehaviour
     }
 
     /// <summary>
-    /// Устанавливает цвет игрока
+    /// Устанавливает цвет игрока (локально)
     /// </summary>
     public void SetPlayerColor(Color color)
     {

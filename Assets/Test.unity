@@ -439,6 +439,7 @@ MonoBehaviour:
   gameSceneName: Test
   menuSceneName: Menu
   playerPrefab: {fileID: 390721689709130332, guid: adb4cec01f6ddfb4e9dd8c9565cb1ea4, type: 3}
+  currentGameSceneName: Lobby
   spawnPoint: {fileID: 1397580740}
 --- !u!4 &1405097289
 Transform:
@@ -907,7 +908,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 990125333512618423, guid: adb4cec01f6ddfb4e9dd8c9565cb1ea4, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.867
+      value: 0.853
       objectReference: {fileID: 0}
     - target: {fileID: 990125333512618423, guid: adb4cec01f6ddfb4e9dd8c9565cb1ea4, type: 3}
       propertyPath: m_LocalPosition.z

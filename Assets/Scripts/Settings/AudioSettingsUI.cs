@@ -29,6 +29,14 @@ public class AudioSettings
     [Range(0f, 1f)]
     public float stepsVolume = 1f;
 
+    [Header("Microphone Settings")]
+    [Tooltip("Имя устройства микрофона (null = устройство по умолчанию)")]
+    public string microphoneDevice = null;
+    
+    [Range(0.0001f, 100f)]
+    [Tooltip("Чувствительность микрофона")]
+    public float microphoneSensitivity = 10f;
+
     // Конвертация линейного значения в децибелы для AudioMixer
     private float LinearToDecibels(float linear)
     {
@@ -67,6 +75,9 @@ public class AudioSettings
         playersVolume = PlayerPrefs.GetFloat("PlayersVolume", 1f);
         uiVolume = PlayerPrefs.GetFloat("UIVolume", 1f);
         stepsVolume = PlayerPrefs.GetFloat("StepsVolume", 1f);
+        microphoneDevice = PlayerPrefs.GetString("MicrophoneDevice", null);
+        if (string.IsNullOrEmpty(microphoneDevice)) microphoneDevice = null;
+        microphoneSensitivity = PlayerPrefs.GetFloat("MicrophoneSensitivity", 10f);
     }
 
     // Сохранение настроек в PlayerPrefs
@@ -77,6 +88,15 @@ public class AudioSettings
         PlayerPrefs.SetFloat("PlayersVolume", playersVolume);
         PlayerPrefs.SetFloat("UIVolume", uiVolume);
         PlayerPrefs.SetFloat("StepsVolume", stepsVolume);
+        if (string.IsNullOrEmpty(microphoneDevice))
+        {
+            PlayerPrefs.DeleteKey("MicrophoneDevice");
+        }
+        else
+        {
+            PlayerPrefs.SetString("MicrophoneDevice", microphoneDevice);
+        }
+        PlayerPrefs.SetFloat("MicrophoneSensitivity", microphoneSensitivity);
         PlayerPrefs.Save();
     }
 }
@@ -89,6 +109,11 @@ public class AudioSettingsUI : MonoBehaviour
     public Slider playersVolumeSlider;
     public Slider uiVolumeSlider;
     public Slider stepsVolumeSlider;
+    public Slider microphoneSensitivitySlider;
+    public Text microphoneSensitivityLabel;
+
+    [Header("Dropdowns")]
+    public Dropdown microphoneDropdown;
 
     [Header("Buttons")]
     public Button resetButton;
@@ -142,6 +167,21 @@ public class AudioSettingsUI : MonoBehaviour
             stepsVolumeSlider.minValue = 0f;
             stepsVolumeSlider.maxValue = 1f;
             stepsVolumeSlider.onValueChanged.AddListener(OnStepsVolumeChanged);
+        }
+
+        // Настройка Microphone Sensitivity Slider
+        if (microphoneSensitivitySlider != null)
+        {
+            microphoneSensitivitySlider.minValue = 0.0001f;
+            microphoneSensitivitySlider.maxValue = 100f;
+            microphoneSensitivitySlider.onValueChanged.AddListener(OnMicrophoneSensitivityChanged);
+        }
+
+        // Настройка Microphone Dropdown
+        if (microphoneDropdown != null)
+        {
+            BuildMicrophoneOptions();
+            microphoneDropdown.onValueChanged.AddListener(OnMicrophoneDeviceChanged);
         }
 
         // Настройка кнопок
@@ -203,6 +243,77 @@ public class AudioSettingsUI : MonoBehaviour
         if (stepsVolumeSlider != null)
             stepsVolumeSlider.value = currentSettings.stepsVolume;
 
+        if (microphoneSensitivitySlider != null)
+            microphoneSensitivitySlider.value = currentSettings.microphoneSensitivity;
+
+        if (microphoneDropdown != null)
+        {
+            UpdateMicrophoneDropdown();
+        }
+
+        UpdateMicrophoneSensitivityLabel();
+    }
+
+    private void BuildMicrophoneOptions()
+    {
+        if (microphoneDropdown == null) return;
+
+        var options = new System.Collections.Generic.List<string>();
+        options.Add("По умолчанию"); // Индекс 0 - устройство по умолчанию (null)
+
+        string[] devices = Microphone.devices;
+        if (devices != null && devices.Length > 0)
+        {
+            for (int i = 0; i < devices.Length; i++)
+            {
+                options.Add(devices[i]);
+            }
+        }
+        else
+        {
+            options.Add("Микрофоны не найдены");
+        }
+
+        microphoneDropdown.ClearOptions();
+        microphoneDropdown.AddOptions(options);
+    }
+
+    private void UpdateMicrophoneDropdown()
+    {
+        if (microphoneDropdown == null || currentSettings == null) return;
+
+        if (string.IsNullOrEmpty(currentSettings.microphoneDevice))
+        {
+            microphoneDropdown.value = 0; // "По умолчанию"
+        }
+        else
+        {
+            string[] devices = Microphone.devices;
+            if (devices != null)
+            {
+                int index = System.Array.IndexOf(devices, currentSettings.microphoneDevice);
+                if (index >= 0)
+                {
+                    microphoneDropdown.value = index + 1; // +1 потому что индекс 0 - "По умолчанию"
+                }
+                else
+                {
+                    microphoneDropdown.value = 0; // Если устройство не найдено, используем по умолчанию
+                }
+            }
+            else
+            {
+                microphoneDropdown.value = 0;
+            }
+        }
+    }
+
+    private void UpdateMicrophoneSensitivityLabel()
+    {
+        if (microphoneSensitivityLabel != null && currentSettings != null)
+        {
+            microphoneSensitivityLabel.text = $"{currentSettings.microphoneSensitivity:F1}";
+        }
     }
 
     #region Event Handlers
@@ -266,6 +377,46 @@ public class AudioSettingsUI : MonoBehaviour
         }
     }
 
+    private void OnMicrophoneSensitivityChanged(float value)
+    {
+        if (currentSettings != null)
+        {
+            currentSettings.microphoneSensitivity = Mathf.Clamp(value, 0.0001f, 100f);
+            UpdateMicrophoneSensitivityLabel();
+        }
+    }
+
+    private void OnMicrophoneDeviceChanged(int value)
+    {
+        if (currentSettings == null) return;
+
+        if (value == 0)
+        {
+            // "По умолчанию"
+            currentSettings.microphoneDevice = null;
+        }
+        else
+        {
+            string[] devices = Microphone.devices;
+            if (devices != null && devices.Length > 0)
+            {
+                int deviceIndex = value - 1; // -1 потому что индекс 0 - "По умолчанию"
+                if (deviceIndex >= 0 && deviceIndex < devices.Length)
+                {
+                    currentSettings.microphoneDevice = devices[deviceIndex];
+                }
+                else
+                {
+                    currentSettings.microphoneDevice = null;
+                }
+            }
+            else
+            {
+                currentSettings.microphoneDevice = null;
+            }
+        }
+    }
+
     private void OnResetButtonClicked()
     {
         if (currentSettings != null)
@@ -276,6 +427,8 @@ public class AudioSettingsUI : MonoBehaviour
             currentSettings.playersVolume = 1f;
             currentSettings.uiVolume = 1f;
             currentSettings.stepsVolume = 1f;
+            currentSettings.microphoneDevice = null;
+            currentSettings.microphoneSensitivity = 10f;
 
             ApplyAllSettings();
             UpdateUI();

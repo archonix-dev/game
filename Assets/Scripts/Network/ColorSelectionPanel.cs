@@ -141,21 +141,57 @@ public class ColorSelectionPanel : MonoBehaviour
         // Находим локального игрока в лобби
         FindLocalPlayerItem();
         
-        // Применяем цвет к игроку
+        // Применяем цвет к локальному игроку
         if (localPlayerItem != null)
         {
             localPlayerItem.SetPlayerColor(color);
-            Debug.Log($"Цвет игрока изменен на: {color}");
+            Debug.Log($"Цвет игрока изменен на: {color} (локально)");
         }
         else
         {
-            Debug.LogWarning("Локальный игрок не найден в лобби! Цвет будет применен при создании игрока.");
-            // Сохраняем выбранный цвет для применения позже
-            // Это можно реализовать через LobbyManager или статическую переменную
+            Debug.LogWarning("Локальный игрок не найден в лобби! Попытка найти через корутину...");
+            // Пытаемся найти игрока через корутину (на случай, если он еще не создан)
+            StartCoroutine(FindAndSetColorDelayed(color));
+        }
+        
+        // Синхронизируем цвет через сеть (отправляем всем клиентам через LobbyNetworkManager)
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
+        {
+            LobbyNetworkManager lobbyNetManager = FindObjectOfType<LobbyNetworkManager>();
+            if (lobbyNetManager != null && lobbyNetManager.IsSpawned)
+            {
+                ulong localClientId = NetworkManager.Singleton.LocalClientId;
+                // Отправляем обновление цвета всем клиентам
+                lobbyNetManager.BroadcastPlayerColorUpdate(localClientId, color);
+            }
         }
 
         // Скрываем панель выбора цвета в любом случае
         HidePanel();
+    }
+
+    System.Collections.IEnumerator FindAndSetColorDelayed(Color color)
+    {
+        // Ждем до 2 секунд, пока PlayerLobbyItem не синхронизируется
+        float timeout = 2f;
+        float elapsed = 0f;
+        
+        while (elapsed < timeout)
+        {
+            FindLocalPlayerItem();
+            
+            if (localPlayerItem != null)
+            {
+                localPlayerItem.SetPlayerColor(color);
+                Debug.Log($"Цвет игрока изменен на: {color} (найден после задержки)");
+                yield break;
+            }
+            
+            elapsed += 0.1f;
+            yield return new WaitForSeconds(0.1f);
+        }
+        
+        Debug.LogWarning("Локальный игрок не найден после ожидания! Цвет будет применен при создании игрока.");
     }
 
     void HidePanel()

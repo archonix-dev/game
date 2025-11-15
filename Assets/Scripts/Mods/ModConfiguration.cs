@@ -68,8 +68,8 @@ public class ModConfiguration : MonoBehaviour
     [Tooltip("Имя компании для пути (Archonix)")]
     public string companyName = "Archonix";
     
-    [Tooltip("Имя игры для пути (LastRite 0.12a)")]
-    public string gameName = "LastRite 0.12a";
+    [Tooltip("Имя игры для пути (localhost 0.12a)")]
+    public string gameName = "localhost 0.12a";
     
     private List<ModData> allMods = new List<ModData>();
     private List<ModData> activeMods = new List<ModData>();
@@ -111,7 +111,7 @@ public class ModConfiguration : MonoBehaviour
     private const string MISC_FOLDER = "misc";
     private const string APPLY_BUTTON_FILE = "applybutton.mp3";
     private const string BACK_BUTTON_FILE = "backbutton.mp3";
-    private const string REQUIRED_MOD_NAME = "LastRite"; // Обязательный мод, который всегда должен быть активен
+    private const string REQUIRED_MOD_NAME = "localhost"; // Обязательный мод, который всегда должен быть активен
     
     private static ModConfiguration instance;
     public static ModConfiguration Instance
@@ -352,7 +352,7 @@ public class ModConfiguration : MonoBehaviour
                 // Проверяем совместимость версии
                 modData.compatibility = CheckVersionCompatibility(modData.gameVersion);
                 
-                // Обязательный мод "LastRite" всегда совместим со всеми версиями
+                // Обязательный мод "localhost" всегда совместим со всеми версиями
                 if (modData.modName == REQUIRED_MOD_NAME)
                 {
                     modData.compatibility = VersionCompatibility.Compatible;
@@ -1352,32 +1352,32 @@ public class ModConfiguration : MonoBehaviour
             }
         }
         
-        // Автоматически добавляем обязательный мод "LastRite", если он доступен
+        // Автоматически добавляем обязательный мод "localhost", если он доступен
         EnsureRequiredModIsActive();
     }
     
     /// <summary>
-    /// Убеждается, что обязательный мод "LastRite" всегда активен (если доступен)
+    /// Убеждается, что обязательный мод "localhost" всегда активен (если доступен)
     /// </summary>
     private void EnsureRequiredModIsActive()
     {
-        // Ищем мод "LastRite" в списке всех модов
-        ModData lastRiteMod = allMods.Find(m => m.modName == REQUIRED_MOD_NAME);
+        // Ищем мод "localhost" в списке всех модов
+        ModData localhostMod = allMods.Find(m => m.modName == REQUIRED_MOD_NAME);
         
-        if (lastRiteMod != null)
+        if (localhostMod != null)
         {
-            // Устанавливаем совместимость как Compatible для обязательного мода "LastRite"
+            // Устанавливаем совместимость как Compatible для обязательного мода "localhost"
             // Он всегда поддерживается на всех версиях
-            lastRiteMod.compatibility = VersionCompatibility.Compatible;
+            localhostMod.compatibility = VersionCompatibility.Compatible;
             
             // Если мод найден и он еще не активен, добавляем его
-            if (!activeMods.Contains(lastRiteMod))
+            if (!activeMods.Contains(localhostMod))
             {
-                activeMods.Add(lastRiteMod);
+                activeMods.Add(localhostMod);
                 Debug.Log($"[ModConfiguration] Обязательный мод '{REQUIRED_MOD_NAME}' автоматически добавлен в активные моды");
             }
             // Если мод активен, но не в начале списка - перемещаем его в начало (самый высокий приоритет)
-            else if (activeMods.Count > 0 && activeMods[0] != lastRiteMod)
+            else if (activeMods.Count > 0 && activeMods[0] != localhostMod)
             {
                 // Не перемещаем автоматически - пользователь может изменить приоритет через кнопки
                 // Но гарантируем, что он всегда активен
@@ -1394,7 +1394,7 @@ public class ModConfiguration : MonoBehaviour
     /// </summary>
     private void SaveActiveModsToPlayerPrefs()
     {
-        // Убеждаемся, что обязательный мод "LastRite" всегда активен перед сохранением
+        // Убеждаемся, что обязательный мод "localhost" всегда активен перед сохранением
         EnsureRequiredModIsActive();
         
         ActiveModsData data = new ActiveModsData();
@@ -1460,7 +1460,7 @@ public class ModConfiguration : MonoBehaviour
     /// </summary>
     private void RefreshModDisplay()
     {
-        // Убеждаемся, что обязательный мод "LastRite" всегда активен перед отображением
+        // Убеждаемся, что обязательный мод "localhost" всегда активен перед отображением
         EnsureRequiredModIsActive();
         
         // Проверяем, что префабы и родительские объекты назначены
@@ -1597,7 +1597,7 @@ public class ModConfiguration : MonoBehaviour
             return;
         }
         
-        // Запрещаем деактивацию обязательного мода "LastRite"
+        // Запрещаем деактивацию обязательного мода "localhost"
         if (mod.modName == REQUIRED_MOD_NAME)
         {
             Debug.LogWarning($"[ModConfiguration] Нельзя деактивировать обязательный мод '{REQUIRED_MOD_NAME}'");

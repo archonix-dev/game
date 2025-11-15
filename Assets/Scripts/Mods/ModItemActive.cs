@@ -85,7 +85,7 @@ public class ModItemActive : MonoBehaviour
         // Устанавливаем версию
         if (textVersion != null)
         {
-            // Для обязательного мода "LastRite" отображаем специальный текст
+            // Для обязательного мода "localhost" отображаем специальный текст
             if (modConfiguration != null && modConfiguration.IsRequiredMod(modData))
             {
                 textVersion.text = "Системный мод. Нельзя удалить.";
@@ -97,7 +97,7 @@ public class ModItemActive : MonoBehaviour
             }
         }
         
-        // Скрываем кнопку деактивации для обязательного мода "LastRite"
+        // Скрываем кнопку деактивации для обязательного мода "localhost"
         UpdateDeactivateButtonVisibility();
     }
     
@@ -201,7 +201,7 @@ public class ModItemActive : MonoBehaviour
             dontUseMod.SetActive(false);
         }
         
-        // Обязательный мод "LastRite" всегда совместим, предупреждения не показываем
+        // Обязательный мод "localhost" всегда совместим, предупреждения не показываем
         if (modConfiguration != null && modConfiguration.IsRequiredMod(modData))
         {
             return;
