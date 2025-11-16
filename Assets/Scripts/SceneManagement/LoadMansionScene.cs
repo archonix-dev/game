@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
-using Unity.Netcode;
+using Mirror;
 
 /// <summary>
 /// Скрипт для загрузки сцены Mansion при нажатии на кнопку с анимацией загрузки
@@ -67,15 +67,28 @@ public class LoadMansionScene : MonoBehaviour
             return;
         }
         
-        // Проверяем, есть ли активное сетевое подключение
-        NetworkManager networkManager = NetworkManager.Singleton;
-        if (networkManager != null && (networkManager.IsHost || networkManager.IsServer))
+        // КРИТИЧЕСКИ ВАЖНО: Проверяем, не происходит ли уже загрузка сцены через NetworkManager
+        // Это предотвращает двойную загрузку, если LobbyManager уже начал загрузку
+        var networkManager = MirrorNetworkManager.Instance;
+        if (networkManager != null && NetworkServer.activeHost)
         {
-            // Если мы хост/сервер, загружаем сцену для всех через NetworkManager
-            if (networkManager.SceneManager != null)
+            // Проверяем, не происходит ли уже смена сцены
+            // В Mirror можно проверить через isNetworkActive и состояние загрузки
+            if (NetworkManager.singleton != null)
             {
-                Debug.Log($"[LoadMansionScene] Загрузка сцены {sceneName} через NetworkManager (для всех клиентов)");
-                networkManager.SceneManager.LoadScene(sceneName, UnityEngine.SceneManagement.LoadSceneMode.Single);
+                // Проверяем, не загружается ли уже сцена с таким же именем
+                // Если LobbyManager уже вызвал ServerChangeScene, не вызываем повторно
+                Debug.Log($"[LoadMansionScene] Проверка: загрузка сцены {sceneName} через NetworkManager (для всех клиентов)");
+                
+                // Проверяем, не вызывал ли LobbyManager уже загрузку этой сцены
+                LobbyManager lobbyManager = FindObjectOfType<LobbyManager>();
+                if (lobbyManager != null && lobbyManager.gameSceneName == sceneName)
+                {
+                    Debug.Log($"[LoadMansionScene] LobbyManager уже обрабатывает загрузку сцены {sceneName}. Пропускаем дублирующий вызов.");
+                    return;
+                }
+                
+                NetworkManager.singleton.ServerChangeScene(sceneName);
                 return;
             }
         }

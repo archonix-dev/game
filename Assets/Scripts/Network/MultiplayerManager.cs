@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
-using Unity.Netcode;
-using Unity.Netcode.Transports.UTP;
+using Mirror;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -23,15 +22,12 @@ public class MultiplayerManager : MonoBehaviour
     [SerializeField] private ushort defaultPort = 7777;
     [SerializeField] private int maxPlayers = 8;
     
-    [Header("VPN Detection")]
-    [SerializeField] private bool autoDetectVpnIp = true;
-    [SerializeField] private string[] vpnAdapterNames = { "Hamachi", "Radmin VPN", "TAP", "VirtualBox" };
     
     [Header("Debug Settings")]
     [SerializeField] private bool enableTransportFailureDetection = true;
     
-    private NetworkManager networkManager;
-    private UnityTransport transport;
+    private MirrorNetworkManager networkManager;
+    private MonoBehaviour transport; // FizzySteamworks transport
     private bool isInitialized = false;
     private bool wasConnected = false;
     private bool isHandlingTransportFailure = false;
@@ -53,7 +49,7 @@ public class MultiplayerManager : MonoBehaviour
     {
         if (!isInitialized || networkManager == null || isHandlingTransportFailure || !enableTransportFailureDetection) return;
         
-        bool isCurrentlyConnected = networkManager.IsClient || networkManager.IsHost;
+        bool isCurrentlyConnected = NetworkClient.active || (NetworkServer.active && NetworkClient.active);
         
         // Отслеживаем время подключения
         if (isCurrentlyConnected && wasConnected)
@@ -66,6 +62,7 @@ public class MultiplayerManager : MonoBehaviour
         }
         
         // Проверяем, не произошла ли неожиданная потеря соединения
+        // ВАЖНО: Не обрабатываем отключение, если оно произошло слишком быстро (может быть нормальным переподключением)
         if (wasConnected && !isCurrentlyConnected && connectionTime >= MIN_CONNECTION_TIME)
         {
             HandleTransportFailure();
@@ -76,26 +73,50 @@ public class MultiplayerManager : MonoBehaviour
     
     void InitializeNetworkManager()
     {
-        // Проверяем наличие NetworkManager
-        networkManager = NetworkManager.Singleton;
+        // Проверяем наличие MirrorNetworkManager
+        networkManager = MirrorNetworkManager.Instance;
         if (networkManager == null)
         {
-            UpdateStatusText("Ошибка: NetworkManager не найден!");
+            UpdateStatusText("Ошибка: MirrorNetworkManager не найден!");
             return;
         }
         
-        // Получаем UnityTransport
-        transport = networkManager.GetComponent<UnityTransport>();
+        // Получаем FizzySteamworks транспорт
+        // Находим FizzySteamworks транспорт через рефлексию
+        System.Type transportType = null;
+        foreach (var assembly in System.AppDomain.CurrentDomain.GetAssemblies())
+        {
+            transportType = assembly.GetType("FizzySteamworks") ?? 
+                           assembly.GetType("com.mirror.steamworks.net.FizzySteamworks");
+            if (transportType != null) break;
+        }
+        
+        if (transportType != null)
+        {
+            transport = networkManager.GetComponent(transportType) as MonoBehaviour;
+        }
+        
         if (transport == null)
         {
-            UpdateStatusText("Ошибка: UnityTransport не найден!");
+            // Пытаемся найти по имени
+            Component[] allComponents = networkManager.GetComponents<Component>();
+            foreach (var comp in allComponents)
+            {
+                if (comp.GetType().Name == "FizzySteamworks")
+                {
+                    transport = comp as MonoBehaviour;
+                    break;
+                }
+            }
+        }
+        if (transport == null)
+        {
+            UpdateStatusText("Ошибка: FizzySteamworks транспорт не найден!");
             return;
         }
         
-        // Подписываемся на события NetworkManager
-        networkManager.OnClientConnectedCallback += OnClientConnected;
-        networkManager.OnClientDisconnectCallback += OnClientDisconnected;
-        networkManager.OnServerStarted += OnServerStarted;
+        // Mirror обрабатывает события через MirrorNetworkManager
+        // Подписка на события происходит автоматически
     }
     
     void SetupUI()
@@ -118,20 +139,12 @@ public class MultiplayerManager : MonoBehaviour
     
     void UpdateLocalIpDisplay()
     {
-        string vpnIp = GetVpnIpAddress();
-        localIpAddress = vpnIp;
+        string localIp = GetLocalIpAddress();
+        localIpAddress = localIp;
         
         if (localIpText != null)
         {
-            if (!string.IsNullOrEmpty(vpnIp))
-            {
-                localIpText.text = $"Ваш VPN IP: {vpnIp}";
-            }
-            else
-            {
-                string localIp = GetLocalIpAddress();
-                localIpText.text = $"Ваш IP: {localIp}";
-            }
+            localIpText.text = $"Ваш IP: {localIp}";
         }
     }
     
@@ -143,7 +156,7 @@ public class MultiplayerManager : MonoBehaviour
             return;
         }
         
-        if (networkManager.IsHost || networkManager.IsClient)
+        if ((NetworkServer.active && NetworkClient.active) || NetworkClient.active)
         {
             UpdateStatusText("Уже подключен!");
             return;
@@ -162,23 +175,13 @@ public class MultiplayerManager : MonoBehaviour
         
         try
         {
-            // Настраиваем транспорт для хоста
-            transport.ConnectionData.Port = port;
+            // FizzySteamworks не использует порты - подключение через Steam
+            UpdateStatusText("Запуск сервера через Steam...");
             
-            UpdateStatusText("Запуск сервера...");
+            // Запускаем хост через MirrorNetworkManager
+            networkManager.StartHostGame();
             
-            // Запускаем хост
-            bool success = networkManager.StartHost();
-            if (success)
-            {
-                string vpnIp = GetVpnIpAddress();
-                string ipDisplay = !string.IsNullOrEmpty(vpnIp) ? vpnIp : GetLocalIpAddress();
-                UpdateStatusText($"Сервер запущен!\nIP: {ipDisplay}\nПорт: {port}\nОжидание подключений...");
-            }
-            else
-            {
-                UpdateStatusText("Ошибка запуска сервера!");
-            }
+            UpdateStatusText("Сервер запущен через Steam!\nОжидание подключений через Steam лобби...");
         }
         catch (System.Exception e)
         {
@@ -196,65 +199,64 @@ public class MultiplayerManager : MonoBehaviour
             return;
         }
         
-        if (networkManager.IsHost || networkManager.IsClient)
+        if ((NetworkServer.active && NetworkClient.active) || NetworkClient.active)
         {
             UpdateStatusText("Уже подключен!");
             return;
         }
         
-        // Получаем IP адрес хоста
-        string hostIp = "";
+        // Для FizzySteamworks подключение происходит через Steam ID
+        // Получаем Steam ID хоста из лобби или ввода
+        string hostInput = "";
         if (hostIpInput != null)
         {
-            hostIp = hostIpInput.text.Trim();
+            hostInput = hostIpInput.text.Trim();
         }
         
-        if (string.IsNullOrEmpty(hostIp))
+        ulong steamId = 0;
+        if (!string.IsNullOrEmpty(hostInput) && ulong.TryParse(hostInput, out steamId))
         {
-            UpdateStatusText("Введите IP адрес хоста!");
-            return;
-        }
-        
-        // Проверяем валидность IP
-        if (!IsValidIpAddress(hostIp))
-        {
-            UpdateStatusText("Неверный формат IP адреса!");
-            return;
-        }
-        
-        // Получаем порт
-        ushort port = defaultPort;
-        if (portInput != null && !string.IsNullOrEmpty(portInput.text))
-        {
-            if (!ushort.TryParse(portInput.text, out port))
+            // Введен Steam ID
+            try
             {
-                UpdateStatusText("Неверный порт!");
-                return;
+                UpdateStatusText($"Подключение к Steam ID: {steamId}...");
+                networkManager.ConnectToSteamId(steamId);
+                UpdateStatusText("Подключение...");
+            }
+            catch (System.Exception e)
+            {
+                UpdateStatusText($"Ошибка подключения: {e.Message}");
             }
         }
-        
-        try
+        else
         {
-            // Настраиваем транспорт для клиента
-            transport.ConnectionData.Address = hostIp;
-            transport.ConnectionData.Port = port;
-            
-            UpdateStatusText($"Подключение к {hostIp}:{port}...");
-            
-            // Запускаем клиент
-            bool success = networkManager.StartClient();
-            if (success)
+            // Пытаемся получить Steam ID из текущего лобби
+            SteamLobbyManager steamLobbyManager = FindObjectOfType<SteamLobbyManager>();
+            if (steamLobbyManager != null)
             {
-                UpdateStatusText("Подключение...");
+                ulong hostSteamId = steamLobbyManager.GetLobbyOwnerId();
+                if (hostSteamId != 0)
+                {
+                    try
+                    {
+                        UpdateStatusText($"Подключение к Steam лобби: {hostSteamId}...");
+                        networkManager.ConnectToSteamId(hostSteamId);
+                        UpdateStatusText("Подключение...");
+                    }
+                    catch (System.Exception e)
+                    {
+                        UpdateStatusText($"Ошибка подключения: {e.Message}");
+                    }
+                }
+                else
+                {
+                    UpdateStatusText("Не удалось получить Steam ID хоста из лобби!");
+                }
             }
             else
             {
-                UpdateStatusText("Ошибка подключения!");
+                UpdateStatusText("Введите Steam ID хоста или подключитесь к Steam лобби!");
             }
-        }
-        catch (System.Exception e)
-        {
-            UpdateStatusText($"Ошибка подключения: {e.Message}");
         }
         
         UpdateUI();
@@ -264,9 +266,20 @@ public class MultiplayerManager : MonoBehaviour
     {
         if (networkManager == null) return;
         
-        if (networkManager.IsHost || networkManager.IsClient)
+        if ((NetworkServer.active && NetworkClient.active) || NetworkClient.active || NetworkServer.active)
         {
-            networkManager.Shutdown();
+            if (NetworkServer.active && NetworkClient.active)
+            {
+                networkManager.StopHost();
+            }
+            else if (NetworkClient.active)
+            {
+                networkManager.StopClient();
+            }
+            else if (NetworkServer.active)
+            {
+                networkManager.StopServer();
+            }
             UpdateStatusText("Отключено");
         }
         
@@ -279,27 +292,14 @@ public class MultiplayerManager : MonoBehaviour
         UpdateUI();
     }
     
-    void OnClientConnected(ulong clientId)
-    {
-        if (networkManager.IsHost)
-        {
-            int playerCount = networkManager.ConnectedClients.Count;
-            UpdateStatusText($"Игрок подключен! Игроков: {playerCount}/{maxPlayers}");
-        }
-        else
-        {
-            UpdateStatusText("Подключен к серверу!");
-        }
-        
-        wasConnected = true;
-        UpdateUI();
-    }
+    // Методы OnClientConnected и OnClientDisconnected вызываются через MirrorNetworkManager
+    // Они больше не нужны здесь, так как Mirror обрабатывает события автоматически
     
-    void OnClientDisconnected(ulong clientId)
+    void OnClientDisconnected(uint connectionId)
     {
-        if (networkManager.IsHost)
+        if (NetworkServer.active && NetworkClient.active)
         {
-            int playerCount = networkManager.ConnectedClients.Count;
+            int playerCount = NetworkServer.connections.Count;
             UpdateStatusText($"Игрок отключен. Игроков: {playerCount}/{maxPlayers}");
         }
         else
@@ -319,9 +319,20 @@ public class MultiplayerManager : MonoBehaviour
         UpdateStatusText("Соединение потеряно!");
         
         // Отключаемся от сети
-        if (networkManager.IsHost || networkManager.IsClient)
+        if ((NetworkServer.active && NetworkClient.active) || NetworkClient.active || NetworkServer.active)
         {
-            networkManager.Shutdown();
+            if (NetworkServer.active && NetworkClient.active)
+            {
+                networkManager.StopHost();
+            }
+            else if (NetworkClient.active)
+            {
+                networkManager.StopClient();
+            }
+            else if (NetworkServer.active)
+            {
+                networkManager.StopServer();
+            }
         }
         
         wasConnected = false;
@@ -342,7 +353,7 @@ public class MultiplayerManager : MonoBehaviour
     {
         if (networkManager == null) return;
         
-        bool isConnected = networkManager.IsHost || networkManager.IsClient;
+        bool isConnected = (NetworkServer.active && NetworkClient.active) || NetworkClient.active;
         
         if (startHostButton != null)
             startHostButton.interactable = !isConnected;
@@ -367,66 +378,6 @@ public class MultiplayerManager : MonoBehaviour
             statusText.text = message;
         }
         Debug.Log($"[MultiplayerManager] {message}");
-    }
-    
-    // Получение VPN IP адреса
-    string GetVpnIpAddress()
-    {
-        if (!autoDetectVpnIp) return "";
-        
-        try
-        {
-            NetworkInterface[] interfaces = NetworkInterface.GetAllNetworkInterfaces();
-            
-            foreach (NetworkInterface ni in interfaces)
-            {
-                // Проверяем, активен ли интерфейс
-                if (ni.OperationalStatus != OperationalStatus.Up)
-                    continue;
-                
-                // Проверяем, является ли это VPN адаптером
-                bool isVpnAdapter = false;
-                foreach (string vpnName in vpnAdapterNames)
-                {
-                    if (ni.Description.Contains(vpnName) || ni.Name.Contains(vpnName))
-                    {
-                        isVpnAdapter = true;
-                        break;
-                    }
-                }
-                
-                // Также проверяем по IP диапазонам VPN
-                // Hamachi: 25.0.0.0/8 или 5.0.0.0/8
-                // Radmin VPN: обычно 26.0.0.0/8
-                IPInterfaceProperties ipProps = ni.GetIPProperties();
-                foreach (UnicastIPAddressInformation ip in ipProps.UnicastAddresses)
-                {
-                    if (ip.Address.AddressFamily == AddressFamily.InterNetwork)
-                    {
-                        string ipString = ip.Address.ToString();
-                        byte[] bytes = ip.Address.GetAddressBytes();
-                        
-                        // Проверяем диапазоны VPN
-                        bool isVpnRange = bytes[0] == 25 || bytes[0] == 5 || bytes[0] == 26;
-                        
-                        if (isVpnAdapter || isVpnRange)
-                        {
-                            // Исключаем loopback
-                            if (!IPAddress.IsLoopback(ip.Address))
-                            {
-                                return ipString;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogWarning($"[MultiplayerManager] Ошибка определения VPN IP: {e.Message}");
-        }
-        
-        return "";
     }
     
     // Получение локального IP адреса
@@ -475,17 +426,17 @@ public class MultiplayerManager : MonoBehaviour
     // Публичные методы для получения информации
     public bool IsConnected()
     {
-        return networkManager != null && (networkManager.IsHost || networkManager.IsClient);
+        return networkManager != null && ((NetworkServer.active && NetworkClient.active) || NetworkClient.active);
     }
     
     public bool IsHost()
     {
-        return networkManager != null && networkManager.IsHost;
+        return networkManager != null && NetworkServer.active && NetworkClient.active;
     }
     
     public bool IsClient()
     {
-        return networkManager != null && networkManager.IsClient;
+        return networkManager != null && NetworkClient.active;
     }
     
     public string GetLocalIp()
@@ -496,7 +447,7 @@ public class MultiplayerManager : MonoBehaviour
     public int GetPlayerCount()
     {
         if (networkManager == null) return 0;
-        return networkManager.ConnectedClients.Count;
+        return NetworkServer.connections.Count;
     }
     
     void OnDestroy()
@@ -504,9 +455,8 @@ public class MultiplayerManager : MonoBehaviour
         // Отписываемся от событий
         if (networkManager != null)
         {
-            networkManager.OnClientConnectedCallback -= OnClientConnected;
-            networkManager.OnClientDisconnectCallback -= OnClientDisconnected;
-            networkManager.OnServerStarted -= OnServerStarted;
+            // В Mirror события обрабатываются через переопределение методов в MirrorNetworkManager
+            // Подписки на события не требуются
         }
     }
 }

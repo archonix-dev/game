@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
-using Unity.Netcode;
-using Unity.Collections;
+using Mirror;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -62,22 +61,17 @@ public class ChatSystem : NetworkBehaviour
     private Dictionary<char, AudioClip> characterSoundMap;
     private bool wasEnterPressed = false;
     
-    public override void OnNetworkSpawn()
+    public override void OnStartClient()
     {
-        base.OnNetworkSpawn();
+        base.OnStartClient();
         
-        Debug.Log($"[ChatSystem] OnNetworkSpawn: IsServer={IsServer}, IsOwner={IsOwner}, IsClient={IsClient}, NetworkObjectId={GetComponent<NetworkObject>()?.NetworkObjectId ?? 0}");
+        Debug.Log($"[ChatSystem] OnStartClient: isServer={isServer}, isOwned={isOwned}, isClient={isClient}, NetworkIdentity={GetComponent<NetworkIdentity>()?.netId ?? 0}");
         
         // Настраиваем AudioSource в зависимости от владельца
         SetupAudioSource();
         
         // Находим NetworkPlayer для получения имени и цвета
         FindNetworkPlayer();
-    }
-    
-    public override void OnNetworkDespawn()
-    {
-        base.OnNetworkDespawn();
     }
     
     void Start()
@@ -108,7 +102,7 @@ public class ChatSystem : NetworkBehaviour
         }
         
         // Если не в сети, настраиваем AudioSource локально
-        if (!IsSpawned)
+        if (netIdentity == null || netIdentity.netId == 0)
         {
             SetupAudioSource();
         }
@@ -134,9 +128,9 @@ public class ChatSystem : NetworkBehaviour
         // ВАЖНО: Для визуализации звуки должны работать, но владелец не должен слышать себя
         // Для владельца используем очень маленький volume (почти неслышимый) вместо 0
         // volume = 0 может блокировать воспроизведение в некоторых случаях
-        if (IsSpawned)
+        if (netIdentity != null && netIdentity.netId != 0)
         {
-            if (IsOwner)
+            if (isOwned)
             {
                 // Владелец не должен слышать свои звуки через AudioSource
                 // Используем очень маленький volume (0.0001f) вместо 0, чтобы звуки воспроизводились
@@ -363,13 +357,14 @@ public class ChatSystem : NetworkBehaviour
             PlayMessageSounds(text);
             
             // Отправляем сообщение в сеть
-            if (IsSpawned && IsOwner)
+            bool isSpawned = netIdentity != null && netIdentity.netId != 0;
+            if (isSpawned && isOwned)
             {
                 // Отправляем сообщение на сервер для спавна префаба
-                Debug.Log($"[ChatSystem] Отправка ServerRpc: text={text}, IsSpawned={IsSpawned}, IsOwner={IsOwner}");
-                SendChatMessageServerRpc(new FixedString512Bytes(text));
+                Debug.Log($"[ChatSystem] Отправка Command: text={text}, isSpawned={isSpawned}, isOwned={isOwned}");
+                SendChatMessageCommand(text);
             }
-            else if (!IsSpawned)
+            else if (netIdentity == null || netIdentity.netId == 0)
             {
                 // В одиночной игре создаем локально
                 Debug.Log($"[ChatSystem] Одиночная игра, создание локального сообщения: text={text}");
@@ -389,7 +384,8 @@ public class ChatSystem : NetworkBehaviour
             }
             else
             {
-                Debug.LogWarning($"[ChatSystem] ChatSystem не заспавнен или не является владельцем! IsSpawned={IsSpawned}, IsOwner={IsOwner}");
+                bool isSpawnedLocal = netIdentity != null && netIdentity.netId != 0;
+                Debug.LogWarning($"[ChatSystem] ChatSystem не заспавнен или не является владельцем! isSpawned={isSpawnedLocal}, isOwned={isOwned}");
             }
             
             // Очищаем поле ввода и закрываем чат
@@ -700,10 +696,22 @@ public class ChatSystem : NetworkBehaviour
     /// <summary>
     /// ServerRpc для отправки сообщения в чат (вызывается владельцем)
     /// </summary>
-    [ServerRpc(RequireOwnership = true)]
-    private void SendChatMessageServerRpc(FixedString512Bytes message, ServerRpcParams rpcParams = default)
+    [Command]
+    private void SendChatMessageCommand(string message, NetworkConnectionToClient sender = null)
     {
-        ulong senderId = rpcParams.Receive.SenderClientId;
+        // В Mirror, когда клиент вызывает Command, sender автоматически передается
+        // Если sender null, используем connectionToClient из этого NetworkIdentity
+        uint senderId = 0;
+        if (sender != null)
+        {
+            senderId = (uint)sender.connectionId;
+        }
+        else if (netIdentity != null && netIdentity.connectionToClient != null)
+        {
+            senderId = (uint)netIdentity.connectionToClient.connectionId;
+        }
+        
+        Debug.Log($"[ChatSystem] Command получен: message={message}, senderId={senderId}, sender={(sender != null ? "NOT NULL" : "NULL")}, connectionToClient={(netIdentity?.connectionToClient != null ? "NOT NULL" : "NULL")}");
         
         // Получаем имя и цвет игрока
         string playerName = "Player";
@@ -711,44 +719,90 @@ public class ChatSystem : NetworkBehaviour
         bool isAdmin = false;
         
         // Ищем NetworkPlayer для отправителя
-        NetworkPlayer senderPlayer = FindNetworkPlayerByClientId(senderId);
-        Debug.Log($"[ChatSystem] Поиск NetworkPlayer для senderId={senderId}, senderPlayer={(senderPlayer != null ? senderPlayer.name : "NULL")}");
+        NetworkPlayer senderPlayer = FindNetworkPlayerByConnectionId(senderId);
+        Debug.Log($"[ChatSystem] Поиск NetworkPlayer для connectionId={senderId}, senderPlayer={(senderPlayer != null ? senderPlayer.name : "NULL")}");
         
         if (senderPlayer != null)
         {
             playerName = senderPlayer.PlayerName;
             playerColor = senderPlayer.PlayerColor;
-            Debug.Log($"[ChatSystem] Имя из NetworkPlayer: {playerName}, цвет: {playerColor}");
+            Debug.Log($"[ChatSystem] Имя из NetworkPlayer: {playerName}, цвет: {playerColor}, PlayerId={senderPlayer.PlayerId}");
             
             // Если имя все еще "Player", пытаемся загрузить из PlayerPrefs
-            if (playerName == "Player" && PlayerPrefs.HasKey("PlayerName"))
+            // Если имя все еще "Player", пытаемся получить из Steam
+            if (playerName == "Player")
             {
-                playerName = PlayerPrefs.GetString("PlayerName", "Player");
-                Debug.Log($"[ChatSystem] Имя загружено из PlayerPrefs (после NetworkPlayer): {playerName}");
+                #if !DISABLESTEAMWORKS
+                if (SteamManager.Instance != null && SteamManager.Instance.IsSteamInitialized())
+                {
+                    string steamName = SteamManager.Instance.GetSteamName();
+                    if (!string.IsNullOrEmpty(steamName))
+                    {
+                        playerName = steamName;
+                        Debug.Log($"[ChatSystem] Имя получено из Steam: {playerName}");
+                    }
+                }
+                #endif
+                
+                // Если Steam не доступен, пробуем PlayerPrefs
+                if (playerName == "Player" && PlayerPrefs.HasKey("PlayerName"))
+                {
+                    playerName = PlayerPrefs.GetString("PlayerName", "Player");
+                    Debug.Log($"[ChatSystem] Имя загружено из PlayerPrefs: {playerName}");
+                }
             }
         }
         else
         {
-            Debug.Log($"[ChatSystem] NetworkPlayer не найден для senderId={senderId}, ищем на этом объекте...");
+            Debug.Log($"[ChatSystem] NetworkPlayer не найден для connectionId={senderId}, ищем на этом объекте...");
             // Пытаемся найти NetworkPlayer на этом объекте
-            if (networkPlayer != null)
+            if (networkPlayer != null && networkPlayer.PlayerId == senderId)
             {
                 playerName = networkPlayer.PlayerName;
                 playerColor = networkPlayer.PlayerColor;
-                Debug.Log($"[ChatSystem] Имя из networkPlayer на этом объекте: {playerName}, цвет: {playerColor}");
+                Debug.Log($"[ChatSystem] Имя из networkPlayer на этом объекте: {playerName}, цвет: {playerColor}, PlayerId={networkPlayer.PlayerId}");
                 
-                // Если имя все еще "Player", пытаемся загрузить из PlayerPrefs
-                if (playerName == "Player" && PlayerPrefs.HasKey("PlayerName"))
+                // Если имя все еще "Player", пытаемся получить из Steam
+                if (playerName == "Player")
                 {
-                    playerName = PlayerPrefs.GetString("PlayerName", "Player");
-                    Debug.Log($"[ChatSystem] Имя загружено из PlayerPrefs (после networkPlayer): {playerName}");
+                    #if !DISABLESTEAMWORKS
+                    if (SteamManager.Instance != null && SteamManager.Instance.IsSteamInitialized())
+                    {
+                        string steamName = SteamManager.Instance.GetSteamName();
+                        if (!string.IsNullOrEmpty(steamName))
+                        {
+                            playerName = steamName;
+                            Debug.Log($"[ChatSystem] Имя получено из Steam: {playerName}");
+                        }
+                    }
+                    #endif
+                    
+                    // Если Steam не доступен, пробуем PlayerPrefs
+                    if (playerName == "Player" && PlayerPrefs.HasKey("PlayerName"))
+                    {
+                        playerName = PlayerPrefs.GetString("PlayerName", "Player");
+                        Debug.Log($"[ChatSystem] Имя загружено из PlayerPrefs: {playerName}");
+                    }
                 }
             }
             else
             {
-                Debug.Log($"[ChatSystem] networkPlayer на этом объекте тоже NULL, загружаем из PlayerPrefs...");
-                // Если NetworkPlayer не найден, пытаемся загрузить из PlayerPrefs
-                if (PlayerPrefs.HasKey("PlayerName"))
+                Debug.Log($"[ChatSystem] networkPlayer на этом объекте тоже NULL или не совпадает PlayerId, загружаем из PlayerPrefs...");
+                // Если NetworkPlayer не найден, пытаемся получить из Steam
+                #if !DISABLESTEAMWORKS
+                if (SteamManager.Instance != null && SteamManager.Instance.IsSteamInitialized())
+                {
+                    string steamName = SteamManager.Instance.GetSteamName();
+                    if (!string.IsNullOrEmpty(steamName))
+                    {
+                        playerName = steamName;
+                        Debug.Log($"[ChatSystem] NetworkPlayer не найден, имя получено из Steam: {playerName}");
+                    }
+                }
+                #endif
+                
+                // Если Steam не доступен, пробуем PlayerPrefs
+                if (playerName == "Player" && PlayerPrefs.HasKey("PlayerName"))
                 {
                     playerName = PlayerPrefs.GetString("PlayerName", "Player");
                     Debug.Log($"[ChatSystem] NetworkPlayer не найден, имя загружено из PlayerPrefs: {playerName}");
@@ -778,73 +832,82 @@ public class ChatSystem : NetworkBehaviour
         Debug.Log($"[ChatSystem] Финальное имя для отправки: {playerName}, цвет: {playerColor}");
         
         // Проверяем, является ли отправитель админом (хостом)
-        if (NetworkManager.Singleton != null)
+        // В Mirror хост - это сервер, который также является клиентом
+        // Проверяем, является ли отправитель хостом
+        if (sender != null)
         {
-            isAdmin = (senderId == NetworkManager.Singleton.LocalClientId);
+            // Проверяем, является ли этот connection хостом
+            // Хост - это когда NetworkServer.activeHost == true
+            // И connectionId хоста обычно 0, но нужно проверить через NetworkServer.connections
+            isAdmin = NetworkServer.activeHost && sender.connectionId == 0;
+        }
+        else if (senderId == 0 && NetworkServer.activeHost)
+        {
+            // Если senderId == 0 и мы хост, то это хост
+            isAdmin = true;
         }
         
-        // Отправляем сообщение всем клиентам через ClientRpc
-        // ClientRpc автоматически отправляется всем клиентам, у которых есть этот NetworkObject
-        NetworkObject networkObject = GetComponent<NetworkObject>();
-        Debug.Log($"[ChatSystem] Отправка ClientRpc: message={message}, playerName={playerName}, senderId={senderId}, IsSpawned={IsSpawned}, NetworkObjectId={networkObject?.NetworkObjectId ?? 0}, IsServer={IsServer}");
+        Debug.Log($"[ChatSystem] isAdmin={isAdmin}, senderId={senderId}, activeHost={NetworkServer.activeHost}");
         
-        if (networkObject == null || !networkObject.IsSpawned)
+        // Отправляем сообщение всем клиентам через ClientRpc
+        // ClientRpc автоматически отправляется всем клиентам, у которых есть этот NetworkIdentity
+        NetworkIdentity networkIdentity = GetComponent<NetworkIdentity>();
+        bool isSpawned = networkIdentity != null && networkIdentity.netId != 0;
+        Debug.Log($"[ChatSystem] Отправка ClientRpc: message={message}, playerName={playerName}, senderId={senderId}, isSpawned={isSpawned}, netId={networkIdentity?.netId ?? 0}, isServer={isServer}");
+        
+            if (networkIdentity == null || networkIdentity.netId == 0)
         {
-            Debug.LogError($"[ChatSystem] NetworkObject не найден или не заспавнен! networkObject={networkObject}, IsSpawned={networkObject?.IsSpawned ?? false}");
+            bool netIsSpawned = networkIdentity != null && networkIdentity.netId != 0;
+            Debug.LogError($"[ChatSystem] NetworkIdentity не найден или не заспавнен! networkIdentity={networkIdentity}, isSpawned={netIsSpawned}");
             return;
         }
         
         // Вызываем ClientRpc - он автоматически отправится всем клиентам
-        // Включаем отправителя в список получателей (хост должен видеть свои сообщения)
-        ClientRpcParams clientRpcParams = default;
-        var targetClientIds = new List<ulong>();
+        Debug.Log($"[ChatSystem] Отправка ClientRpc на клиентов");
         
-        // Добавляем всех подключенных клиентов
-        if (NetworkManager.Singleton != null)
-        {
-            foreach (var client in NetworkManager.Singleton.ConnectedClients)
-            {
-                targetClientIds.Add(client.Key);
-            }
-        }
-        
-        clientRpcParams.Send.TargetClientIds = targetClientIds.ToArray();
-        Debug.Log($"[ChatSystem] Отправка ClientRpc на клиентов: {string.Join(", ", targetClientIds)}");
-        
-        ReceiveChatMessageClientRpc(new FixedString64Bytes(playerName), message, playerColor, senderId, isAdmin, clientRpcParams);
+        ReceiveChatMessageClientRpc(playerName, message, playerColor, senderId, isAdmin);
     }
     
     /// <summary>
     /// ClientRpc для получения сообщения чата (вызывается сервером, получают все клиенты)
     /// </summary>
     [ClientRpc]
-    public void ReceiveChatMessageClientRpc(FixedString64Bytes playerName, FixedString512Bytes message, Color playerColor, ulong clientId, bool isAdmin, ClientRpcParams rpcParams = default)
+    public void ReceiveChatMessageClientRpc(string playerName, string message, Color playerColor, uint clientId, bool isAdmin)
     {
-        Debug.Log($"[ChatSystem] ReceiveChatMessageClientRpc получен: message={message}, playerName={playerName}, IsSpawned={IsSpawned}, IsOwner={IsOwner}, IsClient={IsClient}, name={gameObject.name}, NetworkObjectId={GetComponent<NetworkObject>()?.NetworkObjectId ?? 0}");
+        bool isSpawned = netIdentity != null && netIdentity.netId != 0;
+        Debug.Log($"[ChatSystem] ReceiveChatMessageClientRpc получен: message={message}, playerName={playerName}, isSpawned={isSpawned}, isOwned={isOwned}, isClient={isClient}, name={gameObject.name}, netId={GetComponent<NetworkIdentity>()?.netId ?? 0}");
         // Каждый клиент создает локальный UI элемент
-        SpawnChatMessageLocally(message.ToString(), playerName.ToString(), playerColor, clientId, isAdmin);
+        SpawnChatMessageLocally(message, playerName, playerColor, clientId, isAdmin);
     }
     
     /// <summary>
-    /// Находит NetworkPlayer по clientId
+    /// Находит NetworkPlayer по connectionId
     /// </summary>
-    private NetworkPlayer FindNetworkPlayerByClientId(ulong clientId)
+    private NetworkPlayer FindNetworkPlayerByConnectionId(uint connectionId)
     {
         NetworkPlayer[] allPlayers = FindObjectsOfType<NetworkPlayer>();
+        Debug.Log($"[ChatSystem] Поиск NetworkPlayer для connectionId={connectionId}, найдено игроков: {allPlayers.Length}");
+        
         foreach (NetworkPlayer player in allPlayers)
         {
-            if (player.IsSpawned && player.OwnerClientId == clientId)
+            uint playerId = player.PlayerId;
+            Debug.Log($"[ChatSystem] Проверка игрока: name={player.name}, PlayerId={playerId}, netId={player.netIdentity?.netId ?? 0}, connectionId={connectionId}");
+            
+            if (player.netIdentity != null && player.netIdentity.netId != 0 && playerId == connectionId)
             {
+                Debug.Log($"[ChatSystem] ✓ NetworkPlayer найден: {player.name}, PlayerId={playerId}, PlayerName={player.PlayerName}");
                 return player;
             }
         }
+        
+        Debug.LogWarning($"[ChatSystem] NetworkPlayer не найден для connectionId={connectionId}");
         return null;
     }
     
     /// <summary>
     /// Спавнит префаб сообщения чата локально на каждом клиенте
     /// </summary>
-    private void SpawnChatMessageLocally(string message, string playerName, Color playerColor, ulong senderId, bool isAdmin)
+    private void SpawnChatMessageLocally(string message, string playerName, Color playerColor, uint senderId, bool isAdmin)
     {
         Debug.Log($"[ChatSystem] SpawnChatMessageLocally вызван: message={message}, playerName={playerName}, messageSpawnParent={(messageSpawnParent != null ? messageSpawnParent.name : "NULL")}, chatMessagePrefab={(chatMessagePrefab != null ? chatMessagePrefab.name : "NULL")}");
         

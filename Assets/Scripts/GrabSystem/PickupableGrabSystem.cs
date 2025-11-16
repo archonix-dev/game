@@ -1,5 +1,5 @@
 using UnityEngine;
-using Unity.Netcode;
+using Mirror;
 
 /// <summary>
 /// Система захвата для PickupableItem объектов (без разрушения)
@@ -81,7 +81,7 @@ public class PickupableGrabSystem : NetworkBehaviour
     void Update()
     {
         // Обрабатываем ввод только для владельца
-        if (IsSpawned && !IsOwner) return;
+        if (netIdentity != null && netIdentity.netId != 0 && !isOwned) return;
         
         // Проверяем, на что смотрит игрок
         CheckForGrabbableObject();

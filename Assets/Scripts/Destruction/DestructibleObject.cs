@@ -83,7 +83,30 @@ public class DestructibleObject : MonoBehaviour
         
         if (objectRenderer != null)
         {
-            originalMaterials = objectRenderer.materials;
+            // Используем безопасный способ получения материалов
+            // чтобы избежать ошибок с несовместимыми шейдерами
+            try
+            {
+                originalMaterials = objectRenderer.materials;
+            }
+            catch (System.Exception e)
+            {
+                // Если возникает ошибка из-за несовместимости шейдеров,
+                // используем sharedMaterials как альтернативу
+                Debug.LogWarning($"[DestructibleObject] Ошибка получения материалов для {gameObject.name}: {e.Message}. Используются sharedMaterials.");
+                originalMaterials = objectRenderer.sharedMaterials;
+                
+                // Создаем копии материалов для безопасной работы
+                Material[] materialCopies = new Material[originalMaterials.Length];
+                for (int i = 0; i < originalMaterials.Length; i++)
+                {
+                    if (originalMaterials[i] != null)
+                    {
+                        materialCopies[i] = new Material(originalMaterials[i]);
+                    }
+                }
+                originalMaterials = materialCopies;
+            }
         }
         
         // Настраиваем Rigidbody на основе веса
@@ -828,37 +851,46 @@ public class DestructibleObject : MonoBehaviour
     {
         if (objectRenderer == null || originalMaterials == null) return;
         
-        Material[] materials = new Material[originalMaterials.Length];
-        originalMaterials.CopyTo(materials, 0);
-        
-        if (isPlayerLookingAt && outlineMaterial != null)
+        try
         {
-            if (materials.Length > 1)
+            Material[] materials = new Material[originalMaterials.Length];
+            originalMaterials.CopyTo(materials, 0);
+            
+            if (isPlayerLookingAt && outlineMaterial != null)
             {
-                materials[1] = outlineMaterial;
+                if (materials.Length > 1)
+                {
+                    materials[1] = outlineMaterial;
+                }
+                else
+                {
+                    materials = new Material[] { materials[0], outlineMaterial };
+                }
+            }
+            else if (normalMaterial != null)
+            {
+                if (materials.Length > 1)
+                {
+                    materials[1] = normalMaterial;
+                }
+                else
+                {
+                    materials = new Material[] { materials[0], normalMaterial };
+                }
             }
             else
             {
-                materials = new Material[] { materials[0], outlineMaterial };
+                materials = originalMaterials;
             }
+            
+            objectRenderer.materials = materials;
         }
-        else if (normalMaterial != null)
+        catch (System.Exception e)
         {
-            if (materials.Length > 1)
-            {
-                materials[1] = normalMaterial;
-            }
-            else
-            {
-                materials = new Material[] { materials[0], normalMaterial };
-            }
+            // Игнорируем ошибки с несовместимостью шейдеров
+            // Это может происходить когда материалы используют разные shader keyword spaces
+            Debug.LogWarning($"[DestructibleObject] Ошибка обновления outline материала для {gameObject.name}: {e.Message}");
         }
-        else
-        {
-            materials = originalMaterials;
-        }
-        
-        objectRenderer.materials = materials;
     }
     
     void OnDrawGizmosSelected()

@@ -1,5 +1,5 @@
 using UnityEngine;
-using Unity.Netcode;
+using Mirror;
 using UnityEngine.SceneManagement;
 using System.Collections;
 using System.Collections.Generic;
@@ -31,6 +31,8 @@ public class GameManager : NetworkBehaviour
         }
     }
     
+    private bool spawnCoroutineStarted = false; // Флаг для предотвращения дублирования
+    
     void Awake()
     {
         // Singleton pattern
@@ -44,56 +46,52 @@ public class GameManager : NetworkBehaviour
             return;
         }
         
-        // Убеждаемся, что у GameManager есть NetworkObject
+        // Убеждаемся, что у GameManager есть NetworkIdentity
         // Если его нет и мы в сети, добавляем его
-        NetworkObject networkObject = GetComponent<NetworkObject>();
-        if (NetworkManager.Singleton != null && networkObject == null)
+        NetworkIdentity networkIdentity = GetComponent<NetworkIdentity>();
+        if (NetworkManager.singleton != null && networkIdentity == null)
         {
-            networkObject = gameObject.AddComponent<NetworkObject>();
-        }
-        
-        // Подписываемся на события загрузки сцены NetworkManager
-        if (NetworkManager.Singleton != null)
-        {
-            NetworkManager.Singleton.SceneManager.OnLoadEventCompleted += OnSceneLoadCompleted;
+            networkIdentity = gameObject.AddComponent<NetworkIdentity>();
         }
     }
     
     void Start()
     {
         // Если мы уже в игровой сцене и NetworkManager активен, инициализируем спавн
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
+        if (NetworkServer.active)
         {
             string currentScene = SceneManager.GetActiveScene().name;
             if (currentScene != menuSceneName)
             {
                 // Если GameManager не заспавнен, пытаемся заспавнить его
-                NetworkObject networkObject = GetComponent<NetworkObject>();
-                if (networkObject != null && !networkObject.IsSpawned)
+                NetworkIdentity networkIdentity = GetComponent<NetworkIdentity>();
+                if (networkIdentity != null && networkIdentity.netId == 0)
                 {
-                    networkObject.Spawn();
+                    NetworkServer.Spawn(gameObject);
                 }
-                else if (networkObject == null)
+                else if (networkIdentity == null)
                 {
-                    Debug.LogWarning("[GameManager] NetworkObject компонент не найден! Добавьте его вручную в инспекторе.");
+                    Debug.LogWarning("[GameManager] NetworkIdentity компонент не найден! Добавьте его вручную в инспекторе.");
                 }
                 
                 // Если мы заспавнены, запускаем спавн игроков
-                if (IsSpawned)
+                // НО только если корутина еще не запущена (предотвращаем дублирование)
+                if (netIdentity != null && netIdentity.netId != 0 && !spawnCoroutineStarted)
                 {
+                    spawnCoroutineStarted = true;
                     StartCoroutine(SpawnAllPlayersAfterSceneLoad());
                 }
             }
         }
     }
     
-    public override void OnNetworkSpawn()
+    public override void OnStartServer()
     {
-        base.OnNetworkSpawn();
+        base.OnStartServer();
         
         string currentScene = SceneManager.GetActiveScene().name;
-        int connectedClients = NetworkManager.Singleton != null ? NetworkManager.Singleton.ConnectedClients.Count : 0;
-        Debug.Log($"[GameManager] ✓ GameManager заспавнен! IsServer: {IsServer}, Сцена: {currentScene}, Подключено клиентов: {connectedClients}");
+        int connectedClients = NetworkServer.connections.Count;
+        Debug.Log($"[GameManager] ✓ GameManager запущен на сервере! Сцена: {currentScene}, Подключено клиентов: {connectedClients}");
         
         // Проверяем, что мы в игровой сцене (не в меню)
         if (currentScene == menuSceneName)
@@ -102,143 +100,77 @@ public class GameManager : NetworkBehaviour
             return;
         }
         
-        // Подписываемся на события подключения клиентов
-        if (IsServer)
+        // Предотвращаем дублирование корутины спавна
+        if (!spawnCoroutineStarted)
         {
-            NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
-            NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
-            Debug.Log("[GameManager] Подписка на события подключения клиентов установлена.");
-        }
-        
-        // Спавним всех подключенных игроков после загрузки сцены
-        if (IsServer)
-        {
+            spawnCoroutineStarted = true;
+            // Спавним всех подключенных игроков после загрузки сцены
             StartCoroutine(SpawnAllPlayersAfterSceneLoad());
         }
     }
     
-    void OnSceneLoadCompleted(string sceneName, LoadSceneMode loadSceneMode, List<ulong> clientsCompleted, List<ulong> clientsTimedOut)
-    {
-        Debug.Log($"[GameManager] ✓ Сцена {sceneName} загружена. IsServer: {IsServer}, IsSpawned: {IsSpawned}, Клиентов завершило: {clientsCompleted?.Count ?? 0}");
-        
-        // Проверяем, что мы в игровой сцене (не в меню)
-        if (sceneName == menuSceneName)
-        {
-            Debug.Log("[GameManager] Загружена сцена меню, игроки не будут спавниться.");
-            return;
-        }
-        
-        // Если это игровая сцена и мы сервер, запускаем спавн игроков
-        // GameManager должен быть в сцене Lobby как GameObject с NetworkObject компонентом
-        if (IsServer)
-        {
-            // Ищем GameManager в сцене
-            GameManager existingManager = FindObjectOfType<GameManager>();
-            if (existingManager != null && existingManager.IsSpawned)
-            {
-                Debug.Log($"[GameManager] ✓ GameManager найден и заспавнен в сцене {sceneName}. Запуск спавна игроков...");
-                existingManager.StartCoroutine(existingManager.SpawnAllPlayersAfterSceneLoad());
-            }
-            else if (existingManager != null && !existingManager.IsSpawned)
-            {
-                Debug.LogWarning("[GameManager] GameManager найден, но не заспавнен. Пытаемся заспавнить...");
-                NetworkObject networkObject = existingManager.GetComponent<NetworkObject>();
-                if (networkObject != null && !networkObject.IsSpawned)
-                {
-                    networkObject.Spawn();
-                }
-            }
-            else
-            {
-                Debug.LogError("[GameManager] ✗ GameManager не найден в сцене Lobby! Убедитесь, что GameManager добавлен в сцену Lobby как GameObject с NetworkObject компонентом.");
-            }
-        }
-    }
+    // Mirror обрабатывает загрузку сцен автоматически через NetworkManager
+    // Этот метод больше не нужен, так как Mirror использует другую систему загрузки сцен
     
-    public override void OnNetworkDespawn()
+    public override void OnStopServer()
     {
-        // Отписываемся от событий
-        if (IsServer && NetworkManager.Singleton != null)
-        {
-            NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
-            NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
-        }
-        
-        // Отписываемся от событий загрузки сцены
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.SceneManager != null)
-        {
-            NetworkManager.Singleton.SceneManager.OnLoadEventCompleted -= OnSceneLoadCompleted;
-        }
-        
-        base.OnNetworkDespawn();
+        base.OnStopServer();
+        Debug.Log("[GameManager] GameManager остановлен на сервере");
+        spawnCoroutineStarted = false; // Сбрасываем флаг при остановке сервера
     }
     
     void OnDestroy()
     {
-        // Отписываемся от событий при уничтожении объекта
-        if (NetworkManager.Singleton != null)
-        {
-            if (NetworkManager.Singleton.SceneManager != null)
-            {
-                NetworkManager.Singleton.SceneManager.OnLoadEventCompleted -= OnSceneLoadCompleted;
-            }
-            
-            // Отписываемся от событий подключения клиентов
-            // Проверяем IsServer безопасно
-            try
-            {
-                if (NetworkManager.Singleton.IsServer)
-                {
-                    NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
-                    NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
-                }
-            }
-            catch
-            {
-                // Игнорируем ошибки, если NetworkManager уже уничтожен
-            }
-        }
+        // Mirror автоматически обрабатывает отписку от событий
     }
     
-    void OnClientConnected(ulong clientId)
+    // Метод вызывается Mirror через MirrorNetworkManager.OnServerConnect
+    public void OnMirrorClientConnected(uint connectionId)
     {
         // Проверяем, что мы в игровой сцене (не в меню)
         string currentScene = SceneManager.GetActiveScene().name;
         if (currentScene == menuSceneName)
         {
-            Debug.Log($"[GameManager] Клиент {clientId} подключен, но мы в меню - игрок не будет спавниться.");
+            Debug.Log($"[GameManager] Клиент {connectionId} подключен, но мы в меню - игрок не будет спавниться.");
             return;
         }
         
-        Debug.Log($"[GameManager] ✓ Клиент {clientId} подключен в сцене {currentScene}. Запуск спавна игрока...");
+        Debug.Log($"[GameManager] ✓ Клиент {connectionId} подключен в сцене {currentScene}. Запуск спавна игрока...");
         
         // Спавним игрока для нового клиента
-        if (IsServer)
+        if (isServer)
         {
-            StartCoroutine(SpawnPlayerAfterDelay(clientId));
+            StartCoroutine(SpawnPlayerAfterDelay(connectionId));
         }
     }
     
-    void OnClientDisconnected(ulong clientId)
+    // Метод вызывается Mirror через MirrorNetworkManager.OnServerDisconnect
+    public void OnMirrorClientDisconnected(uint connectionId)
     {
-        
         // Удаляем игрока отключившегося клиента
-        if (IsServer)
+        if (isServer)
         {
-            RemovePlayerForClient(clientId);
+            RemovePlayerForClient(connectionId);
         }
     }
     
     
-    void RemovePlayerForClient(ulong clientId)
+    void RemovePlayerForClient(uint connectionId)
     {
-        // Находим и удаляем игрока
-        if (NetworkManager.Singleton.ConnectedClients.TryGetValue(clientId, out NetworkClient client))
+        // Находим и удаляем игрока через Mirror
+        NetworkConnectionToClient conn = null;
+        foreach (var connection in NetworkServer.connections.Values)
         {
-            if (client.PlayerObject != null)
+            if (connection.connectionId == connectionId)
             {
-                client.PlayerObject.Despawn();
+                conn = connection;
+                break;
             }
+        }
+        
+        if (conn != null && conn.identity != null)
+        {
+            NetworkServer.Destroy(conn.identity.gameObject);
         }
     }
     
@@ -248,9 +180,10 @@ public class GameManager : NetworkBehaviour
         yield return new WaitForSeconds(0.5f);
         
         // Проверяем, что NetworkManager доступен
-        if (NetworkManager.Singleton == null)
+        if (!NetworkServer.active)
         {
-            Debug.LogError("[GameManager] NetworkManager не найден!");
+            Debug.LogError("[GameManager] NetworkServer не активен!");
+            spawnCoroutineStarted = false; // Сбрасываем флаг при ошибке
             yield break;
         }
         
@@ -259,59 +192,76 @@ public class GameManager : NetworkBehaviour
         if (currentScene == menuSceneName)
         {
             Debug.Log("[GameManager] Мы в сцене меню, игроки не будут спавниться.");
+            spawnCoroutineStarted = false; // Сбрасываем флаг, если мы в меню
             yield break;
         }
         
-        Debug.Log($"[GameManager] Начинаем спавн игроков в сцене {currentScene}. Подключено клиентов: {NetworkManager.Singleton.ConnectedClients.Count}");
+        Debug.Log($"[GameManager] Начинаем спавн игроков в сцене {currentScene}. Подключено клиентов: {NetworkServer.connections.Count}");
+        
+        // Создаем список клиентов для спавна, чтобы избежать модификации коллекции во время итерации
+        List<NetworkConnectionToClient> connectionsToSpawn = new List<NetworkConnectionToClient>();
+        foreach (var connection in NetworkServer.connections.Values)
+        {
+            connectionsToSpawn.Add(connection);
+        }
         
         // Спавним всех подключенных клиентов
-        foreach (var client in NetworkManager.Singleton.ConnectedClients)
+        foreach (var connection in connectionsToSpawn)
         {
             // Проверяем, что у клиента еще нет игрока
-            if (client.Value.PlayerObject == null)
+            if (connection.identity == null)
             {
-                Debug.Log($"[GameManager] Спавним игрока для клиента {client.Key}");
-                SpawnPlayerForClient(client.Key);
+                Debug.Log($"[GameManager] Спавним игрока для клиента {connection.connectionId}");
+                SpawnPlayerForClient(connection);
                 yield return new WaitForSeconds(0.1f); // Небольшая задержка между спавнами
             }
             else
             {
-                Debug.Log($"[GameManager] У клиента {client.Key} уже есть игрок, пропускаем.");
+                Debug.Log($"[GameManager] У клиента {connection.connectionId} уже есть игрок, пропускаем.");
             }
         }
         
         Debug.Log("[GameManager] Спавн всех игроков завершен.");
+        spawnCoroutineStarted = false; // Сбрасываем флаг после завершения
     }
     
-    IEnumerator SpawnPlayerAfterDelay(ulong clientId)
+    IEnumerator SpawnPlayerAfterDelay(uint connectionId)
     {
-        
         // Ждем немного чтобы сцена загрузилась
         yield return new WaitForSeconds(0.5f);
         
+        // Находим соединение по connectionId
+        NetworkConnectionToClient conn = null;
+        foreach (var connection in NetworkServer.connections.Values)
+        {
+            if (connection.connectionId == connectionId)
+            {
+                conn = connection;
+                break;
+            }
+        }
         
-        // Спавним игрока
-        SpawnPlayerForClient(clientId);
+        if (conn != null)
+        {
+            SpawnPlayerForClient(conn);
+        }
     }
     
-    void SpawnPlayerForClient(ulong clientId)
+    void SpawnPlayerForClient(NetworkConnectionToClient conn)
     {
         // Проверяем, что мы в игровой сцене
         string currentScene = SceneManager.GetActiveScene().name;
         if (currentScene == menuSceneName)
         {
-            Debug.Log($"[GameManager] Попытка спавна игрока {clientId} в меню - отменено.");
+            Debug.Log($"[GameManager] Попытка спавна игрока {conn.connectionId} в меню - отменено.");
             return;
         }
         
         // Проверяем, что у клиента еще нет игрока
-        if (NetworkManager.Singleton.ConnectedClients.TryGetValue(clientId, out NetworkClient client))
+        if (conn.identity != null)
         {
-            if (client.PlayerObject != null)
-            {
-                Debug.Log($"[GameManager] У клиента {clientId} уже есть игрок, пропускаем спавн.");
-                return;
-            }
+            Debug.Log($"[GameManager] У клиента {conn.connectionId} уже есть игрок, пропускаем спавн.");
+            return;
         }
         
         if (playerPrefab == null)
@@ -322,19 +272,20 @@ public class GameManager : NetworkBehaviour
         
         Vector3 spawnPosition = GetSpawnPosition();
         
-        Debug.Log($"[GameManager] Спавн игрока для клиента {clientId} в позиции {spawnPosition}...");
+        Debug.Log($"[GameManager] Спавн игрока для клиента {conn.connectionId} в позиции {spawnPosition}...");
         
         GameObject playerObject = Instantiate(playerPrefab, spawnPosition, Quaternion.identity);
         
-        NetworkObject networkObject = playerObject.GetComponent<NetworkObject>();
-        if (networkObject != null)
+        NetworkIdentity networkIdentity = playerObject.GetComponent<NetworkIdentity>();
+        if (networkIdentity != null)
         {
-            networkObject.SpawnAsPlayerObject(clientId);
-            Debug.Log($"[GameManager] ✓ Игрок {clientId} успешно заспавнен! Позиция: {spawnPosition}, Сцена: {currentScene}");
+            // Spawn игрока и назначаем его владельцем соединения
+            NetworkServer.Spawn(playerObject, conn);
+            Debug.Log($"[GameManager] ✓ Игрок {conn.connectionId} успешно заспавнен! Позиция: {spawnPosition}, Сцена: {currentScene}");
         }
         else
         {
-            Debug.LogError($"[GameManager] ✗ Префаб игрока не имеет NetworkObject компонента!");
+            Debug.LogError($"[GameManager] ✗ Префаб игрока не имеет NetworkIdentity компонента!");
             Destroy(playerObject);
         }
     }
@@ -352,21 +303,21 @@ public class GameManager : NetworkBehaviour
     }
     
     // Методы для управления игрой
-    [ServerRpc(RequireOwnership = false)]
-    public void StartGameServerRpc()
+    [Command(requiresAuthority = false)]
+    public void StartGameCommand()
     {
         // Здесь можно добавить логику начала игры
     }
     
-    [ServerRpc(RequireOwnership = false)]
-    public void EndGameServerRpc()
+    [Command(requiresAuthority = false)]
+    public void EndGameCommand()
     {
         // Здесь можно добавить логику окончания игры
     }
     
     public void LoadGameScene()
     {
-        if (IsServer)
+        if (isServer)
         {
             LoadGameSceneClientRpc();
         }
@@ -380,7 +331,7 @@ public class GameManager : NetworkBehaviour
     
     public void LoadMenuScene()
     {
-        if (IsServer)
+        if (isServer)
         {
             LoadMenuSceneClientRpc();
         }
@@ -395,12 +346,12 @@ public class GameManager : NetworkBehaviour
     // Методы для получения информации об игре
     public int GetPlayerCount()
     {
-        return NetworkManager.Singleton.ConnectedClients.Count;
+        return NetworkServer.connections.Count;
     }
     
     public bool IsGameActive()
     {
-        return NetworkManager.Singleton.IsHost || NetworkManager.Singleton.IsServer;
+        return (NetworkServer.active && NetworkClient.active) || NetworkServer.active;
     }
     
     void OnDrawGizmosSelected()

@@ -259,7 +259,6 @@ public class ModConfiguration : MonoBehaviour
             try
             {
                 Directory.CreateDirectory(modsDirectoryPath);
-                Debug.Log($"Создана папка модов: {modsDirectoryPath}");
             }
             catch (Exception e)
             {
@@ -288,7 +287,6 @@ public class ModConfiguration : MonoBehaviour
             try
             {
                 Directory.CreateDirectory(backupFolder);
-                Debug.Log($"Создана папка для backup: {backupFolder}");
             }
             catch (Exception e)
             {
@@ -572,13 +570,11 @@ public class ModConfiguration : MonoBehaviour
             if (www.result == UnityWebRequest.Result.Success)
             {
                 modData.menuMusicClip = DownloadHandlerAudioClip.GetContent(www);
-                Debug.Log($"Музыка меню загружена для мода {modData.modName}");
                 
                 // Если мод активен, применяем музыку сразу после загрузки
                 // Это происходит после перезагрузки сцены, когда моды уже применены из PlayerPrefs
                 if (activeMods.Contains(modData))
                 {
-                    Debug.Log($"Мод {modData.modName} активен, применяется музыка меню");
                     ApplyMenuMusicFromMods();
                 }
             }
@@ -598,8 +594,6 @@ public class ModConfiguration : MonoBehaviour
         if (activeMods == null || activeMods.Count == 0)
         {
             // Если нет активных модов, восстанавливаем оригинальные файлы из backup
-            Debug.Log("[ModConfiguration] Нет активных модов, начинаем восстановление оригинальных файлов из backup...");
-            
             // Восстанавливаем файлы из backup
             RestoreOriginalSoundFiles();
             
@@ -674,7 +668,6 @@ public class ModConfiguration : MonoBehaviour
         if (totalFiles == 0)
         {
             // Если нет файлов для копирования из модов, восстанавливаем оригинальные файлы из backup
-            Debug.Log("[ModConfiguration] Нет файлов в активных модах, восстанавливаем оригинальные файлы из backup...");
             RestoreOriginalSoundFiles();
             
             #if !UNITY_EDITOR
@@ -723,7 +716,6 @@ public class ModConfiguration : MonoBehaviour
             {
                 copiedFiles++;
                 progressCallback?.Invoke((float)copiedFiles / totalFiles);
-                Debug.Log($"[ModConfiguration] Скопирован файл музыки меню из мода {modWithResources.modName}");
             }
             yield return null;
         }
@@ -735,7 +727,6 @@ public class ModConfiguration : MonoBehaviour
             {
                 copiedFiles++;
                 progressCallback?.Invoke((float)copiedFiles / totalFiles);
-                Debug.Log($"[ModConfiguration] Скопирован файл звука кнопки 'Применить' из мода {modWithResources.modName}");
             }
             yield return null;
         }
@@ -747,7 +738,6 @@ public class ModConfiguration : MonoBehaviour
             {
                 copiedFiles++;
                 progressCallback?.Invoke((float)copiedFiles / totalFiles);
-                Debug.Log($"[ModConfiguration] Скопирован файл звука кнопки 'Назад' из мода {modWithResources.modName}");
             }
             yield return null;
         }
@@ -825,7 +815,6 @@ public class ModConfiguration : MonoBehaviour
                 {
                     audioSource.clip = loadedApplyButtonClip;
                     replacedCount++;
-                    Debug.Log($"[ModConfiguration] Заменен AudioClip звука 'Применить' на загруженный из мода в AudioSource: {audioSource.gameObject.name} (сцена: {audioSource.gameObject.scene.name})");
                 }
             }
             
@@ -836,15 +825,10 @@ public class ModConfiguration : MonoBehaviour
                 {
                     audioSource.clip = loadedBackButtonClip;
                     replacedCount++;
-                    Debug.Log($"[ModConfiguration] Заменен AudioClip звука 'Назад' на загруженный из мода в AudioSource: {audioSource.gameObject.name} (сцена: {audioSource.gameObject.scene.name})");
                 }
             }
         }
         
-        if (replacedCount > 0)
-        {
-            Debug.Log($"[ModConfiguration] Заменено {replacedCount} AudioClip звуков кнопок в текущей сцене");
-        }
         #endif
     }
     
@@ -873,7 +857,6 @@ public class ModConfiguration : MonoBehaviour
                 {
                     // Защищаем AudioClip от уничтожения при очистке памяти
                     clip.hideFlags = HideFlags.DontUnloadUnusedAsset;
-                    Debug.Log($"[ModConfiguration] AudioClip загружен из файла: {filePath}");
                     onComplete?.Invoke(clip);
                 }
                 else
@@ -906,7 +889,6 @@ public class ModConfiguration : MonoBehaviour
                 {
                     // Импортируем заново, чтобы Unity подхватил изменения
                     AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-                    Debug.Log($"[ModConfiguration] AudioClip музыки меню перезагружен после копирования: {assetPath}");
                 }
             }
             
@@ -917,7 +899,6 @@ public class ModConfiguration : MonoBehaviour
                 if (!string.IsNullOrEmpty(assetPath))
                 {
                     AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-                    Debug.Log($"[ModConfiguration] AudioClip звука 'Применить' перезагружен после копирования: {assetPath}");
                 }
             }
             
@@ -928,7 +909,6 @@ public class ModConfiguration : MonoBehaviour
                 if (!string.IsNullOrEmpty(assetPath))
                 {
                     AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-                    Debug.Log($"[ModConfiguration] AudioClip звука 'Назад' перезагружен после копирования: {assetPath}");
                 }
             }
         }
@@ -961,7 +941,6 @@ public class ModConfiguration : MonoBehaviour
             
             // Копируем файл, перезаписывая существующий
             File.Copy(sourcePath, destinationPath, true);
-            Debug.Log($"[ModConfiguration] Файл скопирован: {sourcePath} -> {destinationPath}");
             return true;
         }
         catch (Exception e)
@@ -983,12 +962,7 @@ public class ModConfiguration : MonoBehaviour
             if (!string.IsNullOrEmpty(backupFolder) && !Directory.Exists(backupFolder))
             {
                 Directory.CreateDirectory(backupFolder);
-                Debug.Log($"[ModConfiguration] Создана папка для backup: {backupFolder}");
             }
-            
-            Debug.Log($"[ModConfiguration] Попытка сохранения оригинальных файлов в backup...");
-            Debug.Log($"[ModConfiguration] Путь проекта музыки меню: {projectMenuMusicPath}");
-            Debug.Log($"[ModConfiguration] Путь backup музыки меню: {backupMenuMusicPath}");
             
             // Сохраняем оригинальную музыку меню в backup (если еще не сохранена)
             if (File.Exists(projectMenuMusicPath))
@@ -996,11 +970,6 @@ public class ModConfiguration : MonoBehaviour
                 if (!File.Exists(backupMenuMusicPath))
                 {
                     File.Copy(projectMenuMusicPath, backupMenuMusicPath, true);
-                    Debug.Log($"[ModConfiguration] Оригинальный файл музыки меню сохранен в backup: {projectMenuMusicPath} -> {backupMenuMusicPath}");
-                }
-                else
-                {
-                    Debug.Log($"[ModConfiguration] Backup файл музыки меню уже существует, пропускаем: {backupMenuMusicPath}");
                 }
             }
             else
@@ -1014,11 +983,6 @@ public class ModConfiguration : MonoBehaviour
                 if (!File.Exists(backupApplyButtonPath))
                 {
                     File.Copy(projectApplyButtonPath, backupApplyButtonPath, true);
-                    Debug.Log($"[ModConfiguration] Оригинальный файл звука кнопки 'Применить' сохранен в backup: {projectApplyButtonPath} -> {backupApplyButtonPath}");
-                }
-                else
-                {
-                    Debug.Log($"[ModConfiguration] Backup файл звука 'Применить' уже существует, пропускаем: {backupApplyButtonPath}");
                 }
             }
             else
@@ -1032,11 +996,6 @@ public class ModConfiguration : MonoBehaviour
                 if (!File.Exists(backupBackButtonPath))
                 {
                     File.Copy(projectBackButtonPath, backupBackButtonPath, true);
-                    Debug.Log($"[ModConfiguration] Оригинальный файл звука кнопки 'Назад' сохранен в backup: {projectBackButtonPath} -> {backupBackButtonPath}");
-                }
-                else
-                {
-                    Debug.Log($"[ModConfiguration] Backup файл звука 'Назад' уже существует, пропускаем: {backupBackButtonPath}");
                 }
             }
             else
@@ -1059,11 +1018,6 @@ public class ModConfiguration : MonoBehaviour
         {
             bool restored = false;
             
-            Debug.Log($"[ModConfiguration] Попытка восстановления оригинальных файлов из backup...");
-            Debug.Log($"[ModConfiguration] Backup путь музыки меню: {backupMenuMusicPath}");
-            Debug.Log($"[ModConfiguration] Backup путь звука 'Применить': {backupApplyButtonPath}");
-            Debug.Log($"[ModConfiguration] Backup путь звука 'Назад': {backupBackButtonPath}");
-            
             // Восстанавливаем оригинальную музыку меню из backup
             if (File.Exists(backupMenuMusicPath))
             {
@@ -1072,11 +1026,9 @@ public class ModConfiguration : MonoBehaviour
                 if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
                 {
                     Directory.CreateDirectory(destDir);
-                    Debug.Log($"[ModConfiguration] Создана директория: {destDir}");
                 }
                 
                 File.Copy(backupMenuMusicPath, projectMenuMusicPath, true);
-                Debug.Log($"[ModConfiguration] Восстановлен оригинальный файл музыки меню из backup: {backupMenuMusicPath} -> {projectMenuMusicPath}");
                 restored = true;
             }
             else
@@ -1092,11 +1044,9 @@ public class ModConfiguration : MonoBehaviour
                 if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
                 {
                     Directory.CreateDirectory(destDir);
-                    Debug.Log($"[ModConfiguration] Создана директория: {destDir}");
                 }
                 
                 File.Copy(backupApplyButtonPath, projectApplyButtonPath, true);
-                Debug.Log($"[ModConfiguration] Восстановлен оригинальный файл звука кнопки 'Применить' из backup: {backupApplyButtonPath} -> {projectApplyButtonPath}");
                 restored = true;
             }
             else
@@ -1112,11 +1062,9 @@ public class ModConfiguration : MonoBehaviour
                 if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
                 {
                     Directory.CreateDirectory(destDir);
-                    Debug.Log($"[ModConfiguration] Создана директория: {destDir}");
                 }
                 
                 File.Copy(backupBackButtonPath, projectBackButtonPath, true);
-                Debug.Log($"[ModConfiguration] Восстановлен оригинальный файл звука кнопки 'Назад' из backup: {backupBackButtonPath} -> {projectBackButtonPath}");
                 restored = true;
             }
             else
@@ -1131,8 +1079,6 @@ public class ModConfiguration : MonoBehaviour
                 
                 // Перезагружаем AudioClip после восстановления файлов
                 ReloadAudioClipsAfterRestore();
-                
-                Debug.Log("[ModConfiguration] AssetDatabase обновлен после восстановления файлов");
             }
             else
             {
@@ -1158,16 +1104,10 @@ public class ModConfiguration : MonoBehaviour
             string applyButtonAssetPath = GetAssetPathFromAbsolutePath(projectApplyButtonPath);
             string backButtonAssetPath = GetAssetPathFromAbsolutePath(projectBackButtonPath);
             
-            Debug.Log($"[ModConfiguration] Перезагрузка AudioClip после восстановления:");
-            Debug.Log($"[ModConfiguration] Путь музыки меню (asset): {menuMusicAssetPath}");
-            Debug.Log($"[ModConfiguration] Путь звука 'Применить' (asset): {applyButtonAssetPath}");
-            Debug.Log($"[ModConfiguration] Путь звука 'Назад' (asset): {backButtonAssetPath}");
-            
             // Перезагружаем AudioClip для музыки меню
             if (!string.IsNullOrEmpty(menuMusicAssetPath) && File.Exists(projectMenuMusicPath))
             {
                 AssetDatabase.ImportAsset(menuMusicAssetPath, ImportAssetOptions.ForceUpdate);
-                Debug.Log($"[ModConfiguration] AudioClip музыки меню переимпортирован: {menuMusicAssetPath}");
             }
             else if (originalMenuMusicClip != null)
             {
@@ -1176,7 +1116,6 @@ public class ModConfiguration : MonoBehaviour
                 if (!string.IsNullOrEmpty(assetPath))
                 {
                     AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-                    Debug.Log($"[ModConfiguration] AudioClip музыки меню переимпортирован (через AudioClip): {assetPath}");
                 }
             }
             
@@ -1184,7 +1123,6 @@ public class ModConfiguration : MonoBehaviour
             if (!string.IsNullOrEmpty(applyButtonAssetPath) && File.Exists(projectApplyButtonPath))
             {
                 AssetDatabase.ImportAsset(applyButtonAssetPath, ImportAssetOptions.ForceUpdate);
-                Debug.Log($"[ModConfiguration] AudioClip звука 'Применить' переимпортирован: {applyButtonAssetPath}");
             }
             else if (originalApplyButtonClip != null)
             {
@@ -1192,7 +1130,6 @@ public class ModConfiguration : MonoBehaviour
                 if (!string.IsNullOrEmpty(assetPath))
                 {
                     AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-                    Debug.Log($"[ModConfiguration] AudioClip звука 'Применить' переимпортирован (через AudioClip): {assetPath}");
                 }
             }
             
@@ -1200,7 +1137,6 @@ public class ModConfiguration : MonoBehaviour
             if (!string.IsNullOrEmpty(backButtonAssetPath) && File.Exists(projectBackButtonPath))
             {
                 AssetDatabase.ImportAsset(backButtonAssetPath, ImportAssetOptions.ForceUpdate);
-                Debug.Log($"[ModConfiguration] AudioClip звука 'Назад' переимпортирован: {backButtonAssetPath}");
             }
             else if (originalBackButtonClip != null)
             {
@@ -1208,7 +1144,6 @@ public class ModConfiguration : MonoBehaviour
                 if (!string.IsNullOrEmpty(assetPath))
                 {
                     AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-                    Debug.Log($"[ModConfiguration] AudioClip звука 'Назад' переимпортирован (через AudioClip): {assetPath}");
                 }
             }
         }
@@ -1374,7 +1309,6 @@ public class ModConfiguration : MonoBehaviour
             if (!activeMods.Contains(localhostMod))
             {
                 activeMods.Add(localhostMod);
-                Debug.Log($"[ModConfiguration] Обязательный мод '{REQUIRED_MOD_NAME}' автоматически добавлен в активные моды");
             }
             // Если мод активен, но не в начале списка - перемещаем его в начало (самый высокий приоритет)
             else if (activeMods.Count > 0 && activeMods[0] != localhostMod)
@@ -1740,7 +1674,6 @@ public class ModConfiguration : MonoBehaviour
     {
         // Файлы уже скопированы в проект в LoadModResources()
         // Unity автоматически обновит AudioClip после RefreshAssetDatabase()
-        Debug.Log("[ModConfiguration] Файлы музыки уже применены через копирование в проект");
     }
     
     /// <summary>
@@ -1756,7 +1689,6 @@ public class ModConfiguration : MonoBehaviour
         // Восстанавливаем оригинальный AudioClip во всех AudioSource
         ReplaceAudioClipInAllAudioSources(currentMenuMusicClip, originalMenuMusicClip);
         currentMenuMusicClip = null;
-        Debug.Log("[ModConfiguration] Восстановлен оригинальный AudioClip музыки меню");
     }
     
     /// <summary>
@@ -1767,7 +1699,6 @@ public class ModConfiguration : MonoBehaviour
     {
         // Файлы уже скопированы в проект в LoadModResources()
         // Unity автоматически обновит AudioClip после RefreshAssetDatabase()
-        Debug.Log("[ModConfiguration] Файлы звуков кнопок уже применены через копирование в проект");
     }
     
     /// <summary>
@@ -1782,7 +1713,6 @@ public class ModConfiguration : MonoBehaviour
         
         ReplaceAudioClipInAllAudioSources(currentApplyButtonClip, originalApplyButtonClip);
         currentApplyButtonClip = null;
-        Debug.Log("[ModConfiguration] Восстановлен оригинальный AudioClip кнопки 'Применить'");
     }
     
     /// <summary>
@@ -1797,7 +1727,6 @@ public class ModConfiguration : MonoBehaviour
         
         ReplaceAudioClipInAllAudioSources(currentBackButtonClip, originalBackButtonClip);
         currentBackButtonClip = null;
-        Debug.Log("[ModConfiguration] Восстановлен оригинальный AudioClip кнопки 'Назад'");
     }
     
     /// <summary>
@@ -1845,11 +1774,6 @@ public class ModConfiguration : MonoBehaviour
                 audioSource.clip = newClip;
                 replacedCount++;
             }
-        }
-        
-        if (replacedCount > 0)
-        {
-            Debug.Log($"[ModConfiguration] Заменен AudioClip '{originalClip.name}' на '{newClip.name}' в {replacedCount} AudioSource");
         }
     }
     
@@ -1902,7 +1826,6 @@ public class ModConfiguration : MonoBehaviour
                 {
                     audioSource.clip = clipToUse;
                     replacedCount++;
-                    Debug.Log($"[ModConfiguration] Заменен AudioClip музыки меню на загруженный из мода в AudioSource: {audioSource.gameObject.name} (сцена: {audioSource.gameObject.scene.name})");
                 }
                 #else
                 // В редакторе перезагружаем через AssetDatabase
@@ -1923,14 +1846,8 @@ public class ModConfiguration : MonoBehaviour
                 {
                     audioSource.Play();
                     startedCount++;
-                    Debug.Log($"[ModConfiguration] Запущено проигрывание музыки меню в AudioSource на объекте: {audioSource.gameObject.name}");
                 }
             }
-        }
-        
-        if (replacedCount > 0)
-        {
-            Debug.Log($"[ModConfiguration] Заменено {replacedCount} AudioClip музыки меню в текущей сцене. Запущено проигрывание: {startedCount}");
         }
     }
     
@@ -1959,11 +1876,6 @@ public class ModConfiguration : MonoBehaviour
         currentMenuMusicClip = null;
         currentApplyButtonClip = null;
         currentBackButtonClip = null;
-        
-        if (restoredCount > 0)
-        {
-            Debug.Log($"[ModConfiguration] Восстановлено {restoredCount} оригинальных AudioClip");
-        }
     }
     
     /// <summary>

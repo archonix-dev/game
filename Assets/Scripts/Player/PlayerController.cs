@@ -1,6 +1,6 @@
 using UnityEngine;
 using TMPro;
-using Unity.Netcode;
+using Mirror;
 
 [RequireComponent(typeof(CharacterController))]
 public class PlayerController : NetworkBehaviour
@@ -267,9 +267,9 @@ public class PlayerController : NetworkBehaviour
         return currentStance == PlayerStance.Crouching;
     }
     
-    public override void OnNetworkSpawn()
+    public override void OnStartClient()
     {
-        base.OnNetworkSpawn();
+        base.OnStartClient();
         
         controller = GetComponent<CharacterController>();
         controller.height = standingHeight;
@@ -284,7 +284,7 @@ public class PlayerController : NetworkBehaviour
             groundCheck = groundCheckObj.transform;
         }
 
-        if (!IsOwner)
+        if (!isOwned)
         {
             // Отключаем камеру для других игроков
             if (playerCamera != null)
@@ -488,7 +488,7 @@ public class PlayerController : NetworkBehaviour
         HandlePlayerNameAnimations();
         
         // Обрабатываем ввод только для владельца
-        if (!IsOwner) return;
+        if (!isOwned) return;
         
         // Отслеживаем ввод для анимаций
         HandleInputTracking();
@@ -1219,7 +1219,7 @@ public class PlayerController : NetworkBehaviour
     void CheckIfBeingLookedAt()
     {
         // Не проверяем если не заспавнен
-        if (!IsSpawned)
+        if (netIdentity == null || netIdentity.netId == 0)
         {
             isBeingLookedAt = false;
             return;
@@ -1228,17 +1228,18 @@ public class PlayerController : NetworkBehaviour
         // Ищем всех других игроков в сети
         bool foundLooker = false;
         
-        if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsClient)
+        if (NetworkClient.active || NetworkServer.active)
         {
-            // Получаем всех подключенных клиентов
-            foreach (var client in Unity.Netcode.NetworkManager.Singleton.ConnectedClients)
+            // Получаем всех подключенных клиентов через Mirror
+            foreach (var connection in NetworkServer.connections.Values)
             {
                 // Пропускаем себя
-                if (client.Key == OwnerClientId)
+                int currentConnectionId = connectionToClient != null ? connectionToClient.connectionId : 0;
+                if (connection.connectionId == currentConnectionId)
                     continue;
                 
                 // Ищем NetworkPlayer для этого клиента
-                NetworkPlayer otherPlayer = FindNetworkPlayerByClientId(client.Key);
+                NetworkPlayer otherPlayer = FindNetworkPlayerByConnectionId((uint)connection.connectionId);
                 if (otherPlayer == null)
                     continue;
                 
@@ -1284,12 +1285,12 @@ public class PlayerController : NetworkBehaviour
     /// <summary>
     /// Находит NetworkPlayer по clientId
     /// </summary>
-    private NetworkPlayer FindNetworkPlayerByClientId(ulong clientId)
+    private NetworkPlayer FindNetworkPlayerByConnectionId(uint connectionId)
     {
         NetworkPlayer[] allPlayers = FindObjectsOfType<NetworkPlayer>();
         foreach (NetworkPlayer player in allPlayers)
         {
-            if (player.IsSpawned && player.OwnerClientId == clientId)
+            if (player.netIdentity != null && player.netIdentity.netId != 0 && player.PlayerId == connectionId)
             {
                 return player;
             }
@@ -1306,7 +1307,7 @@ public class PlayerController : NetworkBehaviour
             return;
         
         // Не показываем никнейм самому себе
-        if (IsOwner)
+        if (isOwned)
         {
             if (playerName3DText.gameObject.activeSelf)
             {
@@ -1489,18 +1490,18 @@ public class PlayerController : NetworkBehaviour
     /// </summary>
     void CompleteDeath()
     {
-        if (!IsSpawned) return;
+        if (netIdentity == null || netIdentity.netId == 0) return;
         
         // Спавним труп на месте игрока
         SpawnCorpse();
         
-        // Удаляем игрока (деспавним NetworkObject)
-        if (IsServer)
+        // Удаляем игрока (деспавним NetworkIdentity)
+        if (isServer)
         {
-            NetworkObject networkObject = GetComponent<NetworkObject>();
-            if (networkObject != null && networkObject.IsSpawned)
+            NetworkIdentity networkIdentity = GetComponent<NetworkIdentity>();
+            if (networkIdentity != null && networkIdentity.netId != 0)
             {
-                networkObject.Despawn();
+                NetworkServer.Destroy(gameObject);
             }
         }
         
@@ -1558,8 +1559,8 @@ public class PlayerController : NetworkBehaviour
     /// Убивает игрока (устанавливает здоровье в 0) - для тестирования
     /// Вызывается через ServerRpc для работы в мультиплеере
     /// </summary>
-    [ServerRpc(RequireOwnership = false)]
-    public void KillPlayerServerRpc()
+    [Command(requiresAuthority = false)]
+    public void KillPlayerCommand()
     {
         if (playerHealthStamina == null)
             return;
@@ -1573,9 +1574,9 @@ public class PlayerController : NetworkBehaviour
     /// </summary>
     public void KillPlayer()
     {
-        if (IsSpawned)
+        if (netIdentity != null && netIdentity.netId != 0)
         {
-            KillPlayerServerRpc();
+            KillPlayerCommand();
         }
         else
         {

@@ -1,5 +1,5 @@
 using UnityEngine;
-using Unity.Netcode;
+using Mirror;
 
 public class MouseLook : NetworkBehaviour
 {
@@ -14,12 +14,12 @@ public class MouseLook : NetworkBehaviour
     
     private float xRotation = 0f;
     
-    public override void OnNetworkSpawn()
+    public override void OnStartClient()
     {
-        base.OnNetworkSpawn();
+        base.OnStartClient();
         
         // Настраиваем курсор только для владельца
-        if (IsOwner)
+        if (isOwned)
         {
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
@@ -29,7 +29,7 @@ public class MouseLook : NetworkBehaviour
     void Start()
     {
         // Если не в сети, настраиваем курсор
-        if (!IsSpawned)
+        if (netIdentity == null || netIdentity.netId == 0)
         {
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
@@ -39,7 +39,7 @@ public class MouseLook : NetworkBehaviour
     void Update()
     {
         // Обрабатываем ввод только для владельца
-        if (IsSpawned && !IsOwner) return;
+        if (netIdentity != null && netIdentity.netId != 0 && !isOwned) return;
         
         HandleMouseLook();
         HandleCursorToggle();

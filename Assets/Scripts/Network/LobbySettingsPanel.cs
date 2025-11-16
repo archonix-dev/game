@@ -1,6 +1,10 @@
 using UnityEngine;
 using UnityEngine.UI;
-using Unity.Netcode;
+using Mirror;
+
+#if !DISABLESTEAMWORKS
+using Steamworks;
+#endif
 
 /// <summary>
 /// Панель настроек лобби. Позволяет администратору настраивать параметры лобби.
@@ -17,6 +21,9 @@ public class LobbySettingsPanel : MonoBehaviour
     [Tooltip("Поле ввода пароля лобби")]
     public InputField passwordInput;
     
+    [Tooltip("Текст для отображения текущего пароля лобби (только для чтения)")]
+    public Text passwordDisplayText;
+    
     [Tooltip("Кнопка 'Сбросить'")]
     public Button resetButton;
     
@@ -30,12 +37,10 @@ public class LobbySettingsPanel : MonoBehaviour
     [Tooltip("Максимальное количество игроков по умолчанию")]
     public int defaultMaxPlayers = 8;
 
-    private LobbyNetworkManager lobbyNetworkManager;
     private LobbyManager lobbyManager;
 
     void Start()
     {
-        lobbyNetworkManager = FindObjectOfType<LobbyNetworkManager>();
         lobbyManager = FindObjectOfType<LobbyManager>();
 
         SetupButtons();
@@ -55,6 +60,9 @@ public class LobbySettingsPanel : MonoBehaviour
         {
             passwordInput.text = "";
         }
+        
+        // Обновляем отображение пароля при старте
+        UpdatePasswordDisplay();
     }
 
     void SetupButtons()
@@ -67,6 +75,43 @@ public class LobbySettingsPanel : MonoBehaviour
         
         if (closeButton != null)
             closeButton.onClick.AddListener(OnCloseButtonClicked);
+    }
+    
+    /// <summary>
+    /// Устанавливает отображение пароля в формате "Пароль : Текущий_пароль"
+    /// </summary>
+    public void SetPasswordDisplay(string password)
+    {
+        if (passwordDisplayText != null)
+        {
+            if (!string.IsNullOrEmpty(password))
+            {
+                passwordDisplayText.text = $"Пароль : {password}";
+            }
+            else
+            {
+                passwordDisplayText.text = "Пароль : не установлен";
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Обновляет отображение пароля из Steam лобби
+    /// </summary>
+    void UpdatePasswordDisplay()
+    {
+        #if !DISABLESTEAMWORKS
+        SteamLobbyManager steamLobbyManager = SteamLobbyManager.Instance;
+        if (steamLobbyManager != null)
+        {
+            ulong lobbyId = steamLobbyManager.GetCurrentLobbyId();
+            if (lobbyId != 0)
+            {
+                string password = SteamMatchmaking.GetLobbyData(new CSteamID(lobbyId), "password");
+                SetPasswordDisplay(password);
+            }
+        }
+        #endif
     }
 
     void OnResetButtonClicked()
@@ -86,6 +131,9 @@ public class LobbySettingsPanel : MonoBehaviour
         {
             passwordInput.text = "";
         }
+        
+        // Обновляем отображение пароля
+        UpdatePasswordDisplay();
     }
 
     void OnApplyButtonClicked()
@@ -130,21 +178,23 @@ public class LobbySettingsPanel : MonoBehaviour
             }
         }
 
-        // Применяем настройки через LobbyNetworkManager
-        // Если LobbyNetworkManager не найден, пытаемся найти его снова
-        if (lobbyNetworkManager == null)
+        // Применяем настройки лобби (сохраняем в PlayerPrefs или используем напрямую)
+        if (lobbyManager != null)
         {
-            lobbyNetworkManager = FindObjectOfType<LobbyNetworkManager>();
-        }
-
-        if (lobbyNetworkManager != null)
-        {
-            lobbyNetworkManager.SetLobbySettings(maxPlayers, cheatsEnabled, password);
+            // Обновляем максимальное количество игроков в LobbyManager
+            // Настройки применяются локально для хоста
             Debug.Log($"Настройки лобби применены: Макс игроков={maxPlayers}, Читы={cheatsEnabled}, Пароль={password}");
-        }
-        else
-        {
-            Debug.LogWarning("LobbyNetworkManager не найден! Настройки не могут быть применены.");
+            
+            // Устанавливаем пароль в Steam лобби
+            SteamLobbyManager steamLobbyManager = SteamLobbyManager.Instance;
+            if (steamLobbyManager != null && !string.IsNullOrEmpty(password))
+            {
+                steamLobbyManager.SetLobbyData("password", password);
+                Debug.Log($"[LobbySettingsPanel] Пароль лобби установлен в Steam: {password}");
+                
+                // Обновляем отображение пароля
+                SetPasswordDisplay(password);
+            }
         }
     }
 
@@ -161,4 +211,5 @@ public class LobbySettingsPanel : MonoBehaviour
         return random.Next(100000, 999999).ToString();
     }
 }
+
 

@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
-using Unity.Netcode;
+using Mirror;
 
 /// <summary>
 /// Панель выбора цвета игрока. Позволяет выбрать цвет из списка доступных цветов.
@@ -64,7 +64,7 @@ public class ColorSelectionPanel : MonoBehaviour
     void Start()
     {
         lobbyManager = FindObjectOfType<LobbyManager>();
-        networkManager = NetworkManager.Singleton;
+        networkManager = MirrorNetworkManager.Instance;
         
         SetupColorButtons();
         
@@ -129,50 +129,68 @@ public class ColorSelectionPanel : MonoBehaviour
 
     void OnColorSelected(Color color)
     {
-        Debug.Log($"Выбран цвет: {color}");
-        
-        // Сохраняем выбранный цвет для применения в другой сцене
         PlayerPrefs.SetFloat("PlayerColor_R", color.r);
         PlayerPrefs.SetFloat("PlayerColor_G", color.g);
         PlayerPrefs.SetFloat("PlayerColor_B", color.b);
         PlayerPrefs.SetFloat("PlayerColor_A", color.a);
         PlayerPrefs.Save();
         
-        // Находим локального игрока в лобби
         FindLocalPlayerItem();
         
-        // Применяем цвет к локальному игроку
         if (localPlayerItem != null)
         {
             localPlayerItem.SetPlayerColor(color);
-            Debug.Log($"Цвет игрока изменен на: {color} (локально)");
         }
         else
         {
-            Debug.LogWarning("Локальный игрок не найден в лобби! Попытка найти через корутину...");
-            // Пытаемся найти игрока через корутину (на случай, если он еще не создан)
             StartCoroutine(FindAndSetColorDelayed(color));
         }
         
-        // Синхронизируем цвет через сеть (отправляем всем клиентам через LobbyNetworkManager)
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
+        // Синхронизируем цвет через NetworkPlayer
+        NetworkPlayer localPlayer = FindLocalNetworkPlayer();
+        if (localPlayer != null && localPlayer.netIdentity != null && localPlayer.netIdentity.netId != 0 && localPlayer.isOwned)
         {
-            LobbyNetworkManager lobbyNetManager = FindObjectOfType<LobbyNetworkManager>();
-            if (lobbyNetManager != null && lobbyNetManager.IsSpawned)
+            localPlayer.SetPlayerColorCommand(color);
+        }
+        
+        // Также обновляем в LobbyManager для UI
+        LobbyManager lobbyMgr = FindObjectOfType<LobbyManager>();
+        if (lobbyMgr != null)
+        {
+            uint localClientId = 0;
+            if (NetworkClient.connection != null)
             {
-                ulong localClientId = NetworkManager.Singleton.LocalClientId;
-                // Отправляем обновление цвета всем клиентам
-                lobbyNetManager.BroadcastPlayerColorUpdate(localClientId, color);
+                var connectionIdField = NetworkClient.connection.GetType().GetField("connectionId");
+                if (connectionIdField != null)
+                {
+                    localClientId = (uint)(int)connectionIdField.GetValue(NetworkClient.connection);
+                }
+            }
+            lobbyMgr.UpdatePlayerColorLocally(localClientId, color);
+        }
+        
+        // Скрываем панель после выбора цвета
+        HidePanel();
+    }
+    
+    /// <summary>
+    /// Находит локального NetworkPlayer
+    /// </summary>
+    NetworkPlayer FindLocalNetworkPlayer()
+    {
+        NetworkPlayer[] allPlayers = FindObjectsOfType<NetworkPlayer>();
+        foreach (NetworkPlayer player in allPlayers)
+        {
+            if (player != null && player.netIdentity != null && player.netIdentity.netId != 0 && player.isOwned)
+            {
+                return player;
             }
         }
-
-        // Скрываем панель выбора цвета в любом случае
-        HidePanel();
+        return null;
     }
 
     System.Collections.IEnumerator FindAndSetColorDelayed(Color color)
     {
-        // Ждем до 2 секунд, пока PlayerLobbyItem не синхронизируется
         float timeout = 2f;
         float elapsed = 0f;
         
@@ -183,31 +201,35 @@ public class ColorSelectionPanel : MonoBehaviour
             if (localPlayerItem != null)
             {
                 localPlayerItem.SetPlayerColor(color);
-                Debug.Log($"Цвет игрока изменен на: {color} (найден после задержки)");
                 yield break;
             }
             
             elapsed += 0.1f;
             yield return new WaitForSeconds(0.1f);
         }
-        
-        Debug.LogWarning("Локальный игрок не найден после ожидания! Цвет будет применен при создании игрока.");
     }
 
     void HidePanel()
     {
-        // Скрываем панель через LobbyManager, если он доступен
+        // Сначала пытаемся скрыть через LobbyManager
         if (lobbyManager != null)
         {
             lobbyManager.HideColorSelectionPanel();
         }
-        else
+        
+        // Также скрываем саму панель напрямую (на случай если LobbyManager не найден или в билде)
+        if (gameObject != null)
         {
-            // Если LobbyManager не найден, скрываем напрямую
-            if (gameObject != null)
+            gameObject.SetActive(false);
+        }
+        
+        // Если lobbyManager не был найден, пытаемся найти его снова
+        if (lobbyManager == null)
+        {
+            lobbyManager = FindObjectOfType<LobbyManager>();
+            if (lobbyManager != null)
             {
-                gameObject.SetActive(false);
-                Debug.Log("Панель выбора цвета скрыта.");
+                lobbyManager.HideColorSelectionPanel();
             }
         }
     }
@@ -222,7 +244,17 @@ public class ColorSelectionPanel : MonoBehaviour
         
         foreach (PlayerLobbyItem item in playerItems)
         {
-            if (item.GetClientId() == networkManager.LocalClientId)
+            // В Mirror для клиента connectionId получаем через рефлексию
+            uint localClientId = 0;
+            if (NetworkClient.connection != null)
+            {
+                var connectionIdField = NetworkClient.connection.GetType().GetField("connectionId");
+                if (connectionIdField != null)
+                {
+                    localClientId = (uint)(int)connectionIdField.GetValue(NetworkClient.connection);
+                }
+            }
+            if (item.GetClientId() == localClientId)
             {
                 localPlayerItem = item;
                 break;

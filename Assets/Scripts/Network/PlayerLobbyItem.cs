@@ -1,8 +1,12 @@
 using UnityEngine;
 using UnityEngine.UI;
-using Unity.Netcode;
+using Mirror;
 using System.Collections;
 using System.Text;
+
+#if !DISABLESTEAMWORKS
+using Steamworks;
+#endif
 
 /// <summary>
 /// Компонент для отображения игрока в лобби. Показывает имя, пинг, цвет и статус админа.
@@ -23,14 +27,15 @@ public class PlayerLobbyItem : MonoBehaviour
     [Tooltip("GameObject для отображения статуса админа")]
     public GameObject adminIndicator;
 
-    private ulong clientId;
+    private uint clientId;
     private bool isAdmin;
     private Color playerColor = Color.white;
     private string playerName = "";
-    private NetworkManager networkManager;
-    private float pingUpdateInterval = 0.5f;
+    private MirrorNetworkManager networkManager;
+    private float pingUpdateInterval = 5f; // Обновление пинга раз в 5 секунд
     private float lastPingUpdate = 0f;
     private bool isInitialized = false;
+    private int cachedRTT = 0; // Кэшированный RTT для синхронизации
     
     // Публичные свойства для доступа к данным
     public string PlayerName => playerName;
@@ -38,7 +43,7 @@ public class PlayerLobbyItem : MonoBehaviour
 
     void Start()
     {
-        networkManager = NetworkManager.Singleton;
+        networkManager = MirrorNetworkManager.Instance;
     }
 
     void Update()
@@ -54,15 +59,34 @@ public class PlayerLobbyItem : MonoBehaviour
     /// <summary>
     /// Инициализирует элемент игрока в лобби (вызывается локально на каждом клиенте)
     /// </summary>
-    public void Initialize(ulong clientId, bool isAdmin, string playerName = null, Color? playerColor = null)
+    public void Initialize(uint clientId, bool isAdmin, string playerName = null, Color? playerColor = null)
     {
         this.clientId = clientId;
         this.isAdmin = isAdmin;
         
-        // Генерируем случайное имя, если не указано
+        // Получаем имя из Steam, если не указано
         if (string.IsNullOrEmpty(playerName))
         {
+            #if !DISABLESTEAMWORKS
+            if (SteamManager.Instance != null && SteamManager.Instance.IsSteamInitialized())
+            {
+                string steamName = SteamManager.Instance.GetSteamName();
+                if (!string.IsNullOrEmpty(steamName))
+                {
+                    playerName = steamName;
+                }
+                else
+                {
+                    playerName = GenerateRandomPlayerName();
+                }
+            }
+            else
+            {
+                playerName = GenerateRandomPlayerName();
+            }
+            #else
             playerName = GenerateRandomPlayerName();
+            #endif
         }
         this.playerName = playerName;
         
@@ -72,23 +96,26 @@ public class PlayerLobbyItem : MonoBehaviour
             this.playerColor = playerColor.Value;
         }
         
-        // Сохраняем имя в PlayerPrefs для использования в игровой сцене
-        // Только для локального игрока
-        // Убеждаемся, что networkManager инициализирован
+        // Сохраняем имя в PlayerPrefs только для локального игрока
         if (networkManager == null)
         {
-            networkManager = NetworkManager.Singleton;
+            networkManager = MirrorNetworkManager.Instance;
         }
         
-        if (networkManager != null && clientId == networkManager.LocalClientId)
+        uint localClientId = 0;
+        if (NetworkClient.connection != null)
+        {
+            var connectionIdField = NetworkClient.connection.GetType().GetField("connectionId");
+            if (connectionIdField != null)
+            {
+                localClientId = (uint)(int)connectionIdField.GetValue(NetworkClient.connection);
+            }
+        }
+        
+        if (networkManager != null && clientId == localClientId)
         {
             PlayerPrefs.SetString("PlayerName", playerName);
             PlayerPrefs.Save();
-            Debug.Log($"[PlayerLobbyItem] Имя сохранено в PlayerPrefs: {playerName} (clientId={clientId}, LocalClientId={networkManager.LocalClientId})");
-        }
-        else
-        {
-            Debug.Log($"[PlayerLobbyItem] Имя НЕ сохранено в PlayerPrefs (не локальный игрок): {playerName} (clientId={clientId}, LocalClientId={(networkManager != null ? networkManager.LocalClientId.ToString() : "NULL")})");
         }
         
         isInitialized = true;
@@ -103,27 +130,12 @@ public class PlayerLobbyItem : MonoBehaviour
     /// </summary>
     private void NotifyLobbyManager()
     {
-        // Находим LobbyManager и добавляем себя в его словарь
+        if (clientId == 0) return;
+        
         LobbyManager lobbyManager = FindObjectOfType<LobbyManager>();
         if (lobbyManager != null)
         {
-            StartCoroutine(NotifyLobbyManagerDelayed());
-        }
-    }
-
-    System.Collections.IEnumerator NotifyLobbyManagerDelayed()
-    {
-        // Ждем немного, чтобы убедиться, что clientId установлен
-        yield return new WaitForSeconds(0.1f);
-        
-        if (clientId != 0)
-        {
-            LobbyManager lobbyManager = FindObjectOfType<LobbyManager>();
-            if (lobbyManager != null)
-            {
-                // Вызываем метод для регистрации PlayerLobbyItem
-                lobbyManager.RegisterPlayerLobbyItem(clientId, gameObject);
-            }
+            lobbyManager.RegisterPlayerLobbyItem(clientId, gameObject);
         }
     }
 
@@ -178,41 +190,197 @@ public class PlayerLobbyItem : MonoBehaviour
         UpdatePingColor(ping);
     }
 
-    int GetPing(ulong clientId)
+    int GetPing(uint clientId)
     {
         if (networkManager == null)
             return 0;
 
-        // Получаем реальный пинг через NetworkManager
+        // Получаем connectionId локального клиента
+        uint localClientId = 0;
+        if (NetworkClient.connection != null)
+        {
+            var connectionIdField = NetworkClient.connection.GetType().GetField("connectionId");
+            if (connectionIdField != null)
+            {
+                localClientId = (uint)(int)connectionIdField.GetValue(NetworkClient.connection);
+            }
+        }
+
+        // У хоста пинг всегда 5 (фиксированное значение)
+        if (NetworkServer.active && NetworkClient.active && clientId == localClientId)
+        {
+            return 5;
+        }
+
+        // Если это локальный клиент (не хост), получаем свой RTT к серверу
+        if (NetworkClient.active && clientId == localClientId)
+        {
+            return GetLocalClientRTT();
+        }
+
+        // Если мы хост и это другой игрок, получаем его RTT к серверу
+        if (NetworkServer.active && NetworkServer.connections.ContainsKey((int)clientId))
+        {
+            return GetServerRTTForClient(clientId);
+        }
+
+        // Если мы клиент и это другой игрок, используем кэшированный RTT (синхронизирован через сервер)
+        // Если кэшированного RTT нет, возвращаем значение по умолчанию
+        return cachedRTT > 0 ? cachedRTT : 0;
+    }
+
+    /// <summary>
+    /// Получает RTT локального клиента (когда мы клиент, а не хост)
+    /// </summary>
+    private int GetLocalClientRTT()
+    {
+        if (NetworkClient.connection == null)
+            return 0;
+
         try
         {
-            if (networkManager.ConnectedClients.ContainsKey(clientId))
+            // Пытаемся получить RTT через свойство
+            var rttProperty = NetworkClient.connection.GetType().GetProperty("rtt");
+            if (rttProperty != null)
             {
-                var client = networkManager.ConnectedClients[clientId];
-                
-                // Пытаемся получить RTT (Round Trip Time) из NetworkClient
-                // RTT в Unity Netcode - это время туда-обратно в миллисекундах
-                // Пинг = RTT / 2, но если RTT недоступен, используем приблизительное значение
-                
-                // Для локального клиента пинг обычно очень низкий
-                if (clientId == networkManager.LocalClientId)
+                object rttValue = rttProperty.GetValue(NetworkClient.connection);
+                if (rttValue != null)
                 {
-                    return UnityEngine.Random.Range(10, 50); // Локальный пинг обычно низкий
+                    // RTT обычно в миллисекундах
+                    int rtt = 0;
+                    if (rttValue is int)
+                        rtt = (int)rttValue;
+                    else if (rttValue is float)
+                        rtt = Mathf.RoundToInt((float)rttValue);
+                    else if (rttValue is double)
+                        rtt = Mathf.RoundToInt((float)(double)rttValue);
+                    
+                    // Если RTT больше 0, возвращаем его
+                    if (rtt > 0)
+                        return rtt;
                 }
-                
-                // Для удаленных клиентов пытаемся получить реальный RTT
-                // В Unity Netcode RTT можно получить через NetworkClient, но это требует дополнительной настройки
-                // Здесь используем приблизительное значение на основе стабильности соединения
-                return UnityEngine.Random.Range(30, 150);
+            }
+
+            // Пытаемся получить RTT через поле
+            var rttField = NetworkClient.connection.GetType().GetField("rtt");
+            if (rttField != null)
+            {
+                object rttValue = rttField.GetValue(NetworkClient.connection);
+                if (rttValue != null)
+                {
+                    int rtt = 0;
+                    if (rttValue is int)
+                        rtt = (int)rttValue;
+                    else if (rttValue is float)
+                        rtt = Mathf.RoundToInt((float)rttValue);
+                    else if (rttValue is double)
+                        rtt = Mathf.RoundToInt((float)(double)rttValue);
+                    
+                    // Если RTT больше 0, возвращаем его
+                    if (rtt > 0)
+                        return rtt;
+                }
+            }
+            
+            // Пытаемся получить RTT через свойство averageRTT (альтернативный способ)
+            var avgRttProperty = NetworkClient.connection.GetType().GetProperty("averageRTT");
+            if (avgRttProperty != null)
+            {
+                object rttValue = avgRttProperty.GetValue(NetworkClient.connection);
+                if (rttValue != null)
+                {
+                    int rtt = 0;
+                    if (rttValue is int)
+                        rtt = (int)rttValue;
+                    else if (rttValue is float)
+                        rtt = Mathf.RoundToInt((float)rttValue);
+                    else if (rttValue is double)
+                        rtt = Mathf.RoundToInt((float)(double)rttValue);
+                    
+                    if (rtt > 0)
+                        return rtt;
+                }
             }
         }
         catch (System.Exception)
         {
-            // Если не удалось получить пинг, возвращаем случайное значение
+            // Если не удалось получить RTT, возвращаем 0
         }
 
-        // Значение по умолчанию
-        return UnityEngine.Random.Range(50, 200);
+        // Если RTT еще не инициализирован, возвращаем минимальное значение (не 0)
+        // Это может произойти сразу после подключения
+        return 1;
+    }
+
+    /// <summary>
+    /// Получает RTT для клиента на сервере (когда мы хост)
+    /// </summary>
+    private int GetServerRTTForClient(uint clientId)
+    {
+        if (!NetworkServer.active) return 0;
+
+        // ВАЖНО: Проверяем наличие подключения перед доступом с обработкой ошибок
+        NetworkConnectionToClient connection = null;
+        try
+        {
+            if (NetworkServer.connections.ContainsKey((int)clientId))
+            {
+                connection = NetworkServer.connections[(int)clientId];
+            }
+            else
+            {
+                return 0;
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[PlayerLobbyItem] Ошибка при получении подключения для clientId={clientId}: {e.Message}");
+            return 0;
+        }
+
+        if (connection == null)
+            return 0;
+
+        try
+        {
+            // Пытаемся получить RTT через свойство
+            var rttProperty = connection.GetType().GetProperty("rtt");
+            if (rttProperty != null)
+            {
+                object rttValue = rttProperty.GetValue(connection);
+                if (rttValue != null)
+                {
+                    if (rttValue is int)
+                        return (int)rttValue;
+                    else if (rttValue is float)
+                        return Mathf.RoundToInt((float)rttValue);
+                    else if (rttValue is double)
+                        return Mathf.RoundToInt((float)(double)rttValue);
+                }
+            }
+
+            // Пытаемся получить RTT через поле
+            var rttField = connection.GetType().GetField("rtt");
+            if (rttField != null)
+            {
+                object rttValue = rttField.GetValue(connection);
+                if (rttValue != null)
+                {
+                    if (rttValue is int)
+                        return (int)rttValue;
+                    else if (rttValue is float)
+                        return Mathf.RoundToInt((float)rttValue);
+                    else if (rttValue is double)
+                        return Mathf.RoundToInt((float)(double)rttValue);
+                }
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[PlayerLobbyItem] Ошибка при получении RTT для clientId={clientId}: {e.Message}");
+        }
+
+        return 0;
     }
 
     void UpdatePingColor(int ping)
@@ -287,7 +455,7 @@ public class PlayerLobbyItem : MonoBehaviour
     /// <summary>
     /// Получает ID клиента
     /// </summary>
-    public ulong GetClientId()
+    public uint GetClientId()
     {
         return clientId;
     }
@@ -298,6 +466,19 @@ public class PlayerLobbyItem : MonoBehaviour
     public bool IsAdmin()
     {
         return isAdmin;
+    }
+
+    /// <summary>
+    /// Устанавливает RTT для этого игрока (синхронизируется через сервер)
+    /// </summary>
+    public void SetRTT(int rtt)
+    {
+        cachedRTT = rtt;
+        // Обновляем UI сразу, если пинг уже инициализирован
+        if (isInitialized && pingText != null)
+        {
+            UpdatePing();
+        }
     }
 }
 

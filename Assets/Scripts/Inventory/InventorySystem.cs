@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
-using Unity.Netcode;
+using Mirror;
 
 /// <summary>
 /// Основная система инвентаря с хотбаром
@@ -91,7 +91,7 @@ public class InventorySystem : NetworkBehaviour
     void Update()
     {
         // Обрабатываем ввод только для владельца
-        if (IsSpawned && !IsOwner) return;
+        if (netIdentity != null && netIdentity.netId != 0 && !isOwned) return;
         
         HandleInput();
         UpdateHandDisplay();

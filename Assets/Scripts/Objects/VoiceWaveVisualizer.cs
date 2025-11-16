@@ -1,7 +1,7 @@
 using UnityEngine;
 using TMPro;
 using System.Collections;
-using Unity.Netcode;
+using Mirror;
 
 public class VoiceWaveVisualizer : NetworkBehaviour
 {
@@ -108,13 +108,13 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	private static readonly string PrefB = "PlayerColor_B";
 	private static readonly string PrefA = "PlayerColor_A";
 	
-	// Сетевая переменная для синхронизации состояния разговора
-	private NetworkVariable<bool> isTalking = new NetworkVariable<bool>(false,
-		NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+	// Сетевая переменная для синхронизации состояния разговора Mirror
+	[SyncVar(hook = nameof(OnTalkingStateChanged))]
+	private bool isTalking = false;
 	
-	// Сетевая переменная для синхронизации амплитуды (для визуализации у других игроков)
-	private NetworkVariable<float> networkAmplitude = new NetworkVariable<float>(0f,
-		NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+	// Сетевая переменная для синхронизации амплитуды (для визуализации у других игроков) Mirror
+	[SyncVar]
+	private float networkAmplitude = 0f;
 	
 	// Ссылка на NetworkPlayer для получения синхронизированных данных
 	private NetworkPlayer networkPlayer;
@@ -123,12 +123,9 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	// Ссылка на PlayerController для определения позиции игрока
 	private PlayerController playerController;
 	
-	public override void OnNetworkSpawn()
+	public override void OnStartClient()
 	{
-		base.OnNetworkSpawn();
-		
-		// Подписываемся на изменения состояния разговора
-		isTalking.OnValueChanged += OnTalkingStateChanged;
+		base.OnStartClient();
 		
 		// Настраиваем AudioSource в зависимости от владельца
 		SetupAudioSource();
@@ -140,12 +137,11 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		UpdateLineRendererVisibility();
 	}
 	
-	public override void OnNetworkDespawn()
+	// Hook для изменения состояния разговора
+	void OnTalkingStateChanged(bool oldValue, bool newValue)
 	{
-		// Отписываемся от событий
-		isTalking.OnValueChanged -= OnTalkingStateChanged;
-		
-		base.OnNetworkDespawn();
+		// Обновляем визуализацию при изменении состояния разговора
+		UpdateLineRendererVisibility();
 	}
 	
 	void Awake()
@@ -173,7 +169,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	void Start()
 	{
 		// Если не в сети, настраиваем AudioSource локально
-		if (!IsSpawned)
+		if (netIdentity == null || netIdentity.netId == 0)
 		{
 			SetupAudioSource();
 		}
@@ -241,7 +237,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 			ApplyPlayerColor(networkPlayer.PlayerColor);
 			SetPlayerName(networkPlayer.PlayerName);
 		}
-		else if (IsSpawned)
+		else if (netIdentity != null && netIdentity.netId != 0)
 		{
 			// Если в сети, но NetworkPlayer не найден, используем PlayerPrefs как fallback
 			ApplySelectedColorIfExists();
@@ -276,9 +272,9 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		// ВАЖНО: Для визуализации микрофон должен работать, но мы не должны слышать себя
 		// Для владельца используем очень маленький volume (почти неслышимый) вместо 0
 		// volume = 0 может блокировать GetOutputData в некоторых случаях
-		if (IsSpawned)
+		if (netIdentity != null && netIdentity.netId != 0)
 		{
-			if (IsOwner)
+			if (isOwned)
 			{
 				// Владелец не должен слышать свой голос через AudioSource
 				// Используем очень маленький volume (0.0001f) вместо 0, чтобы GetOutputData работал
@@ -300,15 +296,18 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		}
 	}
 	
-	private void OnTalkingStateChanged(bool oldValue, bool newValue)
+	// Command для синхронизации состояния разговора
+	[Command]
+	void SetTalkingCommand(bool talking)
 	{
-		// Обновляем визуализацию для других игроков
-		// Владелец обновляет визуализацию локально
-		if (!IsOwner)
-		{
-			// Можно добавить визуальные эффекты для других игроков
-			// Например, изменение цвета линии или анимацию
-		}
+		isTalking = talking;
+	}
+	
+	// Command для синхронизации амплитуды
+	[Command]
+	void SetAmplitudeCommand(float amplitude)
+	{
+		networkAmplitude = amplitude;
 	}
 	
 	private void FindPlayerController()
@@ -329,7 +328,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	void Update()
 	{
 		// Обрабатываем ввод только для владельца
-		if (IsSpawned && !IsOwner)
+		if (netIdentity != null && netIdentity.netId != 0 && !isOwned)
 		{
 			// Для других игроков обновляем визуализацию на основе сетевых переменных
 			UpdateVisualizationForRemotePlayers();
@@ -351,10 +350,10 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	private void UpdateVisualizationForRemotePlayers()
 	{
 		// Используем синхронизированную амплитуду для визуализации
-		if (isTalking.Value)
+		if (isTalking)
 		{
 			// Используем синхронизированную амплитуду
-			currentAmplitude = Mathf.Lerp(currentAmplitude, networkAmplitude.Value, amplitudeLerp);
+			currentAmplitude = Mathf.Lerp(currentAmplitude, networkAmplitude, amplitudeLerp);
 			waveScrollDistance += Time.deltaTime * waveSpeed;
 		}
 		else
@@ -389,7 +388,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 			
 			// Добавляем небольшое изменение яркости на основе амплитуды
 			// Для владельца используем локальную амплитуду, для других - синхронизированную
-			bool isCurrentlyTalking = IsSpawned && IsOwner ? (micActive && microphoneSource != null && microphoneSource.isPlaying) : isTalking.Value;
+			bool isCurrentlyTalking = (netIdentity != null && netIdentity.netId != 0 && isOwned) ? (micActive && microphoneSource != null && microphoneSource.isPlaying) : isTalking;
 			
 			if (isCurrentlyTalking && currentAmplitude > 0.01f)
 			{
@@ -517,11 +516,14 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		bool wantMic = Input.GetKey(talkKey);
 		
 		// Обновляем сетевое состояние разговора
-		if (IsSpawned && IsOwner)
+		if (netIdentity != null && netIdentity.netId != 0 && isOwned)
 		{
-			if (wantMic != isTalking.Value)
+			if (wantMic != isTalking)
 			{
-				isTalking.Value = wantMic;
+				if (isServer)
+					isTalking = wantMic;
+				else
+					SetTalkingCommand(wantMic);
 			}
 		}
 		
@@ -538,7 +540,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	private void StartMicrophone()
 	{
 		// Микрофон работает только для владельца
-		if (IsSpawned && !IsOwner) return;
+		if (netIdentity != null && netIdentity.netId != 0 && !isOwned) return;
 		
 		if (microphoneSource == null)
 		{
@@ -607,7 +609,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	private void StopMicrophone()
 	{
 		// Останавливаем микрофон только для владельца
-		if (IsSpawned && !IsOwner) return;
+		if (netIdentity != null && netIdentity.netId != 0 && !isOwned) return;
 		
 		if (microphoneSource != null && microphoneSource.isPlaying)
 		{
@@ -681,7 +683,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 				targetAmp = Mathf.Lerp(minAmplitude, maxAmplitude, loudness);
 				
 				// Дебаг лог для проверки работы микрофона (только для владельца)
-				if (IsSpawned && IsOwner && Time.frameCount % 300 == 0) // Каждые 5 секунд (при 60 FPS)
+				if (netIdentity != null && netIdentity.netId != 0 && isOwned && Time.frameCount % 300 == 0) // Каждые 5 секунд (при 60 FPS)
 				{
 					Debug.Log($"[VoiceWaveVisualizer] Микрофон активен. MicPos: {micPosition}, MaxSample: {maxSample:F6}, RMS: {rms:F6}, Loudness: {loudness:F4}, TargetAmp: {targetAmp:F4}, Samples: {clipData.Length}");
 				}
@@ -708,9 +710,12 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		currentAmplitude = Mathf.Lerp(currentAmplitude, targetAmp, amplitudeLerp);
 		
 		// Синхронизируем амплитуду через сеть для других игроков
-		if (IsSpawned && IsOwner)
+		if (netIdentity != null && netIdentity.netId != 0 && isOwned)
 		{
-			networkAmplitude.Value = currentAmplitude;
+			if (isServer)
+				networkAmplitude = currentAmplitude;
+			else
+				SetAmplitudeCommand(currentAmplitude);
 		}
 		
 		// Непрерывное движение волны вдоль линии в метрах/сек (даже когда не говорим, для плавности)
@@ -794,7 +799,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		
 		// ВАЖНО: GetSpectrumData может не работать с микрофоном так же, как GetOutputData
 		// Поэтому используем амплитуду для определения поворота (она уже работает!)
-		if (IsSpawned && IsOwner && micActive && currentAmplitude > 0.01f)
+		if (netIdentity != null && netIdentity.netId != 0 && isOwned && micActive && currentAmplitude > 0.01f)
 		{
 			// Используем амплитуду для определения поворота
 			// Высокая амплитуда обычно соответствует более высоким частотам
@@ -881,7 +886,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 				hasTargetRotation = true;
 			}
 		}
-		else if (IsSpawned && !IsOwner && isTalking.Value)
+		else if (netIdentity != null && netIdentity.netId != 0 && !isOwned && isTalking)
 		{
 			// Для других игроков используем упрощенную логику на основе амплитуды
 			float ampNormalized = Mathf.InverseLerp(0f, maxAmplitude, currentAmplitude);
@@ -923,13 +928,13 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 				targetSpriteRenderer.transform.localRotation = Quaternion.Lerp(current, target, rotateLerpSpeed * Time.deltaTime);
 				
 				// Дебаг лог (только иногда, чтобы не засорять консоль)
-				if (IsSpawned && IsOwner && Time.frameCount % 300 == 0)
+				if (netIdentity != null && netIdentity.netId != 0 && isOwned && Time.frameCount % 300 == 0)
 				{
 					Debug.Log($"[VoiceWaveVisualizer] Поворот targetSpriteRenderer: {targetEuler}, AmpNormalized: {Mathf.InverseLerp(0f, maxAmplitude, currentAmplitude):F2}");
 				}
 			}
 		}
-		else if (targetSpriteRenderer == null && IsSpawned && IsOwner && Time.frameCount % 300 == 0)
+		else if (targetSpriteRenderer == null && netIdentity != null && netIdentity.netId != 0 && isOwned && Time.frameCount % 300 == 0)
 		{
 			Debug.LogWarning("[VoiceWaveVisualizer] targetSpriteRenderer не назначен в инспекторе!");
 		}
@@ -1003,7 +1008,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		string status;
 		
 		// Для владельца используем микрофон, для других игроков - упрощенную логику
-		if (IsSpawned && IsOwner && microphoneSource != null && microphoneSource.isPlaying)
+		if (netIdentity != null && netIdentity.netId != 0 && isOwned && microphoneSource != null && microphoneSource.isPlaying)
 		{
 			// Получаем спектр
 			microphoneSource.GetSpectrumData(spectrum, 0, FFTWindow.BlackmanHarris);
@@ -1042,7 +1047,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 				status = "$ system status : angry >:(";
 			}
 		}
-		else if (IsSpawned && !IsOwner && isTalking.Value)
+		else if (netIdentity != null && netIdentity.netId != 0 && !isOwned && isTalking)
 		{
 			// Для других игроков используем упрощенную логику на основе амплитуды
 			float ampNormalized = Mathf.InverseLerp(0f, maxAmplitude, currentAmplitude);
@@ -1158,10 +1163,10 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 			return;
 		
 		// Если заспавнен в сети, скрываем для владельца, показываем для других
-		if (IsSpawned)
+		if (netIdentity != null && netIdentity.netId != 0)
 		{
 			// Владелец не видит свою линию голоса
-			lineRenderer.enabled = !IsOwner;
+			lineRenderer.enabled = !isOwned;
 		}
 		else
 		{

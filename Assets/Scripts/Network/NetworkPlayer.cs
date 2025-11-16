@@ -1,6 +1,5 @@
 using UnityEngine;
-using Unity.Netcode;
-using Unity.Collections;
+using Mirror;
 using UnityEngine.SceneManagement;
 
 public class NetworkPlayer : NetworkBehaviour
@@ -22,16 +21,16 @@ public class NetworkPlayer : NetworkBehaviour
     [Tooltip("Имя сцены лобби (для проверки видимости модели)")]
     [SerializeField] private string lobbySceneName = "Lobby";
     
-    // Сетевые переменные
-    private NetworkVariable<FixedString64Bytes> networkPlayerName = new NetworkVariable<FixedString64Bytes>(
-        "Player", NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    // Сетевые переменные Mirror
+    [SyncVar(hook = nameof(OnPlayerNameChanged))]
+    private string networkPlayerName = "Player";
     
-    private NetworkVariable<Color> networkPlayerColor = new NetworkVariable<Color>(
-        Color.white, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    [SyncVar(hook = nameof(OnPlayerColorChanged))]
+    private Color networkPlayerColor = Color.white;
     
-    public override void OnNetworkSpawn()
+    public override void OnStartClient()
     {
-        base.OnNetworkSpawn();
+        base.OnStartClient();
         
         // Инициализируем компоненты
         if (playerController == null)
@@ -47,7 +46,7 @@ public class NetworkPlayer : NetworkBehaviour
             audioListener = GetComponentInChildren<AudioListener>();
         
         // Настраиваем камеру и аудио только для владельца
-        if (IsOwner)
+        if (isOwned)
         {
             SetupOwnerPlayer();
         }
@@ -56,38 +55,50 @@ public class NetworkPlayer : NetworkBehaviour
             SetupRemotePlayer();
         }
         
-        // Подписываемся на изменения сетевых переменных
-        networkPlayerName.OnValueChanged += OnPlayerNameChanged;
-        networkPlayerColor.OnValueChanged += OnPlayerColorChanged;
-        
         // Устанавливаем начальные значения
-        if (IsOwner)
+        if (isOwned)
         {
             // Загружаем цвет из PlayerPrefs, если он был выбран в меню
             LoadColorFromPlayerPrefs();
             
-            // Загружаем имя из PlayerPrefs или используем значение по умолчанию
+            // Загружаем имя из Steam или PlayerPrefs
             LoadNameFromPlayerPrefs();
             
-            // Если имя все еще "Player" и есть в PlayerPrefs, загружаем еще раз
-            if (playerName == "Player" && PlayerPrefs.HasKey("PlayerName"))
+            // Если имя все еще "Player", пытаемся получить из Steam еще раз
+            if (playerName == "Player")
             {
-                playerName = PlayerPrefs.GetString("PlayerName", "Player");
-                Debug.Log($"[NetworkPlayer] Имя загружено из PlayerPrefs в OnNetworkSpawn: {playerName}");
+                #if !DISABLESTEAMWORKS
+                if (SteamManager.Instance != null && SteamManager.Instance.IsSteamInitialized())
+                {
+                    string steamName = SteamManager.Instance.GetSteamName();
+                    if (!string.IsNullOrEmpty(steamName))
+                    {
+                        playerName = steamName;
+                        Debug.Log($"[NetworkPlayer] Имя получено из Steam в OnStartClient: {playerName}");
+                    }
+                }
+                #endif
+                
+                // Если Steam не доступен, пробуем PlayerPrefs
+                if (playerName == "Player" && PlayerPrefs.HasKey("PlayerName"))
+                {
+                    playerName = PlayerPrefs.GetString("PlayerName", "Player");
+                    Debug.Log($"[NetworkPlayer] Имя загружено из PlayerPrefs в OnStartClient: {playerName}");
+                }
             }
             
-            // Устанавливаем сетевые переменные
-            networkPlayerName.Value = new FixedString64Bytes(playerName);
-            networkPlayerColor.Value = playerColor;
+            // Устанавливаем сетевые переменные через Command
+            SetPlayerNameCommand(playerName);
+            SetPlayerColorCommand(playerColor);
             
             Debug.Log($"[NetworkPlayer] NetworkPlayer инициализирован: PlayerName={playerName}, PlayerColor={playerColor}");
         }
         
         // Применяем начальные значения сразу (для всех клиентов)
-        ApplyPlayerColor(networkPlayerColor.Value);
+        ApplyPlayerColor(networkPlayerColor);
         
         // Применяем имя сразу после спавна
-        if (networkPlayerName.Value.Length > 0)
+        if (!string.IsNullOrEmpty(networkPlayerName))
         {
             NotifyVoiceWaveVisualizer();
         }
@@ -143,15 +154,6 @@ public class NetworkPlayer : NetworkBehaviour
         SetPlayerModelObjectsVisibility(true);
     }
     
-    public override void OnNetworkDespawn()
-    {
-        // Отписываемся от событий
-        networkPlayerName.OnValueChanged -= OnPlayerNameChanged;
-        networkPlayerColor.OnValueChanged -= OnPlayerColorChanged;
-        
-        base.OnNetworkDespawn();
-    }
-    
     void LoadColorFromPlayerPrefs()
     {
         // Загружаем цвет из PlayerPrefs, если он был сохранен
@@ -169,7 +171,21 @@ public class NetworkPlayer : NetworkBehaviour
     
     void LoadNameFromPlayerPrefs()
     {
-        // Загружаем имя из PlayerPrefs, если оно было сохранено
+        // Пытаемся получить имя из Steam
+        #if !DISABLESTEAMWORKS
+        if (SteamManager.Instance != null && SteamManager.Instance.IsSteamInitialized())
+        {
+            string steamName = SteamManager.Instance.GetSteamName();
+            if (!string.IsNullOrEmpty(steamName))
+            {
+                playerName = steamName;
+                Debug.Log($"[NetworkPlayer] Имя получено из Steam: {playerName}");
+                return;
+            }
+        }
+        #endif
+        
+        // Если Steam не доступен, загружаем из PlayerPrefs
         if (PlayerPrefs.HasKey("PlayerName"))
         {
             playerName = PlayerPrefs.GetString("PlayerName", "Player");
@@ -182,8 +198,8 @@ public class NetworkPlayer : NetworkBehaviour
         VoiceWaveVisualizer voiceVisualizer = GetComponentInChildren<VoiceWaveVisualizer>();
         if (voiceVisualizer != null)
         {
-            voiceVisualizer.ApplyPlayerColor(networkPlayerColor.Value);
-            voiceVisualizer.SetPlayerName(networkPlayerName.Value.ToString());
+            voiceVisualizer.ApplyPlayerColor(networkPlayerColor);
+            voiceVisualizer.SetPlayerName(networkPlayerName);
         }
     }
     
@@ -196,14 +212,34 @@ public class NetworkPlayer : NetworkBehaviour
         
         // Уведомляем VoiceWaveVisualizer об изменении цвета
         NotifyVoiceWaveVisualizer();
+        
+        // Уведомляем LobbyManager об изменении цвета для обновления PlayerLobbyItem
+        NotifyLobbyManager();
     }
     
-    void OnPlayerNameChanged(FixedString64Bytes oldName, FixedString64Bytes newName)
+    void OnPlayerNameChanged(string oldName, string newName)
     {
-        playerName = newName.ToString();
+        playerName = newName;
         
         // Уведомляем VoiceWaveVisualizer об изменении имени
         NotifyVoiceWaveVisualizer();
+        
+        // Уведомляем LobbyManager об изменении имени для обновления PlayerLobbyItem
+        NotifyLobbyManager();
+    }
+    
+    /// <summary>
+    /// Уведомляет LobbyManager об изменении данных игрока
+    /// </summary>
+    void NotifyLobbyManager()
+    {
+        if (netIdentity == null || netIdentity.netId == 0) return;
+        
+        LobbyManager lobbyManager = LobbyManager.Instance;
+        if (lobbyManager != null)
+        {
+            lobbyManager.OnNetworkPlayerDataChanged(PlayerId);
+        }
     }
     
     void ApplyPlayerColor(Color color)
@@ -217,22 +253,55 @@ public class NetworkPlayer : NetworkBehaviour
     }
     
     // Методы для изменения имени и цвета (только для владельца)
-    [ServerRpc(RequireOwnership = true)]
-    public void SetPlayerNameServerRpc(FixedString64Bytes newName)
+    [Command]
+    public void SetPlayerNameCommand(string newName)
     {
-        networkPlayerName.Value = newName;
+        networkPlayerName = newName;
     }
     
-    [ServerRpc(RequireOwnership = true)]
-    public void SetPlayerColorServerRpc(Color newColor)
+    [Command]
+    public void SetPlayerColorCommand(Color newColor)
     {
-        networkPlayerColor.Value = newColor;
+        networkPlayerColor = newColor;
     }
     
     // Публичные свойства для доступа к данным игрока
-    public string PlayerName => networkPlayerName.Value.ToString();
-    public Color PlayerColor => networkPlayerColor.Value;
-    public ulong PlayerId => OwnerClientId;
+    public string PlayerName => networkPlayerName;
+    public Color PlayerColor => networkPlayerColor;
+    public uint PlayerId
+    {
+        get
+        {
+            // На сервере используем connectionToClient
+            if (connectionToClient != null)
+            {
+                return (uint)connectionToClient.connectionId;
+            }
+            
+            // На клиенте для локального игрока пытаемся получить connectionId через рефлексию
+            if (isOwned && NetworkClient.active && NetworkClient.connection != null)
+            {
+                try
+                {
+                    var connectionIdField = NetworkClient.connection.GetType().GetField("connectionId");
+                    if (connectionIdField != null)
+                    {
+                        return (uint)(int)connectionIdField.GetValue(NetworkClient.connection);
+                    }
+                }
+                catch (System.Exception) { }
+            }
+            
+            // Если ничего не помогло, используем netId как временный идентификатор
+            if (netIdentity != null && netIdentity.netId != 0)
+            {
+                // Используем младшие 32 бита netId как connectionId
+                return (uint)(netIdentity.netId & 0xFFFFFFFF);
+            }
+            
+            return 0;
+        }
+    }
     
     // Метод для получения информации об игроке
     public string GetPlayerInfo()
@@ -261,7 +330,7 @@ public class NetworkPlayer : NetworkBehaviour
             return;
         }
         
-        if (IsOwner)
+        if (isOwned)
         {
             // Для владельца в игре: модель скрыта (не видим сами себя)
             SetPlayerModelObjectsVisibility(false);
@@ -306,7 +375,7 @@ public class NetworkPlayer : NetworkBehaviour
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         // Обновляем видимость модели при смене сцены
-        if (IsSpawned)
+        if (netIdentity != null && netIdentity.netId != 0)
         {
             UpdatePlayerModelVisibility();
         }

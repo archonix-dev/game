@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using Unity.Netcode;
+using Mirror;
 using System.Collections;
 
 public class SceneTransitionManager : MonoBehaviour
@@ -46,49 +46,26 @@ public class SceneTransitionManager : MonoBehaviour
     void Start()
     {
         // Подписываемся на события NetworkManager
-        if (NetworkManager.Singleton != null)
-        {
-            NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
-            NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
-        }
+        // В Mirror события подключения обрабатываются через MirrorNetworkManager
+        // Подписка не требуется, так как MirrorNetworkManager уже обрабатывает эти события
     }
     
     void OnDestroy()
     {
         // Отписываемся от событий
-        if (NetworkManager.Singleton != null)
-        {
-            NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
-            NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
-        }
+        // В Mirror события подключения обрабатываются через MirrorNetworkManager
+        // Отписка не требуется
     }
     
-    void OnClientConnected(ulong clientId)
-    {
-        
-        // Если это хост, переходим в игровую сцену через 2 секунды
-        if (NetworkManager.Singleton.IsHost)
-        {
-            Invoke(nameof(TransitionToGameScene), 2f);
-        }
-    }
-    
-    void OnClientDisconnected(ulong clientId)
-    {
-        
-        // Если это хост и отключился клиент, возвращаемся в меню
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost && NetworkManager.Singleton.ConnectedClients.Count <= 1)
-        {
-            TransitionToMenuScene();
-        }
-    }
+    // Эти методы больше не используются, так как Mirror обрабатывает события через MirrorNetworkManager
+    // Если нужна обработка подключений, используйте MirrorNetworkManager.OnServerConnect/OnClientConnect
     
     public void TransitionToGameScene()
     {
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost)
+        if (NetworkServer.active && NetworkClient.active)
         {
             // Хост загружает сцену для всех
-            NetworkManager.Singleton.SceneManager.LoadScene(gameSceneName, LoadSceneMode.Single);
+            NetworkManager.singleton.ServerChangeScene(gameSceneName);
             
             // Спавним игроков после загрузки сцены
             StartCoroutine(SpawnPlayersAfterSceneLoad());
@@ -98,10 +75,10 @@ public class SceneTransitionManager : MonoBehaviour
     
     public void TransitionToMenuScene()
     {
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost)
+        if (NetworkServer.active && NetworkClient.active)
         {
             // Хост загружает сцену для всех
-            NetworkManager.Singleton.SceneManager.LoadScene(menuSceneName, LoadSceneMode.Single);
+            NetworkManager.singleton.ServerChangeScene(menuSceneName);
         }
         else
         {
@@ -126,7 +103,7 @@ public class SceneTransitionManager : MonoBehaviour
     // Методы для кнопок UI
     public void OnStartGameButtonClicked()
     {
-        if (NetworkManager.Singleton.IsHost)
+        if (NetworkServer.active && NetworkClient.active)
         {
             TransitionToGameScene();
         }
@@ -134,7 +111,7 @@ public class SceneTransitionManager : MonoBehaviour
     
     public void OnReturnToMenuButtonClicked()
     {
-        if (NetworkManager.Singleton.IsHost)
+        if (NetworkServer.active && NetworkClient.active)
         {
             TransitionToMenuScene();
         }
@@ -142,13 +119,17 @@ public class SceneTransitionManager : MonoBehaviour
     
     public void OnQuitGameButtonClicked()
     {
-        if (NetworkManager.Singleton.IsHost)
+        var networkManager = MirrorNetworkManager.Instance;
+        if (networkManager != null)
         {
-            NetworkManager.Singleton.Shutdown();
-        }
-        else if (NetworkManager.Singleton.IsClient)
-        {
-            NetworkManager.Singleton.Shutdown();
+            if (NetworkServer.active && NetworkClient.active)
+            {
+                networkManager.StopHost();
+            }
+            else if (NetworkClient.active)
+            {
+                networkManager.StopClient();
+            }
         }
         
         LoadMenuSceneDirectly();
@@ -173,18 +154,17 @@ public class SceneTransitionManager : MonoBehaviour
     // Методы для проверки состояния сети
     public bool IsNetworkActive()
     {
-        return NetworkManager.Singleton != null && 
-               (NetworkManager.Singleton.IsHost || NetworkManager.Singleton.IsClient);
+        return ((NetworkServer.active && NetworkClient.active) || NetworkClient.active);
     }
     
     public bool IsHost()
     {
-        return NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost;
+        return NetworkServer.active && NetworkClient.active;
     }
     
     public bool IsClient()
     {
-        return NetworkManager.Singleton != null && NetworkManager.Singleton.IsClient;
+        return NetworkClient.active;
     }
     
     IEnumerator SpawnPlayersAfterSceneLoad()
@@ -200,15 +180,15 @@ public class SceneTransitionManager : MonoBehaviour
         Vector3 spawnPosition = spawnPoint != null ? spawnPoint.position : Vector3.zero;
         
         // Спавним всех подключенных клиентов
-        foreach (var client in NetworkManager.Singleton.ConnectedClients)
+        foreach (var client in NetworkServer.connections.Values)
         {
             
             GameObject playerObject = Instantiate(playerPrefab, spawnPosition, Quaternion.identity);
-            NetworkObject networkObject = playerObject.GetComponent<NetworkObject>();
+            NetworkIdentity networkIdentity = playerObject.GetComponent<NetworkIdentity>();
             
-            if (networkObject != null)
+            if (networkIdentity != null)
             {
-                networkObject.SpawnAsPlayerObject(client.Key);
+                NetworkServer.AddPlayerForConnection(client, playerObject);
             }
             else
             {
