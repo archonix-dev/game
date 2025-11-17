@@ -116,8 +116,6 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	[SyncVar]
 	private float networkAmplitude = 0f;
 	
-	// Ссылка на NetworkPlayer для получения синхронизированных данных
-	private NetworkPlayer networkPlayer;
 	private string playerName = "";
 	
 	// Ссылка на PlayerController для определения позиции игрока
@@ -130,8 +128,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		// Настраиваем AudioSource в зависимости от владельца
 		SetupAudioSource();
 		
-		// Находим NetworkPlayer для синхронизации цвета и имени
-		FindNetworkPlayer();
+		// Используем значения по умолчанию для цвета и имени
 		
 		// Обновляем видимость LineRenderer для владельца
 		UpdateLineRendererVisibility();
@@ -177,8 +174,8 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		// Загружаем настройки микрофона из PlayerPrefs
 		LoadMicrophoneSettings();
 		
-		// Находим NetworkPlayer если еще не найден (с задержкой, так как он может быть еще не инициализирован)
-		StartCoroutine(FindAndApplyNetworkPlayerData());
+		// Используем значения по умолчанию для цвета и имени
+		LoadColorAndNameFromDefaults();
 		
 		// Находим PlayerController
 		FindPlayerController();
@@ -214,55 +211,13 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		}
 	}
 	
-	private System.Collections.IEnumerator FindAndApplyNetworkPlayerData()
+	// Используем значения по умолчанию для цвета и имени
+	void LoadColorAndNameFromDefaults()
 	{
-		// Ждем немного, чтобы NetworkPlayer успел инициализироваться
-		yield return new WaitForSeconds(0.1f);
-		
-		// Пытаемся найти NetworkPlayer несколько раз
-		int attempts = 0;
-		while (networkPlayer == null && attempts < 10)
-		{
-			FindNetworkPlayer();
-			if (networkPlayer == null)
-			{
-				yield return new WaitForSeconds(0.1f);
-				attempts++;
-			}
-		}
-		
-		// Применяем цвет и имя из NetworkPlayer, если доступны
-		if (networkPlayer != null)
-		{
-			ApplyPlayerColor(networkPlayer.PlayerColor);
-			SetPlayerName(networkPlayer.PlayerName);
-		}
-		else if (netIdentity != null && netIdentity.netId != 0)
-		{
-			// Если в сети, но NetworkPlayer не найден, используем PlayerPrefs как fallback
-			ApplySelectedColorIfExists();
-		}
-		
-		// Пытаемся найти PlayerController если еще не найден
-		if (playerController == null)
-		{
-			FindPlayerController();
-		}
-	}
-	
-	void FindNetworkPlayer()
-	{
-		// Ищем NetworkPlayer на этом объекте или в родительских объектах
-		networkPlayer = GetComponentInParent<NetworkPlayer>();
-		if (networkPlayer == null)
-		{
-			networkPlayer = GetComponent<NetworkPlayer>();
-		}
-		if (networkPlayer == null)
-		{
-			// Пытаемся найти в дочерних объектах
-			networkPlayer = GetComponentInChildren<NetworkPlayer>();
-		}
+		// Используем значения по умолчанию
+		Color defaultColor = new Color(0.05f, 0.82f, 0.27f, 1f);
+		ApplyPlayerColor(defaultColor);
+		SetPlayerName("Player");
 	}
 	
 	private void SetupAudioSource()
@@ -376,9 +331,10 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	private void UpdateSpriteColorBasedOnAmplitude()
 	{
 		// Обновляем цвет targetSpriteRenderer на основе амплитуды для визуального эффекта
-		if (targetSpriteRenderer != null && networkPlayer != null)
+		if (targetSpriteRenderer != null)
 		{
-			Color baseColor = networkPlayer.PlayerColor;
+			// Используем цвет по умолчанию
+			Color baseColor = new Color(0.05f, 0.82f, 0.27f, 1f);
 			
 			// Убеждаемся, что спрайт активен и виден
 			if (!targetSpriteRenderer.gameObject.activeSelf)
@@ -407,9 +363,9 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 				targetSpriteRenderer.color = baseColor;
 			}
 		}
-		else if (targetSpriteRenderer != null && networkPlayer == null)
+		else if (targetSpriteRenderer != null)
 		{
-			// Если NetworkPlayer еще не найден, используем цвет из PlayerPrefs
+			// Используем цвет по умолчанию
 			ApplySelectedColorIfExists();
 		}
 	}
@@ -476,15 +432,8 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	
 	private void ApplySelectedColorIfExists()
 	{
-		if (!PlayerPrefs.HasKey(PrefR) || !PlayerPrefs.HasKey(PrefG) || !PlayerPrefs.HasKey(PrefB) || !PlayerPrefs.HasKey(PrefA))
-			return;
-		
-		Color c = new Color(
-			PlayerPrefs.GetFloat(PrefR, 0.05f),
-			PlayerPrefs.GetFloat(PrefG, 0.82f),
-			PlayerPrefs.GetFloat(PrefB, 0.27f),
-			PlayerPrefs.GetFloat(PrefA, 1f)
-		);
+		// Используем цвет по умолчанию
+		Color c = new Color(0.05f, 0.82f, 0.27f, 1f);
 		
 		// Применить к линии
 		if (lineRenderer != null)
@@ -1078,7 +1027,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	}
 	
 	/// <summary>
-	/// Применяет цвет игрока к визуализатору (вызывается из NetworkPlayer)
+	/// Применяет цвет игрока к визуализатору
 	/// </summary>
 	public void ApplyPlayerColor(Color color)
 	{
@@ -1108,7 +1057,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	}
 	
 	/// <summary>
-	/// Устанавливает имя игрока (вызывается из NetworkPlayer)
+	/// Устанавливает имя игрока
 	/// </summary>
 	public void SetPlayerName(string name)
 	{

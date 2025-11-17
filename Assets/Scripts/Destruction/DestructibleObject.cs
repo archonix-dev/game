@@ -1,5 +1,6 @@
 using UnityEngine;
 using TMPro;
+using Mirror;
 
 /// <summary>
 /// Компонент для объектов которые могут быть захвачены и разрушены после определенного количества ударов
@@ -8,7 +9,7 @@ using TMPro;
 public class DestructibleObject : MonoBehaviour
 {
     [Header("Настройки разрушения")]
-    [SerializeField] private DestructibleObjectData objectData;
+    [SerializeField] public DestructibleObjectData objectData;
     
     [Header("Свойства захвата")]
     [Tooltip("Вес объекта в килограммах")]
@@ -229,6 +230,16 @@ public class DestructibleObject : MonoBehaviour
             return;
         }
         
+        // Проверяем, есть ли NetworkDestructibleObject для синхронизации в мультиплеере
+        NetworkDestructibleObject networkDestructible = GetComponent<NetworkDestructibleObject>();
+        if (networkDestructible != null && (NetworkServer.active || NetworkClient.active))
+        {
+            // Используем сетевую синхронизацию
+            networkDestructible.TakeHitNetworked(impactForce, impactPoint, impactDirection, sourceObject);
+            return; // NetworkDestructibleObject обработает удар
+        }
+        
+        // Локальная обработка (для одиночной игры или объектов без NetworkIdentity)
         currentHits++;
         
         // Визуальные эффекты
@@ -310,24 +321,36 @@ public class DestructibleObject : MonoBehaviour
             Destroy(soundObject, objectData.DestroySound.length);
         }
         
+        // Проверяем, есть ли NetworkIdentity для синхронизации в мультиплеере
+        NetworkIdentity networkIdentity = GetComponent<NetworkIdentity>();
+        bool isNetworked = networkIdentity != null && networkIdentity.netId != 0;
+        
         // Пытаемся использовать SimpleDestructionManager для реалистичного разрушения
         if (TryUseMeshCutter(impactPoint))
         {
             // SimpleDestructionManager успешно применен, уничтожаем объект с задержкой
-            Destroy(gameObject, 0.1f);
+            // В мультиплеере NetworkDestructibleObject уничтожит объект через NetworkServer
+            if (!isNetworked)
+            {
+                Destroy(gameObject, 0.1f);
+            }
         }
         else
         {
             // Используем простое разрушение
             CreateBreakEffect(impactPoint);
-            Destroy(gameObject);
+            // В мультиплеере NetworkDestructibleObject уничтожит объект через NetworkServer
+            if (!isNetworked)
+            {
+                Destroy(gameObject);
+            }
         }
     }
     
     /// <summary>
     /// Разрушает объект и выдает награды
     /// </summary>
-    private void DestroyObject(Vector3 destructionPoint, Vector3 direction, float force)
+    public void DestroyObject(Vector3 destructionPoint, Vector3 direction, float force)
     {
         
         // ВАЖНО: Сразу отключаем визуальное представление и коллайдеры
@@ -354,12 +377,16 @@ public class DestructibleObject : MonoBehaviour
             Destroy(effect, 3f);
         }
         
-        // Выдаем монеты
+        // Выдаем монеты ближайшему игроку
         int coinsToGive = objectData.GetCoinAmount();
-        if (CoinManager.Instance != null)
+        if (coinsToGive > 0)
         {
-            CoinManager.Instance.AddCoins(coinsToGive);
+            GiveCoinsToNearestPlayer(coinsToGive);
         }
+        
+        // Проверяем, есть ли NetworkIdentity для синхронизации в мультиплеере
+        NetworkIdentity networkIdentity = GetComponent<NetworkIdentity>();
+        bool isNetworked = networkIdentity != null && networkIdentity.netId != 0;
         
         // Реалистичное разрушение
         if (objectData.UseRealisticDestruction && meshFilter != null && meshFilter.mesh != null)
@@ -371,7 +398,11 @@ public class DestructibleObject : MonoBehaviour
             else
             {
                 CreateSimpleFragments(destructionPoint, direction);
-                Destroy(gameObject, 3f);
+                // В мультиплеере NetworkDestructibleObject уничтожит объект через NetworkServer
+                if (!isNetworked)
+                {
+                    Destroy(gameObject, 3f);
+                }
             }
         }
         else
@@ -379,8 +410,12 @@ public class DestructibleObject : MonoBehaviour
             // Простое разрушение - создаем осколки как дочерние объекты
             CreateSimpleFragments(destructionPoint, direction);
             
-            // Удаляем весь родительский объект вместе со всеми дочерними осколками через 3 секунды
-            Destroy(gameObject, 3f);
+            // В мультиплеере NetworkDestructibleObject уничтожит объект через NetworkServer
+            if (!isNetworked)
+            {
+                // Удаляем весь родительский объект вместе со всеми дочерними осколками через 3 секунды
+                Destroy(gameObject, 3f);
+            }
         }
     }
     
@@ -686,6 +721,53 @@ public class DestructibleObject : MonoBehaviour
             if (mainCamera != null)
             {
                 playerTransform = mainCamera.transform;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Выдает монеты ближайшему игроку
+    /// </summary>
+    void GiveCoinsToNearestPlayer(int coins)
+    {
+        // Ищем всех игроков в сцене
+        GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
+        if (players.Length == 0)
+        {
+            // Если нет игроков по тегу, пытаемся найти через NetworkClient
+            if (NetworkClient.localPlayer != null)
+            {
+                CoinManager coinManager = NetworkClient.localPlayer.GetComponent<CoinManager>();
+                if (coinManager != null)
+                {
+                    coinManager.AddCoins(coins);
+                    return;
+                }
+            }
+            return;
+        }
+        
+        // Находим ближайшего игрока
+        GameObject nearestPlayer = null;
+        float nearestDistance = float.MaxValue;
+        
+        foreach (GameObject player in players)
+        {
+            float distance = Vector3.Distance(transform.position, player.transform.position);
+            if (distance < nearestDistance)
+            {
+                nearestDistance = distance;
+                nearestPlayer = player;
+            }
+        }
+        
+        // Выдаем монеты ближайшему игроку
+        if (nearestPlayer != null)
+        {
+            CoinManager coinManager = nearestPlayer.GetComponent<CoinManager>();
+            if (coinManager != null)
+            {
+                coinManager.AddCoins(coins);
             }
         }
     }

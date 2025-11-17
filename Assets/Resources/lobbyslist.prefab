@@ -161,7 +161,7 @@ GameObject:
   - component: {fileID: 3246409778113928371}
   - component: {fileID: 3487423711065647081}
   - component: {fileID: 1628125059463066937}
-  - component: {fileID: 7721378301929413633}
+  - component: {fileID: 4341322520569702520}
   m_Layer: 5
   m_Name: lobbyslist
   m_TagString: Untagged
@@ -231,7 +231,7 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
---- !u!114 &7721378301929413633
+--- !u!114 &4341322520569702520
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -240,13 +240,14 @@ MonoBehaviour:
   m_GameObject: {fileID: 1941939924898430371}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 464df1b341fb1704eb3842394cfd8690, type: 3}
+  m_Script: {fileID: 11500000, guid: fd1997e8522645f4097492366b0f6f80, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  hostNameText: {fileID: 6127414177092007388}
-  connectButton: {fileID: 504833379462487848}
+  cursorFollowImage: {fileID: 2920875197631104277}
+  playerNameText: {fileID: 6127414177092007388}
+  playerCountText: {fileID: 3003248160576476842}
   passwordInput: {fileID: 216021511147101741}
-  playersCountText: {fileID: 3003248160576476842}
+  joinButton: {fileID: 504833379462487848}
 --- !u!1 &2385558590552263252
 GameObject:
   m_ObjectHideFlags: 0

@@ -35,11 +35,16 @@ public class CorpseGrabSystem : NetworkBehaviour
     [SerializeField] private float waveAmplitude = 0.1f; // Амплитуда волн
     [SerializeField] private float waveFrequency = 2f; // Частота волн
     
+    // Синхронизированный захваченный труп (NetworkIdentity)
+    [SyncVar(hook = nameof(OnGrabbedCorpseChanged))]
+    private uint grabbedCorpseNetId = 0;
     private GameObject currentGrabbedCorpse;
     private GameObject currentLookingAt;
     private Camera playerCamera;
     private Rigidbody grabbedRigidbody;
     private float currentWeight;
+    // Синхронизированное скольжение
+    [SyncVar]
     private float slipAccumulation;
     private Vector3 lastPlayerPosition;
     
@@ -173,7 +178,27 @@ public class CorpseGrabSystem : NetworkBehaviour
     
     void TryGrabCorpse(GameObject corpse)
     {
-        currentGrabbedCorpse = corpse;
+        // Обрабатываем захват только для владельца
+        if (!isOwned) return;
+        
+        NetworkIdentity corpseNetId = corpse.GetComponent<NetworkIdentity>();
+        if (corpseNetId == null || corpseNetId.netId == 0)
+        {
+            Debug.LogWarning("[CorpseGrabSystem] Труп не имеет NetworkIdentity!");
+            return;
+        }
+        
+        // Синхронизируем захват через сервер
+        if (isServer)
+        {
+            grabbedCorpseNetId = corpseNetId.netId;
+            currentGrabbedCorpse = corpse;
+        }
+        else
+        {
+            GrabCorpseCommand(corpseNetId.netId);
+        }
+        
         grabbedRigidbody = corpse.GetComponent<Rigidbody>();
         
         if (grabbedRigidbody != null)
@@ -197,8 +222,51 @@ public class CorpseGrabSystem : NetworkBehaviour
         }
     }
     
+    /// <summary>
+    /// Command для захвата трупа (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void GrabCorpseCommand(uint corpseNetId)
+    {
+        grabbedCorpseNetId = corpseNetId;
+    }
+    
+    /// <summary>
+    /// Hook для изменения захваченного трупа (вызывается при изменении SyncVar)
+    /// </summary>
+    void OnGrabbedCorpseChanged(uint oldNetId, uint newNetId)
+    {
+        // Находим объект по NetworkIdentity
+        if (newNetId == 0)
+        {
+            currentGrabbedCorpse = null;
+            grabbedRigidbody = null;
+        }
+        else
+        {
+            NetworkIdentity foundNetId = null;
+            foreach (NetworkIdentity netId in FindObjectsOfType<NetworkIdentity>())
+            {
+                if (netId.netId == newNetId)
+                {
+                    foundNetId = netId;
+                    break;
+                }
+            }
+            
+            if (foundNetId != null)
+            {
+                currentGrabbedCorpse = foundNetId.gameObject;
+                grabbedRigidbody = currentGrabbedCorpse.GetComponent<Rigidbody>();
+            }
+        }
+    }
+    
     public void ReleaseCorpse()
     {
+        // Обрабатываем отпускание только для владельца
+        if (!isOwned) return;
+        
         if (currentGrabbedCorpse != null)
         {
             if (grabbedRigidbody != null)
@@ -207,6 +275,16 @@ public class CorpseGrabSystem : NetworkBehaviour
                 grabbedRigidbody.linearDamping = 0f;
                 grabbedRigidbody.angularDamping = 0.05f;
                 grabbedRigidbody.useGravity = true;
+            }
+            
+            // Синхронизируем отпускание через сервер
+            if (isServer)
+            {
+                grabbedCorpseNetId = 0;
+            }
+            else
+            {
+                ReleaseCorpseCommand();
             }
             
             // Сбрасываем все переменные
@@ -224,6 +302,15 @@ public class CorpseGrabSystem : NetworkBehaviour
                 currentLookingAt = null;
             }
         }
+    }
+    
+    /// <summary>
+    /// Command для отпускания трупа (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void ReleaseCorpseCommand()
+    {
+        grabbedCorpseNetId = 0;
     }
     
     void MoveGrabbedCorpse()
@@ -294,6 +381,9 @@ public class CorpseGrabSystem : NetworkBehaviour
     
     void HandleWeightAndSlipping()
     {
+        // Обрабатываем скольжение только для владельца
+        if (!isOwned) return;
+        
         // Вычисляем скорость движения игрока
         Vector3 currentPlayerPosition = transform.root.position;
         float playerMovementSpeed = (currentPlayerPosition - lastPlayerPosition).magnitude / Time.deltaTime;
@@ -304,7 +394,17 @@ public class CorpseGrabSystem : NetworkBehaviour
         float movementFactor = playerMovementSpeed * movementSlipMultiplier;
         
         // Накапливаем скольжение
-        slipAccumulation += (weightFactor * weightSlipFactor + movementFactor * weightSlipFactor) * Time.deltaTime;
+        float newSlipAccumulation = slipAccumulation + (weightFactor * weightSlipFactor + movementFactor * weightSlipFactor) * Time.deltaTime;
+        
+        // Синхронизируем скольжение через сервер
+        if (isServer)
+        {
+            slipAccumulation = newSlipAccumulation;
+        }
+        else
+        {
+            SetSlipAccumulationCommand(newSlipAccumulation);
+        }
         
         // Если игрок двигается слишком быстро - роняем
         if (slipAccumulation > 1f || currentWeight > dropWeightThreshold * 0.8f && playerMovementSpeed > 5f)
@@ -316,7 +416,15 @@ public class CorpseGrabSystem : NetworkBehaviour
         // Постепенно уменьшаем скольжение если игрок стоит на месте
         if (playerMovementSpeed < 0.1f && currentWeight < maxComfortableWeight)
         {
-            slipAccumulation = Mathf.Max(0f, slipAccumulation - Time.deltaTime * 0.5f);
+            float reducedSlip = Mathf.Max(0f, slipAccumulation - Time.deltaTime * 0.5f);
+            if (isServer)
+            {
+                slipAccumulation = reducedSlip;
+            }
+            else
+            {
+                SetSlipAccumulationCommand(reducedSlip);
+            }
         }
         
         // Проверяем расстояние до целевой точки
@@ -332,6 +440,15 @@ public class CorpseGrabSystem : NetworkBehaviour
                 ReleaseCorpse();
             }
         }
+    }
+    
+    /// <summary>
+    /// Command для установки скольжения (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void SetSlipAccumulationCommand(float slip)
+    {
+        slipAccumulation = slip;
     }
     
     void HighlightObject(GameObject obj)
@@ -375,7 +492,7 @@ public class CorpseGrabSystem : NetworkBehaviour
     // Публичные методы для получения информации о состоянии
     public bool IsHoldingCorpse() 
     {
-        return currentGrabbedCorpse != null;
+        return grabbedCorpseNetId != 0 || currentGrabbedCorpse != null;
     }
     
     public float GetCurrentWeight() => currentWeight;

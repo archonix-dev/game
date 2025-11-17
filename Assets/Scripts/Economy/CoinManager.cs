@@ -1,66 +1,71 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using Mirror;
 
 /// <summary>
-/// Singleton менеджер для управления системой монет
+/// Менеджер для управления системой монет каждого игрока отдельно
+/// Синхронизируется через сеть с помощью Mirror
 /// </summary>
-public class CoinManager : MonoBehaviour
+public class CoinManager : NetworkBehaviour
 {
-    public static CoinManager Instance { get; private set; }
-    
     [Header("UI Настройки")]
     [SerializeField] private Text coinsText; // Для обычного UI Text
     
     [Header("Настройки")]
     [SerializeField] private int startingCoins = 0;
-    [SerializeField] private bool saveCoins = true;
-    [SerializeField] private string saveKey = "PlayerCoins";
     
     [Header("Визуальная обратная связь")]
     [SerializeField] private bool animateOnChange = true;
     [SerializeField] private float animationDuration = 0.5f;
     
+    // Сетевая переменная для синхронизации количества монет
+    [SyncVar(hook = nameof(OnCoinsChanged))]
     private int currentCoins = 0;
-    private AudioSource audioSource;
     
-    // Для анимации
+    // Для анимации (только на клиенте)
     private int displayedCoins = 0;
     private float animationTimer = 0f;
     private int targetCoins = 0;
     
-    void Awake()
+    public override void OnStartServer()
     {
-        // Singleton паттерн
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-        Instance = this;
-    }
-    
-    void Start()
-    {
-        // Загружаем сохраненные монеты или устанавливаем стартовое значение
-        if (saveCoins && PlayerPrefs.HasKey(saveKey))
-        {
-            currentCoins = PlayerPrefs.GetInt(saveKey, startingCoins);
-        }
-        else
+        base.OnStartServer();
+        
+        // Инициализируем монеты на сервере
+        if (isServer)
         {
             currentCoins = startingCoins;
+            Debug.Log($"[CoinManager] Инициализировано {currentCoins} монет для игрока {netId}");
         }
+    }
+    
+    public override void OnStartClient()
+    {
+        base.OnStartClient();
         
+        // Инициализируем UI на клиенте
         displayedCoins = currentCoins;
         targetCoins = currentCoins;
         UpdateUI();
     }
     
+    void Start()
+    {
+        // Если не в сети, инициализируем локально (для тестирования)
+        if (netIdentity == null || netIdentity.netId == 0)
+        {
+            currentCoins = startingCoins;
+            displayedCoins = currentCoins;
+            targetCoins = currentCoins;
+            UpdateUI();
+        }
+    }
+    
     void Update()
     {
-        // Анимация изменения монет
-        if (animateOnChange && displayedCoins != targetCoins)
+        // Анимация изменения монет (только для локального игрока)
+        if (isOwned && animateOnChange && displayedCoins != targetCoins)
         {
             animationTimer += Time.deltaTime;
             float progress = Mathf.Clamp01(animationTimer / animationDuration);
@@ -78,69 +83,62 @@ public class CoinManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Добавить монеты
+    /// Hook для синхронизации монет (вызывается при изменении SyncVar)
     /// </summary>
-    public void AddCoins(int amount)
+    void OnCoinsChanged(int oldValue, int newValue)
     {
-        if (amount <= 0) return;
-        
-        currentCoins += amount;
-        targetCoins = currentCoins;
-        
-        
-        if (!animateOnChange)
+        // Обновляем UI только для локального игрока
+        if (isOwned)
         {
-            displayedCoins = currentCoins;
-            UpdateUI();
-        }
-        else
-        {
-            animationTimer = 0f;
-        }
-        
-        // Сохраняем
-        SaveCoins();
-    }
-    
-    /// <summary>
-    /// Потратить монеты
-    /// </summary>
-    public bool SpendCoins(int amount)
-    {
-        if (amount <= 0) return false;
-        
-        if (currentCoins >= amount)
-        {
-            currentCoins -= amount;
-            targetCoins = currentCoins;
+            targetCoins = newValue;
             
             if (!animateOnChange)
             {
-                displayedCoins = currentCoins;
+                displayedCoins = newValue;
                 UpdateUI();
             }
             else
             {
                 animationTimer = 0f;
             }
-            
-            SaveCoins();
-            return true;
         }
-        
-        return false;
     }
     
     /// <summary>
-    /// Установить количество монет
+    /// Добавить монеты (вызывается на клиенте, выполняется на сервере)
     /// </summary>
+    [Command(requiresAuthority = false)]
+    public void AddCoins(int amount)
+    {
+        if (amount <= 0) return;
+        
+        currentCoins += amount;
+        Debug.Log($"[CoinManager] Добавлено {amount} монет. Всего: {currentCoins} (игрок {netId})");
+    }
+    
+    /// <summary>
+    /// Потратить монеты (вызывается на клиенте, выполняется на сервере)
+    /// </summary>
+    [Command(requiresAuthority = false)]
+    public void SpendCoins(int amount)
+    {
+        if (amount <= 0) return;
+        
+        if (currentCoins >= amount)
+        {
+            currentCoins -= amount;
+            Debug.Log($"[CoinManager] Потрачено {amount} монет. Осталось: {currentCoins} (игрок {netId})");
+        }
+    }
+    
+    /// <summary>
+    /// Установить количество монет (вызывается на клиенте, выполняется на сервере)
+    /// </summary>
+    [Command(requiresAuthority = false)]
     public void SetCoins(int amount)
     {
         currentCoins = Mathf.Max(0, amount);
-        targetCoins = currentCoins;
-        displayedCoins = currentCoins;
-        UpdateUI();
-        SaveCoins();
+        Debug.Log($"[CoinManager] Установлено {currentCoins} монет (игрок {netId})");
     }
     
     /// <summary>
@@ -160,10 +158,16 @@ public class CoinManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Обновить UI текст
+    /// Обновить UI текст (только для локального игрока)
     /// </summary>
     private void UpdateUI()
     {
+        // Обновляем UI только для локального игрока
+        if (!isOwned && netIdentity != null && netIdentity.netId != 0)
+        {
+            return;
+        }
+        
         string coinText = displayedCoins.ToString();
         
         // Обновляем обычный Text
@@ -174,23 +178,13 @@ public class CoinManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Сохранить монеты в PlayerPrefs
+    /// Сбросить монеты до стартового значения (вызывается на клиенте, выполняется на сервере)
     /// </summary>
-    private void SaveCoins()
-    {
-        if (saveCoins)
-        {
-            PlayerPrefs.SetInt(saveKey, currentCoins);
-            PlayerPrefs.Save();
-        }
-    }
-    
-    /// <summary>
-    /// Сбросить монеты до стартового значения
-    /// </summary>
+    [Command(requiresAuthority = false)]
     public void ResetCoins()
     {
-        SetCoins(startingCoins);
+        currentCoins = startingCoins;
+        Debug.Log($"[CoinManager] Монеты сброшены до {startingCoins} (игрок {netId})");
     }
     
     /// <summary>
@@ -210,17 +204,16 @@ public class CoinManager : MonoBehaviour
         UpdateUI();
     }
     
-    void OnApplicationQuit()
+    /// <summary>
+    /// Получить CoinManager от локального игрока (для обратной совместимости)
+    /// </summary>
+    public static CoinManager GetLocalPlayerCoinManager()
     {
-        SaveCoins();
-    }
-    
-    void OnDestroy()
-    {
-        if (Instance == this)
+        if (NetworkClient.localPlayer != null)
         {
-            SaveCoins();
+            return NetworkClient.localPlayer.GetComponent<CoinManager>();
         }
+        return null;
     }
 }
 

@@ -307,13 +307,7 @@ public class ShowAndHideAfterDelay : MonoBehaviour
         
         float elapsedTime = 0f;
         
-        // Загружаем PlayerPrefs настройки
-        PlayerPrefs.GetInt("PlayerCoins", 0);
-        PlayerPrefs.GetFloat("MasterVolume", 1f);
-        PlayerPrefs.GetFloat("MusicVolume", 1f);
-        PlayerPrefs.GetString("Language", "ru");
-        PlayerPrefs.GetInt("QualityLevel", 2);
-        PlayerPrefs.GetFloat("RenderScale", 1f);
+        // Настройки загружаются автоматически через соответствующие менеджеры
         
         // Минимальное время для этапа
         while (elapsedTime < minLoadTimePerStage)
@@ -363,11 +357,7 @@ public class ShowAndHideAfterDelay : MonoBehaviour
         
         float elapsedTime = 0f;
         
-        // Инициализация менеджеров
-        if (CoinManager.Instance == null)
-        {
-            // Ждем инициализации CoinManager
-        }
+        // Инициализация менеджеров (CoinManager теперь на каждом игроке, проверка не нужна)
         
         // Минимальное время для этапа
         while (elapsedTime < minLoadTimePerStage)

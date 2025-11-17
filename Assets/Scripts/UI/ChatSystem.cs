@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using Mirror;
 using System.Collections;
 using System.Collections.Generic;
+using Game.Localization;
 
 /// <summary>
 /// Система чата. Открывается по нажатию "/" или "T", блокирует движение игрока и камеру.
@@ -53,8 +54,6 @@ public class ChatSystem : NetworkBehaviour
     [Tooltip("Префаб сообщения чата (должен иметь NetworkObject и ChatMessageItem компонент)")]
     public GameObject chatMessagePrefab;
     
-    [Tooltip("Ссылка на NetworkPlayer для получения имени и цвета игрока")]
-    private NetworkPlayer networkPlayer;
     
     private bool isChatOpen = false;
     private Coroutine playMessageSoundsCoroutine;
@@ -70,8 +69,7 @@ public class ChatSystem : NetworkBehaviour
         // Настраиваем AudioSource в зависимости от владельца
         SetupAudioSource();
         
-        // Находим NetworkPlayer для получения имени и цвета
-        FindNetworkPlayer();
+        // Используем значения по умолчанию для имени и цвета
     }
     
     void Start()
@@ -117,8 +115,7 @@ public class ChatSystem : NetworkBehaviour
         // Инициализация словаря звуков для символов
         InitializeCharacterSoundMap();
         
-        // Находим NetworkPlayer если еще не найден (с задержкой, так как он может быть еще не инициализирован)
-        StartCoroutine(FindAndApplyNetworkPlayerData());
+        // Используем значения по умолчанию для имени и цвета
     }
     
     private void SetupAudioSource()
@@ -153,38 +150,6 @@ public class ChatSystem : NetworkBehaviour
         }
     }
     
-    private System.Collections.IEnumerator FindAndApplyNetworkPlayerData()
-    {
-        // Ждем немного, чтобы NetworkPlayer успел инициализироваться
-        yield return new WaitForSeconds(0.1f);
-        
-        // Пытаемся найти NetworkPlayer несколько раз
-        int attempts = 0;
-        while (networkPlayer == null && attempts < 10)
-        {
-            FindNetworkPlayer();
-            if (networkPlayer == null)
-            {
-                yield return new WaitForSeconds(0.1f);
-                attempts++;
-            }
-        }
-    }
-    
-    void FindNetworkPlayer()
-    {
-        // Ищем NetworkPlayer на этом объекте или в родительских объектах
-        networkPlayer = GetComponentInParent<NetworkPlayer>();
-        if (networkPlayer == null)
-        {
-            networkPlayer = GetComponent<NetworkPlayer>();
-        }
-        if (networkPlayer == null)
-        {
-            // Пытаемся найти в дочерних объектах
-            networkPlayer = GetComponentInChildren<NetworkPlayer>();
-        }
-    }
     
     /// <summary>
     /// Инициализирует словарь сопоставления символов и звуков
@@ -368,15 +333,25 @@ public class ChatSystem : NetworkBehaviour
             {
                 // В одиночной игре создаем локально
                 Debug.Log($"[ChatSystem] Одиночная игра, создание локального сообщения: text={text}");
+                
                 // Получаем имя и цвет игрока
                 string playerName = "Player";
                 Color playerColor = Color.white;
                 bool isAdmin = false;
                 
-                if (networkPlayer != null)
+                // Пытаемся найти LobbyPlayer для локального игрока
+                LobbyPlayer[] allLobbyPlayers = FindObjectsOfType<LobbyPlayer>();
+                if (allLobbyPlayers != null && allLobbyPlayers.Length > 0)
                 {
-                    playerName = networkPlayer.PlayerName;
-                    playerColor = networkPlayer.PlayerColor;
+                    // Берем первого найденного LobbyPlayer (в одиночной игре обычно один)
+                    LobbyPlayer lobbyPlayer = allLobbyPlayers[0];
+                    if (lobbyPlayer != null)
+                    {
+                        playerName = lobbyPlayer.playerName;
+                        playerColor = lobbyPlayer.GetPlayerColor();
+                        isAdmin = lobbyPlayer.isOwner;
+                        Debug.Log($"[ChatSystem] Найден LobbyPlayer для одиночной игры: {playerName}, цвет: {playerColor}, isOwner: {isAdmin}");
+                    }
                 }
                 
                 // Создаем локально
@@ -458,7 +433,7 @@ public class ChatSystem : NetworkBehaviour
         int russianLetterCount = 0;
         int englishLetterCount = 0;
         
-        // Если сообщение содержит только цифры, используем язык из PlayerPrefs
+        // Если сообщение содержит только цифры, используем язык из LocalizationManager
         if (isOnlyDigits)
         {
             isRussianContext = IsRussianLanguage();
@@ -577,11 +552,15 @@ public class ChatSystem : NetworkBehaviour
     }
     
     /// <summary>
-    /// Проверяет, является ли текущий язык игры русским (по PlayerPrefs)
+    /// Проверяет, является ли текущий язык игры русским
     /// </summary>
     private bool IsRussianLanguage()
     {
-        string language = PlayerPrefs.GetString("Localization.Language", string.Empty);
+        // Используем LocalizationManager для получения языка
+        if (LocalizationManager.Instance == null)
+            return false;
+        
+        string language = LocalizationManager.Instance.GetCurrentLanguage();
         
         if (string.IsNullOrEmpty(language))
             return false;
@@ -701,153 +680,80 @@ public class ChatSystem : NetworkBehaviour
     {
         // В Mirror, когда клиент вызывает Command, sender автоматически передается
         // Если sender null, используем connectionToClient из этого NetworkIdentity
+        NetworkConnectionToClient actualSender = sender;
+        if (actualSender == null && netIdentity != null && netIdentity.connectionToClient != null)
+        {
+            actualSender = netIdentity.connectionToClient;
+        }
+        
         uint senderId = 0;
-        if (sender != null)
+        if (actualSender != null)
         {
-            senderId = (uint)sender.connectionId;
-        }
-        else if (netIdentity != null && netIdentity.connectionToClient != null)
-        {
-            senderId = (uint)netIdentity.connectionToClient.connectionId;
+            senderId = (uint)actualSender.connectionId;
         }
         
-        Debug.Log($"[ChatSystem] Command получен: message={message}, senderId={senderId}, sender={(sender != null ? "NOT NULL" : "NULL")}, connectionToClient={(netIdentity?.connectionToClient != null ? "NOT NULL" : "NULL")}");
+        Debug.Log($"[ChatSystem] Command получен: message={message}, senderId={senderId}, sender={(actualSender != null ? "NOT NULL" : "NULL")}, connectionToClient={(netIdentity?.connectionToClient != null ? "NOT NULL" : "NULL")}");
         
-        // Получаем имя и цвет игрока
+        // Получаем имя и цвет игрока из LobbyPlayer
         string playerName = "Player";
         Color playerColor = Color.white;
         bool isAdmin = false;
         
-        // Ищем NetworkPlayer для отправителя
-        NetworkPlayer senderPlayer = FindNetworkPlayerByConnectionId(senderId);
-        Debug.Log($"[ChatSystem] Поиск NetworkPlayer для connectionId={senderId}, senderPlayer={(senderPlayer != null ? senderPlayer.name : "NULL")}");
+        // Пытаемся найти LobbyPlayer для отправителя
+        LobbyPlayer lobbyPlayer = null;
         
-        if (senderPlayer != null)
+        if (actualSender != null)
         {
-            playerName = senderPlayer.PlayerName;
-            playerColor = senderPlayer.PlayerColor;
-            Debug.Log($"[ChatSystem] Имя из NetworkPlayer: {playerName}, цвет: {playerColor}, PlayerId={senderPlayer.PlayerId}");
-            
-            // Если имя все еще "Player", пытаемся загрузить из PlayerPrefs
-            // Если имя все еще "Player", пытаемся получить из Steam
-            if (playerName == "Player")
+            // Вариант 1: Проверяем, есть ли LobbyPlayer как player object у этого подключения
+            if (actualSender.identity != null)
             {
-                #if !DISABLESTEAMWORKS
-                if (SteamManager.Instance != null && SteamManager.Instance.IsSteamInitialized())
+                lobbyPlayer = actualSender.identity.GetComponent<LobbyPlayer>();
+            }
+            
+            // Вариант 2: Если не нашли, ищем по всем LobbyPlayer и проверяем connectionToClient
+            if (lobbyPlayer == null)
+            {
+                LobbyPlayer[] allLobbyPlayers = FindObjectsOfType<LobbyPlayer>();
+                foreach (LobbyPlayer lp in allLobbyPlayers)
                 {
-                    string steamName = SteamManager.Instance.GetSteamName();
-                    if (!string.IsNullOrEmpty(steamName))
+                    if (lp.connectionToClient != null && lp.connectionToClient.connectionId == actualSender.connectionId)
                     {
-                        playerName = steamName;
-                        Debug.Log($"[ChatSystem] Имя получено из Steam: {playerName}");
+                        lobbyPlayer = lp;
+                        break;
                     }
                 }
-                #endif
-                
-                // Если Steam не доступен, пробуем PlayerPrefs
-                if (playerName == "Player" && PlayerPrefs.HasKey("PlayerName"))
-                {
-                    playerName = PlayerPrefs.GetString("PlayerName", "Player");
-                    Debug.Log($"[ChatSystem] Имя загружено из PlayerPrefs: {playerName}");
-                }
             }
+        }
+        
+        // Если нашли LobbyPlayer, получаем данные из него
+        if (lobbyPlayer != null)
+        {
+            playerName = lobbyPlayer.playerName;
+            playerColor = lobbyPlayer.GetPlayerColor();
+            isAdmin = lobbyPlayer.isOwner;
+            Debug.Log($"[ChatSystem] Найден LobbyPlayer: {playerName}, цвет: {playerColor}, isOwner: {isAdmin}");
         }
         else
         {
-            Debug.Log($"[ChatSystem] NetworkPlayer не найден для connectionId={senderId}, ищем на этом объекте...");
-            // Пытаемся найти NetworkPlayer на этом объекте
-            if (networkPlayer != null && networkPlayer.PlayerId == senderId)
+            // Если не нашли LobbyPlayer, используем значения по умолчанию
+            // и проверяем, является ли отправитель админом (хостом)
+            if (actualSender != null)
             {
-                playerName = networkPlayer.PlayerName;
-                playerColor = networkPlayer.PlayerColor;
-                Debug.Log($"[ChatSystem] Имя из networkPlayer на этом объекте: {playerName}, цвет: {playerColor}, PlayerId={networkPlayer.PlayerId}");
-                
-                // Если имя все еще "Player", пытаемся получить из Steam
-                if (playerName == "Player")
-                {
-                    #if !DISABLESTEAMWORKS
-                    if (SteamManager.Instance != null && SteamManager.Instance.IsSteamInitialized())
-                    {
-                        string steamName = SteamManager.Instance.GetSteamName();
-                        if (!string.IsNullOrEmpty(steamName))
-                        {
-                            playerName = steamName;
-                            Debug.Log($"[ChatSystem] Имя получено из Steam: {playerName}");
-                        }
-                    }
-                    #endif
-                    
-                    // Если Steam не доступен, пробуем PlayerPrefs
-                    if (playerName == "Player" && PlayerPrefs.HasKey("PlayerName"))
-                    {
-                        playerName = PlayerPrefs.GetString("PlayerName", "Player");
-                        Debug.Log($"[ChatSystem] Имя загружено из PlayerPrefs: {playerName}");
-                    }
-                }
+                // Проверяем, является ли этот connection хостом
+                // Хост - это когда NetworkServer.activeHost == true
+                // И connectionId хоста обычно 0, но нужно проверить через NetworkServer.connections
+                isAdmin = NetworkServer.activeHost && actualSender.connectionId == 0;
             }
-            else
+            else if (senderId == 0 && NetworkServer.activeHost)
             {
-                Debug.Log($"[ChatSystem] networkPlayer на этом объекте тоже NULL или не совпадает PlayerId, загружаем из PlayerPrefs...");
-                // Если NetworkPlayer не найден, пытаемся получить из Steam
-                #if !DISABLESTEAMWORKS
-                if (SteamManager.Instance != null && SteamManager.Instance.IsSteamInitialized())
-                {
-                    string steamName = SteamManager.Instance.GetSteamName();
-                    if (!string.IsNullOrEmpty(steamName))
-                    {
-                        playerName = steamName;
-                        Debug.Log($"[ChatSystem] NetworkPlayer не найден, имя получено из Steam: {playerName}");
-                    }
-                }
-                #endif
-                
-                // Если Steam не доступен, пробуем PlayerPrefs
-                if (playerName == "Player" && PlayerPrefs.HasKey("PlayerName"))
-                {
-                    playerName = PlayerPrefs.GetString("PlayerName", "Player");
-                    Debug.Log($"[ChatSystem] NetworkPlayer не найден, имя загружено из PlayerPrefs: {playerName}");
-                }
-                else
-                {
-                    Debug.LogWarning($"[ChatSystem] PlayerPrefs не содержит PlayerName! Проверяем все ключи PlayerPrefs...");
-                    // Логируем все ключи PlayerPrefs для отладки
-                    string[] allKeys = GetAllPlayerPrefsKeys();
-                    Debug.Log($"[ChatSystem] Все ключи PlayerPrefs: {string.Join(", ", allKeys)}");
-                }
-                
-                // Загружаем цвет из PlayerPrefs, если он был сохранен
-                if (PlayerPrefs.HasKey("PlayerColor_R") && PlayerPrefs.HasKey("PlayerColor_G") && 
-                    PlayerPrefs.HasKey("PlayerColor_B") && PlayerPrefs.HasKey("PlayerColor_A"))
-                {
-                    playerColor = new Color(
-                        PlayerPrefs.GetFloat("PlayerColor_R", 0.05f),
-                        PlayerPrefs.GetFloat("PlayerColor_G", 0.82f),
-                        PlayerPrefs.GetFloat("PlayerColor_B", 0.27f),
-                        PlayerPrefs.GetFloat("PlayerColor_A", 1f)
-                    );
-                }
+                // Если senderId == 0 и мы хост, то это хост
+                isAdmin = true;
             }
+            
+            Debug.LogWarning($"[ChatSystem] LobbyPlayer не найден для connectionId {senderId}, используем значения по умолчанию");
         }
         
-        Debug.Log($"[ChatSystem] Финальное имя для отправки: {playerName}, цвет: {playerColor}");
-        
-        // Проверяем, является ли отправитель админом (хостом)
-        // В Mirror хост - это сервер, который также является клиентом
-        // Проверяем, является ли отправитель хостом
-        if (sender != null)
-        {
-            // Проверяем, является ли этот connection хостом
-            // Хост - это когда NetworkServer.activeHost == true
-            // И connectionId хоста обычно 0, но нужно проверить через NetworkServer.connections
-            isAdmin = NetworkServer.activeHost && sender.connectionId == 0;
-        }
-        else if (senderId == 0 && NetworkServer.activeHost)
-        {
-            // Если senderId == 0 и мы хост, то это хост
-            isAdmin = true;
-        }
-        
-        Debug.Log($"[ChatSystem] isAdmin={isAdmin}, senderId={senderId}, activeHost={NetworkServer.activeHost}");
+        Debug.Log($"[ChatSystem] Финальное имя для отправки: {playerName}, цвет: {playerColor}, isAdmin: {isAdmin}");
         
         // Отправляем сообщение всем клиентам через ClientRpc
         // ClientRpc автоматически отправляется всем клиентам, у которых есть этот NetworkIdentity
@@ -855,7 +761,7 @@ public class ChatSystem : NetworkBehaviour
         bool isSpawned = networkIdentity != null && networkIdentity.netId != 0;
         Debug.Log($"[ChatSystem] Отправка ClientRpc: message={message}, playerName={playerName}, senderId={senderId}, isSpawned={isSpawned}, netId={networkIdentity?.netId ?? 0}, isServer={isServer}");
         
-            if (networkIdentity == null || networkIdentity.netId == 0)
+        if (networkIdentity == null || networkIdentity.netId == 0)
         {
             bool netIsSpawned = networkIdentity != null && networkIdentity.netId != 0;
             Debug.LogError($"[ChatSystem] NetworkIdentity не найден или не заспавнен! networkIdentity={networkIdentity}, isSpawned={netIsSpawned}");
@@ -880,29 +786,6 @@ public class ChatSystem : NetworkBehaviour
         SpawnChatMessageLocally(message, playerName, playerColor, clientId, isAdmin);
     }
     
-    /// <summary>
-    /// Находит NetworkPlayer по connectionId
-    /// </summary>
-    private NetworkPlayer FindNetworkPlayerByConnectionId(uint connectionId)
-    {
-        NetworkPlayer[] allPlayers = FindObjectsOfType<NetworkPlayer>();
-        Debug.Log($"[ChatSystem] Поиск NetworkPlayer для connectionId={connectionId}, найдено игроков: {allPlayers.Length}");
-        
-        foreach (NetworkPlayer player in allPlayers)
-        {
-            uint playerId = player.PlayerId;
-            Debug.Log($"[ChatSystem] Проверка игрока: name={player.name}, PlayerId={playerId}, netId={player.netIdentity?.netId ?? 0}, connectionId={connectionId}");
-            
-            if (player.netIdentity != null && player.netIdentity.netId != 0 && playerId == connectionId)
-            {
-                Debug.Log($"[ChatSystem] ✓ NetworkPlayer найден: {player.name}, PlayerId={playerId}, PlayerName={player.PlayerName}");
-                return player;
-            }
-        }
-        
-        Debug.LogWarning($"[ChatSystem] NetworkPlayer не найден для connectionId={connectionId}");
-        return null;
-    }
     
     /// <summary>
     /// Спавнит префаб сообщения чата локально на каждом клиенте
@@ -979,27 +862,6 @@ public class ChatSystem : NetworkBehaviour
         Debug.Log($"[ChatSystem] ✓ Сообщение от {playerName} создано локально: {message}, родитель: {(messageObject.transform.parent != null ? messageObject.transform.parent.name : "NULL")}");
     }
     
-    /// <summary>
-    /// Получает все ключи PlayerPrefs (для отладки)
-    /// </summary>
-    private string[] GetAllPlayerPrefsKeys()
-    {
-        // Unity не предоставляет прямого способа получить все ключи PlayerPrefs
-        // Но мы можем проверить известные ключи
-        List<string> keys = new List<string>();
-        
-        // Проверяем известные ключи
-        string[] knownKeys = { "PlayerName", "PlayerColor_R", "PlayerColor_G", "PlayerColor_B", "PlayerColor_A" };
-        foreach (string key in knownKeys)
-        {
-            if (PlayerPrefs.HasKey(key))
-            {
-                keys.Add($"{key}={PlayerPrefs.GetString(key, "")}");
-            }
-        }
-        
-        return keys.ToArray();
-    }
     
     void OnDestroy()
     {

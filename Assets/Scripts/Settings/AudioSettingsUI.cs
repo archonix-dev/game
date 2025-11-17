@@ -118,17 +118,69 @@ public class AudioSettingsUI : MonoBehaviour
     [Header("Buttons")]
     public Button resetButton;
     public Button applyButton;
+    [Tooltip("Кнопка для прослушивания микрофона")]
+    public Button testMicrophoneButton;
+
+    [Header("Microphone Monitoring")]
+    [Tooltip("Image для визуальной индикации прослушивания микрофона")]
+    public UnityEngine.UI.Image microphoneIndicatorImage;
+    [Tooltip("Скорость изменения прозрачности (секунды на цикл)")]
+    public float indicatorFadeSpeed = 1f;
 
     [Header("Audio Mixer")]
     public AudioMixer audioMixer;
 
     private AudioSettings currentSettings;
+    
+    // Переменные для прослушивания микрофона
+    private AudioSource microphoneAudioSource;
+    private AudioClip microphoneClip;
+    private bool isMonitoringMicrophone = false;
+    private float savedMusicVolume = 1f; // Сохраненное значение громкости Music перед уменьшением
+    private Coroutine musicVolumeCoroutine;
+    private Coroutine indicatorFadeCoroutine; // Корутина для анимации индикатора
 
     private void Start()
     {
         InitializeSettings();
         InitializeUI();
         LoadCurrentSettings();
+        InitializeMicrophoneAudioSource();
+        InitializeMicrophoneIndicator();
+    }
+    
+    private void InitializeMicrophoneIndicator()
+    {
+        // Скрываем индикатор по умолчанию
+        if (microphoneIndicatorImage != null)
+        {
+            microphoneIndicatorImage.gameObject.SetActive(false);
+            // Устанавливаем начальную прозрачность
+            Color color = microphoneIndicatorImage.color;
+            color.a = 0f;
+            microphoneIndicatorImage.color = color;
+        }
+    }
+    
+    private void InitializeMicrophoneAudioSource()
+    {
+        // Создаем AudioSource для воспроизведения микрофона
+        microphoneAudioSource = gameObject.AddComponent<AudioSource>();
+        microphoneAudioSource.loop = true;
+        microphoneAudioSource.playOnAwake = false;
+        
+        // Настраиваем AudioSource для использования AudioMixer
+        // Используем playersGroup, если он доступен, иначе будет использован Master
+        if (currentSettings != null && currentSettings.playersGroup != null)
+        {
+            microphoneAudioSource.outputAudioMixerGroup = currentSettings.playersGroup;
+        }
+    }
+    
+    private void OnDestroy()
+    {
+        // Останавливаем микрофон при уничтожении объекта
+        StopMicrophoneMonitoring();
     }
 
     private void InitializeUI()
@@ -190,6 +242,9 @@ public class AudioSettingsUI : MonoBehaviour
 
         if (applyButton != null)
             applyButton.onClick.AddListener(OnApplyButtonClicked);
+            
+        if (testMicrophoneButton != null)
+            testMicrophoneButton.onClick.AddListener(OnTestMicrophoneButtonClicked);
     }
 
     private void InitializeSettings()
@@ -383,6 +438,12 @@ public class AudioSettingsUI : MonoBehaviour
         {
             currentSettings.microphoneSensitivity = Mathf.Clamp(value, 0.0001f, 100f);
             UpdateMicrophoneSensitivityLabel();
+            
+            // Обновляем громкость микрофона во время прослушивания
+            if (isMonitoringMicrophone && microphoneAudioSource != null)
+            {
+                ApplyMicrophoneSensitivity();
+            }
         }
     }
 
@@ -441,6 +502,314 @@ public class AudioSettingsUI : MonoBehaviour
         {
             currentSettings.SaveSettings();
         }
+    }
+    
+    private void OnTestMicrophoneButtonClicked()
+    {
+        if (isMonitoringMicrophone)
+        {
+            StopMicrophoneMonitoring();
+        }
+        else
+        {
+            StartMicrophoneMonitoring();
+        }
+    }
+    #endregion
+    
+    #region Microphone Monitoring
+    /// <summary>
+    /// Начинает прослушивание микрофона
+    /// </summary>
+    private void StartMicrophoneMonitoring()
+    {
+        if (isMonitoringMicrophone) return;
+        
+        if (currentSettings == null || audioMixer == null)
+        {
+            Debug.LogWarning("[AudioSettingsUI] Не удалось начать прослушивание микрофона: настройки или микшер не инициализированы");
+            return;
+        }
+        
+        // Получаем текущее значение громкости Music из микшера
+        if (audioMixer.GetFloat("Music", out float currentMusicDb))
+        {
+            // Конвертируем из децибел в линейное значение
+            savedMusicVolume = DecibelsToLinear(currentMusicDb);
+        }
+        else
+        {
+            // Если не удалось получить, используем значение из настроек
+            savedMusicVolume = currentSettings.musicVolume;
+        }
+        
+        // Получаем устройство микрофона
+        string deviceName = currentSettings.microphoneDevice;
+        if (string.IsNullOrEmpty(deviceName))
+        {
+            deviceName = null; // Используем устройство по умолчанию
+        }
+        
+        // Проверяем доступность микрофона
+        if (deviceName != null && System.Array.IndexOf(Microphone.devices, deviceName) < 0)
+        {
+            Debug.LogWarning($"[AudioSettingsUI] Микрофон '{deviceName}' не найден, используется устройство по умолчанию");
+            deviceName = null;
+        }
+        
+        // Начинаем запись с микрофона
+        int frequency = 44100; // Частота дискретизации
+        microphoneClip = Microphone.Start(deviceName, true, 10, frequency);
+        
+        if (microphoneClip == null)
+        {
+            Debug.LogError("[AudioSettingsUI] Не удалось начать запись с микрофона");
+            return;
+        }
+        
+        isMonitoringMicrophone = true;
+        
+        // Показываем индикатор и запускаем анимацию
+        if (microphoneIndicatorImage != null)
+        {
+            microphoneIndicatorImage.gameObject.SetActive(true);
+            // Устанавливаем начальную прозрачность
+            Color color = microphoneIndicatorImage.color;
+            color.a = 0f;
+            microphoneIndicatorImage.color = color;
+            
+            // Запускаем анимацию прозрачности
+            if (indicatorFadeCoroutine != null)
+            {
+                StopCoroutine(indicatorFadeCoroutine);
+            }
+            indicatorFadeCoroutine = StartCoroutine(AnimateMicrophoneIndicator());
+        }
+        
+        // Плавно уменьшаем громкость Music до 0
+        if (musicVolumeCoroutine != null)
+        {
+            StopCoroutine(musicVolumeCoroutine);
+        }
+        musicVolumeCoroutine = StartCoroutine(FadeMusicVolume(savedMusicVolume, 0f, 0.5f));
+        
+        // Запускаем корутину для ожидания начала записи и воспроизведения
+        StartCoroutine(WaitForMicrophoneAndPlay(deviceName));
+        
+        Debug.Log("[AudioSettingsUI] Начато прослушивание микрофона");
+    }
+    
+    /// <summary>
+    /// Останавливает прослушивание микрофона
+    /// </summary>
+    private void StopMicrophoneMonitoring()
+    {
+        if (!isMonitoringMicrophone) return;
+        
+        // Останавливаем воспроизведение
+        if (microphoneAudioSource != null && microphoneAudioSource.isPlaying)
+        {
+            microphoneAudioSource.Stop();
+        }
+        
+        // Останавливаем запись с микрофона
+        string deviceName = currentSettings != null ? currentSettings.microphoneDevice : null;
+        if (string.IsNullOrEmpty(deviceName))
+        {
+            deviceName = null;
+        }
+        
+        if (Microphone.IsRecording(deviceName))
+        {
+            Microphone.End(deviceName);
+        }
+        
+        // Удаляем AudioClip
+        if (microphoneClip != null)
+        {
+            Destroy(microphoneClip);
+            microphoneClip = null;
+        }
+        
+        isMonitoringMicrophone = false;
+        
+        // Останавливаем анимацию индикатора и скрываем его
+        if (indicatorFadeCoroutine != null)
+        {
+            StopCoroutine(indicatorFadeCoroutine);
+            indicatorFadeCoroutine = null;
+        }
+        
+        if (microphoneIndicatorImage != null)
+        {
+            // Плавно скрываем индикатор
+            StartCoroutine(FadeOutIndicator());
+        }
+        
+        // Восстанавливаем громкость Music из PlayerPrefs
+        float targetMusicVolume = PlayerPrefs.GetFloat("MusicVolume", savedMusicVolume);
+        
+        // Плавно увеличиваем громкость Music до сохраненного значения
+        if (musicVolumeCoroutine != null)
+        {
+            StopCoroutine(musicVolumeCoroutine);
+        }
+        musicVolumeCoroutine = StartCoroutine(FadeMusicVolume(0f, targetMusicVolume, 0.5f));
+        
+        Debug.Log("[AudioSettingsUI] Остановлено прослушивание микрофона");
+    }
+    
+    /// <summary>
+    /// Плавно изменяет громкость Music в микшере
+    /// </summary>
+    private System.Collections.IEnumerator FadeMusicVolume(float fromVolume, float toVolume, float duration)
+    {
+        if (audioMixer == null) yield break;
+        
+        float elapsedTime = 0f;
+        
+        while (elapsedTime < duration)
+        {
+            elapsedTime += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsedTime / duration);
+            float currentVolume = Mathf.Lerp(fromVolume, toVolume, t);
+            
+            // Конвертируем в децибелы и применяем
+            float db = currentVolume > 0 ? 20f * Mathf.Log10(currentVolume) : -80f;
+            audioMixer.SetFloat("Music", db);
+            
+            yield return null;
+        }
+        
+        // Убеждаемся, что финальное значение установлено
+        float finalDb = toVolume > 0 ? 20f * Mathf.Log10(toVolume) : -80f;
+        audioMixer.SetFloat("Music", finalDb);
+        
+        musicVolumeCoroutine = null;
+    }
+    
+    /// <summary>
+    /// Ожидает начала записи микрофона и начинает воспроизведение
+    /// </summary>
+    private System.Collections.IEnumerator WaitForMicrophoneAndPlay(string deviceName)
+    {
+        // Ждем, пока микрофон начнет запись (максимум 1 секунда)
+        float timeout = 1f;
+        float elapsed = 0f;
+        
+        while (elapsed < timeout)
+        {
+            if (Microphone.GetPosition(deviceName) > 0)
+            {
+                break;
+            }
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+        
+        // Воспроизводим запись
+        if (microphoneAudioSource != null && microphoneClip != null && isMonitoringMicrophone)
+        {
+            microphoneAudioSource.clip = microphoneClip;
+            ApplyMicrophoneSensitivity(); // Применяем чувствительность перед воспроизведением
+            microphoneAudioSource.Play();
+        }
+    }
+    
+    /// <summary>
+    /// Применяет чувствительность микрофона к громкости AudioSource
+    /// </summary>
+    private void ApplyMicrophoneSensitivity()
+    {
+        if (microphoneAudioSource == null || currentSettings == null) return;
+        
+        // Нормализуем чувствительность (0.0001-100) в диапазон 0-1 для volume
+        // Минимальное значение 0.0001 соответствует почти нулевой громкости
+        // Максимальное значение 100 соответствует максимальной громкости (1.0)
+        float sensitivity = currentSettings.microphoneSensitivity;
+        float normalizedSensitivity = Mathf.Clamp01(sensitivity / 100f);
+        
+        // Применяем к громкости AudioSource
+        microphoneAudioSource.volume = normalizedSensitivity;
+        
+        Debug.Log($"[AudioSettingsUI] Применена чувствительность микрофона: {sensitivity:F2} -> volume: {normalizedSensitivity:F4}");
+    }
+    
+    /// <summary>
+    /// Анимирует индикатор микрофона (плавное изменение прозрачности)
+    /// </summary>
+    private System.Collections.IEnumerator AnimateMicrophoneIndicator()
+    {
+        if (microphoneIndicatorImage == null) yield break;
+        
+        float fadeSpeed = indicatorFadeSpeed > 0 ? indicatorFadeSpeed : 1f;
+        
+        while (isMonitoringMicrophone)
+        {
+            // Плавное появление (fade in)
+            float elapsed = 0f;
+            Color color = microphoneIndicatorImage.color;
+            float startAlpha = color.a;
+            
+            while (elapsed < fadeSpeed && isMonitoringMicrophone)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / fadeSpeed;
+                color.a = Mathf.Lerp(startAlpha, 1f, t);
+                microphoneIndicatorImage.color = color;
+                yield return null;
+            }
+            
+            if (!isMonitoringMicrophone) break;
+            
+            // Плавное затухание (fade out)
+            elapsed = 0f;
+            startAlpha = color.a;
+            
+            while (elapsed < fadeSpeed && isMonitoringMicrophone)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / fadeSpeed;
+                color.a = Mathf.Lerp(startAlpha, 0f, t);
+                microphoneIndicatorImage.color = color;
+                yield return null;
+            }
+        }
+        
+        indicatorFadeCoroutine = null;
+    }
+    
+    /// <summary>
+    /// Плавно скрывает индикатор микрофона
+    /// </summary>
+    private System.Collections.IEnumerator FadeOutIndicator()
+    {
+        if (microphoneIndicatorImage == null) yield break;
+        
+        Color color = microphoneIndicatorImage.color;
+        float startAlpha = color.a;
+        float fadeSpeed = indicatorFadeSpeed > 0 ? indicatorFadeSpeed : 1f;
+        float elapsed = 0f;
+        
+        while (elapsed < fadeSpeed)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / fadeSpeed;
+            color.a = Mathf.Lerp(startAlpha, 0f, t);
+            microphoneIndicatorImage.color = color;
+            yield return null;
+        }
+        
+        // Скрываем Image после завершения анимации
+        microphoneIndicatorImage.gameObject.SetActive(false);
+    }
+    
+    /// <summary>
+    /// Конвертирует децибелы в линейное значение
+    /// </summary>
+    private float DecibelsToLinear(float db)
+    {
+        return db <= -80f ? 0f : Mathf.Pow(10f, db / 20f);
     }
     #endregion
 }

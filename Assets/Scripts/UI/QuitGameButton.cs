@@ -29,7 +29,6 @@ public class QuitGameButton : MonoBehaviour
 	public float linePause = 0.35f;
 	
 	[Header("Optional Saves shown on line 2")]
-	public bool savePlayerPrefs = true;
 	public bool saveModConfiguration = false;
 	[Tooltip("Вызывается, если требуется сохранить конфигурацию модов")]
 	public UnityEvent onSaveMods;
@@ -88,16 +87,6 @@ public class QuitGameButton : MonoBehaviour
 		yield return StartCoroutine(TypeLine(line2Text, "[system] killing all process"));
 
 		// Optional: append saves on same line with typing effect
-		if (savePlayerPrefs)
-		{
-			yield return new WaitForSeconds(0.25f);
-			yield return StartCoroutine(AppendText(line2Text, "  - saving prefs..."));
-			yield return new WaitForSeconds(0.2f);
-			PlayerPrefs.Save();
-			yield return StartCoroutine(AppendText(line2Text, " done"));
-			StartFillTo(0.7f);
-		}
-
 		if (saveModConfiguration)
 		{
 			yield return new WaitForSeconds(0.25f);
@@ -109,7 +98,7 @@ public class QuitGameButton : MonoBehaviour
 		}
 		
 		// Если сохранений нет — все равно доведем индикатор до 1
-		if (!savePlayerPrefs && !saveModConfiguration)
+		if (!saveModConfiguration)
 			StartFillTo(1f);
 
 		yield return new WaitForSeconds(linePause);

@@ -161,7 +161,7 @@ GameObject:
   - component: {fileID: 3246409778113928371}
   - component: {fileID: 3487423711065647081}
   - component: {fileID: 1628125059463066937}
-  - component: {fileID: 6873254828002613474}
+  - component: {fileID: 9005474938004451934}
   m_Layer: 5
   m_Name: playerlist
   m_TagString: Untagged
@@ -230,7 +230,7 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
---- !u!114 &6873254828002613474
+--- !u!114 &9005474938004451934
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -239,17 +239,18 @@ MonoBehaviour:
   m_GameObject: {fileID: 1941939924898430371}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 42919a5e3b053ac428e918b0e4e468df, type: 3}
+  m_Script: {fileID: 11500000, guid: 34befdaa66a78c44aae67b7fe4b8d31f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  isOwnerImage: {fileID: 4740333434339508976}
   playerNameText: {fileID: 6127414177092007388}
   pingText: {fileID: 3686665293200439629}
-  colorPlayerImages:
-  - {fileID: 6992615965378848704}
-  - {fileID: 2920875197631104277}
+  cursorFollowImage: {fileID: 2920875197631104277}
+  colorImages:
   - {fileID: 7906530058824131938}
+  - {fileID: 2920875197631104277}
+  - {fileID: 6992615965378848704}
   - {fileID: 4740333434339508976}
-  adminIndicator: {fileID: 1568664398145754699}
 --- !u!1 &2573907073004422829
 GameObject:
   m_ObjectHideFlags: 0

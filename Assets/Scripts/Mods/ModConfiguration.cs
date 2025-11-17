@@ -140,9 +140,8 @@ public class ModConfiguration : MonoBehaviour
         // Сканируем и загружаем все моды
         ScanAndLoadMods();
         
-        // Загружаем активные моды из PlayerPrefs (после сканирования, чтобы можно было найти моды)
-        // Делаем это в Awake(), чтобы моды были готовы к загрузке в ShowAndHideAfterDelay
-        LoadActiveModsFromPlayerPrefs();
+        // Инициализируем активные моды (без сохранения)
+        InitializeActiveMods();
     }
     
     void Start()
@@ -572,7 +571,7 @@ public class ModConfiguration : MonoBehaviour
                 modData.menuMusicClip = DownloadHandlerAudioClip.GetContent(www);
                 
                 // Если мод активен, применяем музыку сразу после загрузки
-                // Это происходит после перезагрузки сцены, когда моды уже применены из PlayerPrefs
+                // Это происходит после перезагрузки сцены
                 if (activeMods.Contains(modData))
                 {
                     ApplyMenuMusicFromMods();
@@ -1253,39 +1252,11 @@ public class ModConfiguration : MonoBehaviour
     }
     
     /// <summary>
-    /// Загрузка активных модов из PlayerPrefs
+    /// Инициализация активных модов (без сохранения)
     /// </summary>
-    private void LoadActiveModsFromPlayerPrefs()
+    private void InitializeActiveMods()
     {
         activeMods.Clear();
-        
-        string activeModsJson = PlayerPrefs.GetString("ActiveMods", "");
-        if (!string.IsNullOrEmpty(activeModsJson))
-        {
-            try
-            {
-                ActiveModsData data = JsonUtility.FromJson<ActiveModsData>(activeModsJson);
-                if (data != null && data.modPaths != null)
-                {
-                    foreach (string modPath in data.modPaths)
-                    {
-                        // Нормализуем пути для сравнения
-                        string normalizedSavedPath = NormalizePath(modPath);
-                        
-                        // Находим мод по пути в списке всех модов
-                        ModData foundMod = allMods.Find(m => NormalizePath(m.modFilePath) == normalizedSavedPath);
-                        if (foundMod != null && !activeMods.Contains(foundMod))
-                        {
-                            activeMods.Add(foundMod);
-                        }
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Ошибка загрузки активных модов из PlayerPrefs: {e.Message}");
-            }
-        }
         
         // Автоматически добавляем обязательный мод "localhost", если он доступен
         EnsureRequiredModIsActive();
@@ -1324,19 +1295,12 @@ public class ModConfiguration : MonoBehaviour
     }
     
     /// <summary>
-    /// Сохранение активных модов в PlayerPrefs
+    /// Сохранение активных модов (отключено - моды не сохраняются между сессиями)
     /// </summary>
-    private void SaveActiveModsToPlayerPrefs()
+    private void SaveActiveMods()
     {
-        // Убеждаемся, что обязательный мод "localhost" всегда активен перед сохранением
+        // Моды не сохраняются между сессиями
         EnsureRequiredModIsActive();
-        
-        ActiveModsData data = new ActiveModsData();
-        data.modPaths = activeMods.Select(m => m.modFilePath).ToArray();
-        
-        string json = JsonUtility.ToJson(data);
-        PlayerPrefs.SetString("ActiveMods", json);
-        PlayerPrefs.Save();
     }
     
     /// <summary>
@@ -1516,7 +1480,7 @@ public class ModConfiguration : MonoBehaviour
         
         activeMods.Add(mod);
         
-        // Только обновляем UI, но НЕ применяем изменения и НЕ сохраняем в PlayerPrefs
+        // Только обновляем UI, но НЕ применяем изменения
         // Изменения будут применены только после нажатия кнопки "Применить"
         RefreshModDisplay();
     }
@@ -1540,7 +1504,7 @@ public class ModConfiguration : MonoBehaviour
         
         activeMods.Remove(mod);
         
-        // Только обновляем UI, но НЕ применяем изменения и НЕ сохраняем в PlayerPrefs
+        // Только обновляем UI, но НЕ применяем изменения
         // Изменения будут применены только после нажатия кнопки "Применить"
         RefreshModDisplay();
         
@@ -1557,9 +1521,8 @@ public class ModConfiguration : MonoBehaviour
     /// </summary>
     private void OnApplyButtonClicked()
     {
-        // Сохраняем активные моды в PlayerPrefs
-        // Это единственное место, где сохраняются изменения конфигурации модов
-        SaveActiveModsToPlayerPrefs();
+        // Сохраняем активные моды (отключено - моды не сохраняются)
+        SaveActiveMods();
         
         // Показываем объект перезагрузки
         if (sceneReloadController != null)
@@ -1574,7 +1537,7 @@ public class ModConfiguration : MonoBehaviour
         }
         
         // Перезагружаем сцену для применения всех изменений модов
-        // После перезагрузки сцены моды будут загружены из PlayerPrefs и применены
+        // После перезагрузки сцены моды будут применены
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
     
@@ -1925,7 +1888,7 @@ public class ModConfiguration : MonoBehaviour
             activeMods.RemoveAt(currentIndex);
             activeMods.Insert(currentIndex - 1, selectedMod);
             
-            // Только обновляем UI, но НЕ применяем изменения и НЕ сохраняем в PlayerPrefs
+            // Только обновляем UI, но НЕ применяем изменения
             // Изменения будут применены только после нажатия кнопки "Применить"
             RefreshModDisplay();
             UpdatePriorityButtonsState();
@@ -1949,7 +1912,7 @@ public class ModConfiguration : MonoBehaviour
             activeMods.RemoveAt(currentIndex);
             activeMods.Insert(currentIndex + 1, selectedMod);
             
-            // Только обновляем UI, но НЕ применяем изменения и НЕ сохраняем в PlayerPrefs
+            // Только обновляем UI, но НЕ применяем изменения
             // Изменения будут применены только после нажатия кнопки "Применить"
             RefreshModDisplay();
             UpdatePriorityButtonsState();
@@ -1969,7 +1932,7 @@ public class ModConfigData
 }
 
 /// <summary>
-/// Класс для хранения активных модов в PlayerPrefs
+/// Класс для хранения данных активных модов (не используется для сохранения)
 /// </summary>
 [System.Serializable]
 public class ActiveModsData

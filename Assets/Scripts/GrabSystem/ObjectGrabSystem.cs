@@ -24,6 +24,8 @@ public class ObjectGrabSystem : NetworkBehaviour
     
     [Header("Strength System")]
     [SerializeField] private float baseStrength = 1f; // Базовая сила хвата
+    // Синхронизированная сила хвата
+    [SyncVar]
     [SerializeField] private float currentStrength = 1f; // Текущая сила хвата (с бонусами)
     [SerializeField] private float strengthMultiplier = 0.25f; // Множитель для уменьшения силы в 4 раза
     
@@ -52,11 +54,16 @@ public class ObjectGrabSystem : NetworkBehaviour
     [SerializeField] private float staminaCostPerThrowForce = 2f; // Стоимость стамины за единицу силы броска
     [SerializeField] private PlayerHealthStamina playerHealthStamina;
     
+    // Синхронизированный захваченный объект (NetworkIdentity)
+    [SyncVar(hook = nameof(OnGrabbedObjectChanged))]
+    private uint grabbedObjectNetId = 0;
     private DestructibleObject currentGrabbedObject;
     private DestructibleObject currentLookingAt;
     private Camera playerCamera;
     private Rigidbody grabbedRigidbody;
     private float currentWeight;
+    // Синхронизированное скольжение
+    [SyncVar]
     private float slipAccumulation;
     private float originalMouseSensitivity;
     private Vector3 lastPlayerPosition;
@@ -74,7 +81,11 @@ public class ObjectGrabSystem : NetworkBehaviour
     private LineRenderer grabLineRenderer;
     
     // Для системы броска
+    // Синхронизированная сила броска
+    [SyncVar]
     private float currentThrowForce = 0f;
+    // Синхронизированное состояние зарядки броска
+    [SyncVar]
     private bool isChargingThrow = false;
     private float throwChargeTime = 0f;
     private Vector3 originalThrowUIPosition;
@@ -213,6 +224,9 @@ public class ObjectGrabSystem : NetworkBehaviour
     
     void TryGrabObject(DestructibleObject grabbable)
     {
+        // Обрабатываем захват только для владельца
+        if (!isOwned) return;
+        
         // Проверяем, можно ли взять предмет с учетом силы хвата
         float effectiveWeightThreshold = dropWeightThreshold * currentStrength;
         if (grabbable.objectWeight > effectiveWeightThreshold)
@@ -220,7 +234,24 @@ public class ObjectGrabSystem : NetworkBehaviour
             return;
         }
         
-        currentGrabbedObject = grabbable;
+        NetworkIdentity objectNetId = grabbable.GetComponent<NetworkIdentity>();
+        if (objectNetId == null || objectNetId.netId == 0)
+        {
+            Debug.LogWarning("[ObjectGrabSystem] Объект не имеет NetworkIdentity!");
+            return;
+        }
+        
+        // Синхронизируем захват через сервер
+        if (isServer)
+        {
+            grabbedObjectNetId = objectNetId.netId;
+            currentGrabbedObject = grabbable;
+        }
+        else
+        {
+            GrabObjectCommand(objectNetId.netId);
+        }
+        
         grabbedRigidbody = grabbable.GetComponent<Rigidbody>();
         
         if (grabbedRigidbody != null)
@@ -257,8 +288,54 @@ public class ObjectGrabSystem : NetworkBehaviour
         }
     }
     
+    /// <summary>
+    /// Command для захвата объекта (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void GrabObjectCommand(uint objectNetId)
+    {
+        grabbedObjectNetId = objectNetId;
+    }
+    
+    /// <summary>
+    /// Hook для изменения захваченного объекта (вызывается при изменении SyncVar)
+    /// </summary>
+    void OnGrabbedObjectChanged(uint oldNetId, uint newNetId)
+    {
+        // Находим объект по NetworkIdentity
+        if (newNetId == 0)
+        {
+            currentGrabbedObject = null;
+            grabbedRigidbody = null;
+        }
+        else
+        {
+            NetworkIdentity foundNetId = null;
+            foreach (NetworkIdentity netId in FindObjectsOfType<NetworkIdentity>())
+            {
+                if (netId.netId == newNetId)
+                {
+                    foundNetId = netId;
+                    break;
+                }
+            }
+            
+            if (foundNetId != null)
+            {
+                currentGrabbedObject = foundNetId.GetComponent<DestructibleObject>();
+                if (currentGrabbedObject != null)
+                {
+                    grabbedRigidbody = currentGrabbedObject.GetComponent<Rigidbody>();
+                }
+            }
+        }
+    }
+    
     public void ReleaseObject()
     {
+        // Обрабатываем отпускание только для владельца
+        if (!isOwned) return;
+        
         if (currentGrabbedObject != null)
         {
             // Если мы заряжали бросок - бросаем предмет
@@ -277,6 +354,18 @@ public class ObjectGrabSystem : NetworkBehaviour
                 grabbedRigidbody.useGravity = true;
             }
             
+            // Синхронизируем отпускание через сервер
+            if (isServer)
+            {
+                grabbedObjectNetId = 0;
+                currentThrowForce = 0f;
+                isChargingThrow = false;
+            }
+            else
+            {
+                ReleaseObjectCommand();
+            }
+            
             // Скрываем UI броска
             HideThrowUI();
             
@@ -288,8 +377,6 @@ public class ObjectGrabSystem : NetworkBehaviour
             grabbedRigidbody = null;
             currentWeight = 0f;
             slipAccumulation = 0f;
-            currentThrowForce = 0f;
-            isChargingThrow = false;
             throwChargeTime = 0f;
             
             // Сбрасываем состояние наведения
@@ -299,6 +386,17 @@ public class ObjectGrabSystem : NetworkBehaviour
                 currentLookingAt = null;
             }
         }
+    }
+    
+    /// <summary>
+    /// Command для отпускания объекта (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void ReleaseObjectCommand()
+    {
+        grabbedObjectNetId = 0;
+        currentThrowForce = 0f;
+        isChargingThrow = false;
     }
     
     void MoveGrabbedObject()
@@ -374,6 +472,9 @@ public class ObjectGrabSystem : NetworkBehaviour
     
     void HandleWeightAndSlipping()
     {
+        // Обрабатываем скольжение только для владельца
+        if (!isOwned) return;
+        
         // Вычисляем скорость движения игрока
         Vector3 currentPlayerPosition = transform.root.position;
         float playerMovementSpeed = (currentPlayerPosition - lastPlayerPosition).magnitude / Time.deltaTime;
@@ -385,7 +486,17 @@ public class ObjectGrabSystem : NetworkBehaviour
         
         // Накапливаем скольжение (уменьшаем скольжение при большей силе)
         float strengthSlipReduction = 1f / currentStrength;
-        slipAccumulation += (weightFactor * weightSlipFactor * strengthSlipReduction + movementFactor * weightSlipFactor) * Time.deltaTime;
+        float newSlipAccumulation = slipAccumulation + (weightFactor * weightSlipFactor * strengthSlipReduction + movementFactor * weightSlipFactor) * Time.deltaTime;
+        
+        // Синхронизируем скольжение через сервер
+        if (isServer)
+        {
+            slipAccumulation = newSlipAccumulation;
+        }
+        else
+        {
+            SetSlipAccumulationCommand(newSlipAccumulation);
+        }
         
         // Если предмет слишком тяжелый или игрок двигается слишком быстро - роняем
         float effectiveDropThreshold = dropWeightThreshold * currentStrength * 0.8f;
@@ -398,7 +509,15 @@ public class ObjectGrabSystem : NetworkBehaviour
         // Постепенно уменьшаем скольжение если игрок стоит на месте с легким предметом
         if (playerMovementSpeed < 0.1f && currentWeight < maxComfortableWeight)
         {
-            slipAccumulation = Mathf.Max(0f, slipAccumulation - Time.deltaTime * 0.5f);
+            float reducedSlip = Mathf.Max(0f, slipAccumulation - Time.deltaTime * 0.5f);
+            if (isServer)
+            {
+                slipAccumulation = reducedSlip;
+            }
+            else
+            {
+                SetSlipAccumulationCommand(reducedSlip);
+            }
         }
         
         // Проверяем расстояние до целевой точки (holdPoint + objectDistance)
@@ -415,6 +534,15 @@ public class ObjectGrabSystem : NetworkBehaviour
                 ReleaseObject();
             }
         }
+    }
+    
+    /// <summary>
+    /// Command для установки скольжения (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void SetSlipAccumulationCommand(float slip)
+    {
+        slipAccumulation = slip;
     }
     
     void HighlightObject(DestructibleObject grabbable)
@@ -563,9 +691,17 @@ public class ObjectGrabSystem : NetworkBehaviour
             if (isChargingThrow)
             {
                 // Отменяем зарядку если уже заряжаем
-                isChargingThrow = false;
+                if (isServer)
+                {
+                    isChargingThrow = false;
+                    currentThrowForce = 0f;
+                }
+                else
+                {
+                    SetChargingThrowCommand(false);
+                    SetThrowForceCommand(0f);
+                }
                 throwChargeTime = 0f;
-                currentThrowForce = 0f;
                 UpdateThrowUI();
             }
             else
@@ -575,9 +711,17 @@ public class ObjectGrabSystem : NetworkBehaviour
                 if (playerHealthStamina != null && playerHealthStamina.HasEnoughStamina(minStaminaCost))
                 {
                     // Начинаем зарядку
-                    isChargingThrow = true;
+                    if (isServer)
+                    {
+                        isChargingThrow = true;
+                        currentThrowForce = 0f;
+                    }
+                    else
+                    {
+                        SetChargingThrowCommand(true);
+                        SetThrowForceCommand(0f);
+                    }
                     throwChargeTime = 0f;
-                    currentThrowForce = 0f;
                 }
             }
         }
@@ -591,7 +735,17 @@ public class ObjectGrabSystem : NetworkBehaviour
             if (playerHealthStamina != null && playerHealthStamina.HasEnoughStamina(staminaCost))
             {
                 throwChargeTime += Time.deltaTime;
-                currentThrowForce = newThrowForce;
+                
+                // Синхронизируем силу броска через сервер
+                if (isServer)
+                {
+                    currentThrowForce = newThrowForce;
+                }
+                else
+                {
+                    SetThrowForceCommand(newThrowForce);
+                }
+                
                 playerHealthStamina.UseStamina(staminaCost);
                 
                 // Обновляем UI
@@ -600,15 +754,41 @@ public class ObjectGrabSystem : NetworkBehaviour
             else
             {
                 // Недостаточно стамины - останавливаем зарядку
-                isChargingThrow = false;
+                if (isServer)
+                {
+                    isChargingThrow = false;
+                    currentThrowForce = 0f;
+                }
+                else
+                {
+                    SetChargingThrowCommand(false);
+                    SetThrowForceCommand(0f);
+                }
                 throwChargeTime = 0f;
-                currentThrowForce = 0f;
                 UpdateThrowUI();
             }
         }
         
         // НЕ сбрасываем зарядку при отпускании G - зарядка сохраняется до отпускания ЛКМ
         // Зарядка сбрасывается только при отпускании ЛКМ в методе ReleaseObject()
+    }
+    
+    /// <summary>
+    /// Command для установки силы броска (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void SetThrowForceCommand(float force)
+    {
+        currentThrowForce = force;
+    }
+    
+    /// <summary>
+    /// Command для установки состояния зарядки броска (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void SetChargingThrowCommand(bool charging)
+    {
+        isChargingThrow = charging;
     }
     
     /// <summary>
@@ -695,7 +875,7 @@ public class ObjectGrabSystem : NetworkBehaviour
     }
     
     // Публичные методы для получения информации о состоянии
-    public bool IsHoldingObject() => currentGrabbedObject != null;
+    public bool IsHoldingObject() => grabbedObjectNetId != 0 || currentGrabbedObject != null;
     public float GetCurrentWeight() => currentWeight;
     public float GetSlipAmount() => slipAccumulation;
     public DestructibleObject GetCurrentObject() => currentGrabbedObject;
@@ -708,17 +888,49 @@ public class ObjectGrabSystem : NetworkBehaviour
     // Методы для системы силы
     public void AddStrengthBonus(float bonus)
     {
-        currentStrength += bonus * strengthMultiplier;
+        float newStrength = currentStrength + bonus * strengthMultiplier;
+        if (isServer)
+        {
+            currentStrength = newStrength;
+        }
+        else if (isOwned)
+        {
+            SetStrengthCommand(newStrength);
+        }
     }
     
     public void RemoveStrengthBonus(float bonus)
     {
-        currentStrength = Mathf.Max(baseStrength, currentStrength - bonus * strengthMultiplier);
+        float newStrength = Mathf.Max(baseStrength, currentStrength - bonus * strengthMultiplier);
+        if (isServer)
+        {
+            currentStrength = newStrength;
+        }
+        else if (isOwned)
+        {
+            SetStrengthCommand(newStrength);
+        }
     }
     
     public void ResetStrength()
     {
-        currentStrength = baseStrength;
+        if (isServer)
+        {
+            currentStrength = baseStrength;
+        }
+        else if (isOwned)
+        {
+            SetStrengthCommand(baseStrength);
+        }
+    }
+    
+    /// <summary>
+    /// Command для установки силы (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void SetStrengthCommand(float strength)
+    {
+        currentStrength = strength;
     }
     
     public float GetCurrentStrength() => currentStrength;

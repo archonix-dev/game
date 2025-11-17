@@ -67,6 +67,7 @@ public class SettingsMenuController : MonoBehaviour
 			}
 		}
 		
+		
 		// Автоматически находим VoiceWaveVisualizer и его LineRenderer
 		FindVoiceWaveLineRenderer();
     }
@@ -133,11 +134,15 @@ public class SettingsMenuController : MonoBehaviour
         {
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+            
+            // Управление видимостью headObject больше не требуется в локальной игре
         }
         else
         {
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
+            
+            // Управление видимостью headObject больше не требуется в локальной игре
         }
     }
     

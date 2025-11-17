@@ -1,11 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
-using Mirror;
-
-#if !DISABLESTEAMWORKS
-using Steamworks;
-#endif
 
 /// <summary>
 /// Структура для хранения пары объект-точка подлета
@@ -52,15 +47,6 @@ public class CameraMovementController : MonoBehaviour
     [Tooltip("Скорость поворота камеры к цели")]
     public float rotationSpeed = 2f;
     
-    [Header("Network Settings")]
-    [Tooltip("Ссылка на LobbyManager для создания/закрытия лобби")]
-    public LobbyManager lobbyManager;
-    
-    [Tooltip("Индекс элемента массива для создания лобби (по умолчанию 1 - второй элемент, индекс 1)")]
-    public int lobbyCreationIndex = 1;
-    
-    [Tooltip("Индекс элемента массива для меню подключения (по умолчанию 1 - второй элемент, так как пользователь указал '2 из списка')")]
-    public int connectMenuIndex = 1;
     
     [Header("UI Buttons")]
     [Tooltip("Массив кнопок, при нажатии на которые выполняется логика ESC (возврат камеры, закрытие лобби и т.д.)")]
@@ -150,14 +136,6 @@ public class CameraMovementController : MonoBehaviour
                 ObjectTargetPair pair = FindPairForObject(hoveredObject.gameObject);
                 if (pair != null && pair.targetPoint != null)
                 {
-                    // Проверяем, является ли это элементом массива с индексом 1 (для создания лобби)
-                    int pairIndex = GetPairIndex(pair);
-                    if (pairIndex == lobbyCreationIndex && lobbyManager != null)
-                    {
-                        // Создаем Steam лобби
-                        CreateSteamLobby();
-                    }
-                    
                     // Отключаем коллайдер у объекта
                     DisableColliderForObject(hoveredObject.gameObject);
                     // Скрываем объект, если указан
@@ -165,6 +143,13 @@ public class CameraMovementController : MonoBehaviour
                     // Открываем Canvas для объекта
                     OpenCanvasForObject(pair);
                     StartCoroutine(MoveCameraToTarget(pair.targetPoint));
+                    
+                    // Если это второй объект (индекс 1), создаем лобби
+                    int pairIndex = GetPairIndex(pair);
+                    if (pairIndex == 1)
+                    {
+                        CreateLobbyForObject(pair);
+                    }
                 }
             }
         }
@@ -411,12 +396,6 @@ public class CameraMovementController : MonoBehaviour
     {
         if (initialCameraPosition != null && !isMoving)
         {
-            // Закрываем и удаляем лобби, если оно было создано
-            if (lobbyManager != null)
-            {
-                lobbyManager.CloseAndDestroyLobby();
-            }
-            
             // Закрываем Canvas
             CloseCurrentCanvas();
             // Показываем скрытый объект
@@ -435,30 +414,16 @@ public class CameraMovementController : MonoBehaviour
         PerformEscapeAction();
     }
     
-    private void CreateSteamLobby()
-    {
-        #if !DISABLESTEAMWORKS
-        SteamLobbyManager steamLobbyManager = FindObjectOfType<SteamLobbyManager>();
-        
-        if (steamLobbyManager != null && SteamManager.Instance != null && SteamManager.Instance.IsSteamInitialized())
-        {
-            steamLobbyManager.CreateLobby();
-        }
-        else
-        #endif
-        {
-            if (lobbyManager != null)
-            {
-                lobbyManager.CreateLobby();
-            }
-        }
-    }
     
-    public void OpenConnectMenu()
+    /// <summary>
+    /// Открывает меню подключения по указанному индексу
+    /// </summary>
+    /// <param name="menuIndex">Индекс меню в массиве objectTargets</param>
+    public void OpenConnectMenu(int menuIndex = -1)
     {
-        if (objectTargets == null || connectMenuIndex < 0 || connectMenuIndex >= objectTargets.Length) return;
+        if (objectTargets == null || menuIndex < 0 || menuIndex >= objectTargets.Length) return;
         
-        ObjectTargetPair connectMenuPair = objectTargets[connectMenuIndex];
+        ObjectTargetPair connectMenuPair = objectTargets[menuIndex];
         if (connectMenuPair == null || connectMenuPair.targetPoint == null) return;
         
         if (connectMenuPair.objectCanvas != null && connectMenuPair.objectCanvas.gameObject.activeSelf) return;
@@ -477,6 +442,22 @@ public class CameraMovementController : MonoBehaviour
         HideObjectForPair(connectMenuPair);
         OpenCanvasForObject(connectMenuPair);
         StartCoroutine(MoveCameraToTarget(connectMenuPair.targetPoint));
+    }
+    
+    /// <summary>
+    /// Публичный метод для открытия Canvas объекта (используется из LobbyManager)
+    /// </summary>
+    public void OpenCanvasForObjectPublic(ObjectTargetPair pair)
+    {
+        if (pair != null)
+        {
+            if (pair.hoverObject != null)
+            {
+                DisableColliderForObject(pair.hoverObject);
+            }
+            HideObjectForPair(pair);
+            OpenCanvasForObject(pair);
+        }
     }
     
     /// <summary>
@@ -499,6 +480,23 @@ public class CameraMovementController : MonoBehaviour
             }
             HideObjectForPair(connectMenuPair);
             OpenCanvasForObject(connectMenuPair);
+        }
+    }
+    
+    /// <summary>
+    /// Создает лобби при клике на второй объект (индекс 1)
+    /// </summary>
+    private void CreateLobbyForObject(ObjectTargetPair pair)
+    {
+        LobbyManager lobbyManager = LobbyManager.Instance;
+        if (lobbyManager != null)
+        {
+            lobbyManager.CreateLobby();
+            Debug.Log("[CameraMovementController] Создание лобби...");
+        }
+        else
+        {
+            Debug.LogWarning("[CameraMovementController] LobbyManager не найден! Убедитесь, что LobbyManager присутствует на сцене.");
         }
     }
     

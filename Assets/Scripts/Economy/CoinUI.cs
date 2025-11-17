@@ -51,29 +51,31 @@ public class CoinUI : MonoBehaviour
             originalColor = coinsTMPText.color;
         }
         
-        // Регистрируемся в CoinManager
-        if (CoinManager.Instance != null)
+        // Регистрируемся в CoinManager локального игрока
+        CoinManager coinManager = CoinManager.GetLocalPlayerCoinManager();
+        if (coinManager != null)
         {
             if (coinsText != null)
             {
-                CoinManager.Instance.SetUIText(coinsText);
+                coinManager.SetUIText(coinsText);
             }
             if (coinsTMPText != null)
             {
-                CoinManager.Instance.SetUITextTMP(coinsTMPText);
+                coinManager.SetUITextTMP(coinsTMPText);
             }
             
-            lastCoinAmount = CoinManager.Instance.GetCoins();
+            lastCoinAmount = coinManager.GetCoins();
         }
         UpdateDisplay();
     }
     
     void Update()
     {
-        // Проверяем изменения количества монет
-        if (CoinManager.Instance != null)
+        // Проверяем изменения количества монет у локального игрока
+        CoinManager coinManager = CoinManager.GetLocalPlayerCoinManager();
+        if (coinManager != null)
         {
-            int currentCoins = CoinManager.Instance.GetCoins();
+            int currentCoins = coinManager.GetCoins();
             if (currentCoins != lastCoinAmount)
             {
                 if (currentCoins > lastCoinAmount)
@@ -144,9 +146,10 @@ public class CoinUI : MonoBehaviour
     /// </summary>
     private void UpdateDisplay()
     {
-        if (CoinManager.Instance == null) return;
+        CoinManager coinManager = CoinManager.GetLocalPlayerCoinManager();
+        if (coinManager == null) return;
         
-        int coins = CoinManager.Instance.GetCoins();
+        int coins = coinManager.GetCoins();
         string displayText = FormatCoinText(coins);
         
         if (coinsText != null)

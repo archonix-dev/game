@@ -35,11 +35,16 @@ public class PickupableGrabSystem : NetworkBehaviour
     [SerializeField] private float waveAmplitude = 0.1f; // Амплитуда волн
     [SerializeField] private float waveFrequency = 2f; // Частота волн
     
+    // Синхронизированный захваченный объект (NetworkIdentity)
+    [SyncVar(hook = nameof(OnGrabbedObjectChanged))]
+    private uint grabbedObjectNetId = 0;
     private PickupableItem currentGrabbedObject;
     private PickupableItem currentLookingAt;
     private Camera playerCamera;
     private Rigidbody grabbedRigidbody;
     private float currentWeight;
+    // Синхронизированное скольжение
+    [SyncVar]
     private float slipAccumulation;
     private Vector3 lastPlayerPosition;
     
@@ -174,13 +179,33 @@ public class PickupableGrabSystem : NetworkBehaviour
     
     void TryGrabObject(PickupableItem grabbable)
     {
+        // Обрабатываем захват только для владельца
+        if (!isOwned) return;
+        
         // Проверяем, можно ли взять предмет
         if (grabbable.GetInventoryItem().weight > dropWeightThreshold)
         {
             return;
         }
         
-        currentGrabbedObject = grabbable;
+        NetworkIdentity objectNetId = grabbable.GetComponent<NetworkIdentity>();
+        if (objectNetId == null || objectNetId.netId == 0)
+        {
+            Debug.LogWarning("[PickupableGrabSystem] Объект не имеет NetworkIdentity!");
+            return;
+        }
+        
+        // Синхронизируем захват через сервер
+        if (isServer)
+        {
+            grabbedObjectNetId = objectNetId.netId;
+            currentGrabbedObject = grabbable;
+        }
+        else
+        {
+            GrabObjectCommand(objectNetId.netId);
+        }
+        
         grabbedRigidbody = grabbable.GetComponent<Rigidbody>();
         
         if (grabbedRigidbody != null)
@@ -203,8 +228,54 @@ public class PickupableGrabSystem : NetworkBehaviour
         }
     }
     
+    /// <summary>
+    /// Command для захвата объекта (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void GrabObjectCommand(uint objectNetId)
+    {
+        grabbedObjectNetId = objectNetId;
+    }
+    
+    /// <summary>
+    /// Hook для изменения захваченного объекта (вызывается при изменении SyncVar)
+    /// </summary>
+    void OnGrabbedObjectChanged(uint oldNetId, uint newNetId)
+    {
+        // Находим объект по NetworkIdentity
+        if (newNetId == 0)
+        {
+            currentGrabbedObject = null;
+            grabbedRigidbody = null;
+        }
+        else
+        {
+            NetworkIdentity foundNetId = null;
+            foreach (NetworkIdentity netId in FindObjectsOfType<NetworkIdentity>())
+            {
+                if (netId.netId == newNetId)
+                {
+                    foundNetId = netId;
+                    break;
+                }
+            }
+            
+            if (foundNetId != null)
+            {
+                currentGrabbedObject = foundNetId.GetComponent<PickupableItem>();
+                if (currentGrabbedObject != null)
+                {
+                    grabbedRigidbody = currentGrabbedObject.GetComponent<Rigidbody>();
+                }
+            }
+        }
+    }
+    
     public void ReleaseObject()
     {
+        // Обрабатываем отпускание только для владельца
+        if (!isOwned) return;
+        
         if (currentGrabbedObject != null)
         {
             if (grabbedRigidbody != null)
@@ -213,6 +284,16 @@ public class PickupableGrabSystem : NetworkBehaviour
                 grabbedRigidbody.linearDamping = 0f;
                 grabbedRigidbody.angularDamping = 0.05f;
                 grabbedRigidbody.useGravity = true;
+            }
+            
+            // Синхронизируем отпускание через сервер
+            if (isServer)
+            {
+                grabbedObjectNetId = 0;
+            }
+            else
+            {
+                ReleaseObjectCommand();
             }
             
             // Сбрасываем все переменные
@@ -230,6 +311,15 @@ public class PickupableGrabSystem : NetworkBehaviour
                 currentLookingAt = null;
             }
         }
+    }
+    
+    /// <summary>
+    /// Command для отпускания объекта (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void ReleaseObjectCommand()
+    {
+        grabbedObjectNetId = 0;
     }
     
     void MoveGrabbedObject()
@@ -300,6 +390,9 @@ public class PickupableGrabSystem : NetworkBehaviour
     
     void HandleWeightAndSlipping()
     {
+        // Обрабатываем скольжение только для владельца
+        if (!isOwned) return;
+        
         // Вычисляем скорость движения игрока
         Vector3 currentPlayerPosition = transform.root.position;
         float playerMovementSpeed = (currentPlayerPosition - lastPlayerPosition).magnitude / Time.deltaTime;
@@ -310,7 +403,17 @@ public class PickupableGrabSystem : NetworkBehaviour
         float movementFactor = playerMovementSpeed * movementSlipMultiplier;
         
         // Накапливаем скольжение
-        slipAccumulation += (weightFactor * weightSlipFactor + movementFactor * weightSlipFactor) * Time.deltaTime;
+        float newSlipAccumulation = slipAccumulation + (weightFactor * weightSlipFactor + movementFactor * weightSlipFactor) * Time.deltaTime;
+        
+        // Синхронизируем скольжение через сервер
+        if (isServer)
+        {
+            slipAccumulation = newSlipAccumulation;
+        }
+        else
+        {
+            SetSlipAccumulationCommand(newSlipAccumulation);
+        }
         
         // Если предмет слишком тяжелый или игрок двигается слишком быстро - роняем
         if (slipAccumulation > 1f || currentWeight > dropWeightThreshold * 0.8f && playerMovementSpeed > 5f)
@@ -322,7 +425,15 @@ public class PickupableGrabSystem : NetworkBehaviour
         // Постепенно уменьшаем скольжение если игрок стоит на месте с легким предметом
         if (playerMovementSpeed < 0.1f && currentWeight < maxComfortableWeight)
         {
-            slipAccumulation = Mathf.Max(0f, slipAccumulation - Time.deltaTime * 0.5f);
+            float reducedSlip = Mathf.Max(0f, slipAccumulation - Time.deltaTime * 0.5f);
+            if (isServer)
+            {
+                slipAccumulation = reducedSlip;
+            }
+            else
+            {
+                SetSlipAccumulationCommand(reducedSlip);
+            }
         }
         
         // Проверяем расстояние до целевой точки
@@ -338,6 +449,15 @@ public class PickupableGrabSystem : NetworkBehaviour
                 ReleaseObject();
             }
         }
+    }
+    
+    /// <summary>
+    /// Command для установки скольжения (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void SetSlipAccumulationCommand(float slip)
+    {
+        slipAccumulation = slip;
     }
     
     void HighlightObject(PickupableItem grabbable)
@@ -423,8 +543,7 @@ public class PickupableGrabSystem : NetworkBehaviour
     // Публичные методы для получения информации о состоянии
     public bool IsHoldingObject() 
     {
-        bool isHolding = currentGrabbedObject != null;
-        return isHolding;
+        return grabbedObjectNetId != 0 || currentGrabbedObject != null;
     }
     public float GetCurrentWeight() => currentWeight;
     public float GetSlipAmount() => slipAccumulation;

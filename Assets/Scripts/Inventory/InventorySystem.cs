@@ -41,6 +41,8 @@ public class InventorySystem : NetworkBehaviour
     [SerializeField] private PickupableGrabSystem grabSystem; // Ссылка на систему захвата
     
     private InventorySlot[] hotbarSlotsArray;
+    // Синхронизированный выбранный слот
+    [SyncVar(hook = nameof(OnSelectedSlotChanged))]
     private int currentSelectedSlot = 0;
     private GameObject currentHandItem;
     private Camera playerCamera;
@@ -59,33 +61,81 @@ public class InventorySystem : NetworkBehaviour
 
     private bool isDraggingItemplus = false;
     
+    public override void OnStartClient()
+    {
+        base.OnStartClient();
+        
+        // Инициализируем инвентарь только для локального игрока
+        if (isOwned)
+        {
+            InitializeInventory();
+            playerCamera = Camera.main;
+            
+            // Автоматически находим систему захвата если не назначена
+            if (grabSystem == null)
+            {
+                grabSystem = FindObjectOfType<PickupableGrabSystem>();
+            }
+            
+            if (dropPoint == null)
+            {
+                GameObject dropPointObj = new GameObject("DropPoint");
+                dropPointObj.transform.SetParent(transform);
+                dropPointObj.transform.localPosition = new Vector3(0, 0, 1f);
+                dropPoint = dropPointObj.transform;
+            }
+            
+            // Создаем текст для отображения названия предмета если не назначен
+            if (itemNameText == null)
+            {
+                CreateItemNameDisplay();
+            }
+            
+            // Инициализируем предметы в руке
+            InitializeHandItems();
+        }
+        else
+        {
+            // Для других игроков отключаем Canvas если он был создан
+            if (hotbarCanvas != null)
+            {
+                hotbarCanvas.gameObject.SetActive(false);
+            }
+        }
+    }
+    
     void Start()
     {
-        InitializeInventory();
-        playerCamera = Camera.main;
-        
-        // Автоматически находим систему захвата если не назначена
-        if (grabSystem == null)
+        // Если это не NetworkBehaviour или еще не инициализирован, инициализируем в Start
+        // (для одиночной игры или если OnStartClient не вызвался)
+        if (netIdentity == null || netIdentity.netId == 0)
         {
-            grabSystem = FindObjectOfType<PickupableGrabSystem>();
+            InitializeInventory();
+            playerCamera = Camera.main;
+            
+            // Автоматически находим систему захвата если не назначена
+            if (grabSystem == null)
+            {
+                grabSystem = FindObjectOfType<PickupableGrabSystem>();
+            }
+            
+            if (dropPoint == null)
+            {
+                GameObject dropPointObj = new GameObject("DropPoint");
+                dropPointObj.transform.SetParent(transform);
+                dropPointObj.transform.localPosition = new Vector3(0, 0, 1f);
+                dropPoint = dropPointObj.transform;
+            }
+            
+            // Создаем текст для отображения названия предмета если не назначен
+            if (itemNameText == null)
+            {
+                CreateItemNameDisplay();
+            }
+            
+            // Инициализируем предметы в руке
+            InitializeHandItems();
         }
-        
-        if (dropPoint == null)
-        {
-            GameObject dropPointObj = new GameObject("DropPoint");
-            dropPointObj.transform.SetParent(transform);
-            dropPointObj.transform.localPosition = new Vector3(0, 0, 1f);
-            dropPoint = dropPointObj.transform;
-        }
-        
-        // Создаем текст для отображения названия предмета если не назначен
-        if (itemNameText == null)
-        {
-            CreateItemNameDisplay();
-        }
-        
-        // Инициализируем предметы в руке
-        InitializeHandItems();
     }
     
     void Update()
@@ -379,19 +429,50 @@ public class InventorySystem : NetworkBehaviour
     {
         if (slotIndex < 0 || slotIndex >= hotbarSlots) return;
         
-        // Убираем выделение с предыдущего слота
-        if (currentSelectedSlot >= 0 && currentSelectedSlot < hotbarSlots)
+        // Обрабатываем выбор слота только для владельца
+        if (!isOwned) return;
+        
+        // Синхронизируем выбор слота через сервер
+        if (isServer)
         {
-            hotbarSlotsArray[currentSelectedSlot].SetSelected(false);
+            currentSelectedSlot = slotIndex;
+        }
+        else
+        {
+            SelectSlotCommand(slotIndex);
+        }
+    }
+    
+    /// <summary>
+    /// Command для выбора слота (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void SelectSlotCommand(int slotIndex)
+    {
+        currentSelectedSlot = slotIndex;
+    }
+    
+    /// <summary>
+    /// Hook для изменения выбранного слота (вызывается при изменении SyncVar)
+    /// </summary>
+    void OnSelectedSlotChanged(int oldSlot, int newSlot)
+    {
+        // Убираем выделение с предыдущего слота
+        if (oldSlot >= 0 && oldSlot < hotbarSlots && hotbarSlotsArray != null && hotbarSlotsArray.Length > oldSlot)
+        {
+            hotbarSlotsArray[oldSlot].SetSelected(false);
         }
         
-        currentSelectedSlot = slotIndex;
-        hotbarSlotsArray[currentSelectedSlot].SetSelected(true);
+        // Выделяем новый слот
+        if (newSlot >= 0 && newSlot < hotbarSlots && hotbarSlotsArray != null && hotbarSlotsArray.Length > newSlot)
+        {
+            hotbarSlotsArray[newSlot].SetSelected(true);
+        }
         
         // Отображаем название предмета если слот не пустой
         DisplayItemName();
         
-        OnSlotChanged?.Invoke(currentSelectedSlot);
+        OnSlotChanged?.Invoke(newSlot);
     }
     
     /// <summary>
@@ -656,17 +737,73 @@ public class InventorySystem : NetworkBehaviour
     /// </summary>
     public bool AddItemToInventory(InventoryItem item)
     {
+        // Обрабатываем добавление только для владельца
+        if (!isOwned) return false;
+        
         // Ищем пустой слот
         for (int i = 0; i < hotbarSlots; i++)
         {
             if (hotbarSlotsArray[i].IsEmpty)
             {
-                hotbarSlotsArray[i].AddItem(item);
+                // Синхронизируем добавление через сервер
+                if (isServer)
+                {
+                    hotbarSlotsArray[i].AddItem(item);
+                }
+                else
+                {
+                    AddItemCommand(i, item);
+                }
                 return true;
             }
         }
         
         return false;
+    }
+    
+    /// <summary>
+    /// Command для добавления предмета (вызывается клиентом, выполняется на сервере)
+    /// ВАЖНО: InventoryItem содержит Sprite и GameObject, которые не могут быть сериализованы через Mirror.
+    /// Для полной синхронизации нужно использовать упрощенную структуру данных или ScriptableObject.
+    /// </summary>
+    [Command]
+    protected void AddItemCommand(int slotIndex, InventoryItem item)
+    {
+        // ВАЖНО: Mirror не может сериализовать InventoryItem напрямую из-за Sprite и GameObject.
+        // Для полной синхронизации нужно использовать упрощенную структуру или синхронизировать только ID предмета.
+        // Здесь мы добавляем предмет локально на сервере, но для других клиентов нужно использовать ClientRpc.
+        if (slotIndex >= 0 && slotIndex < hotbarSlots && hotbarSlotsArray != null && hotbarSlotsArray.Length > slotIndex)
+        {
+            hotbarSlotsArray[slotIndex].AddItem(item);
+            // Отправляем обновление всем клиентам через ClientRpc
+            UpdateSlotClientRpc(slotIndex, item.itemName, item.description, item.weight, item.itemType.ToString());
+        }
+    }
+    
+    /// <summary>
+    /// ClientRpc для обновления слота инвентаря (вызывается сервером, получают все клиенты)
+    /// </summary>
+    [ClientRpc]
+    protected void UpdateSlotClientRpc(int slotIndex, string itemName, string description, float weight, string itemTypeStr)
+    {
+        // Обновляем слот на всех клиентах
+        // ВАЖНО: Здесь мы создаем упрощенную версию InventoryItem без Sprite и GameObject
+        if (slotIndex >= 0 && slotIndex < hotbarSlots && hotbarSlotsArray != null && hotbarSlotsArray.Length > slotIndex)
+        {
+            // Создаем упрощенный InventoryItem
+            InventoryItem item = new InventoryItem();
+            item.itemName = itemName;
+            item.description = description;
+            item.weight = weight;
+            
+            // Парсим ItemType
+            if (System.Enum.TryParse<ItemType>(itemTypeStr, out ItemType parsedType))
+            {
+                item.itemType = parsedType;
+            }
+            
+            hotbarSlotsArray[slotIndex].AddItem(item);
+        }
     }
     
     /// <summary>

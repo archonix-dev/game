@@ -176,15 +176,16 @@ public class PlayerController : NetworkBehaviour
     private float legAnimTime = 0f;
 	private LineRenderer[] legRenderers;
 	private Material legMaterial;
-    private NetworkPlayer networkPlayer;
     
-    private enum PlayerStance
+    public enum PlayerStance
     {
         Standing,
         Crouching,
         Prone
     }
     
+    // Синхронизированная стойка игрока
+    [SyncVar(hook = nameof(OnStanceChanged))]
     private PlayerStance currentStance = PlayerStance.Standing;
     private PlayerStance previousStance = PlayerStance.Standing;
     private float targetHeight;
@@ -207,6 +208,8 @@ public class PlayerController : NetworkBehaviour
     
     // Переменные для анимаций захвата предметов
     private bool wasHoldingObject = false;
+    // Синхронизированное состояние захвата предметов
+    [SyncVar(hook = nameof(OnHoldingObjectChanged))]
     private bool isHoldingObject = false;
     private float grabStartTime = -1f;
     private float grabReleaseTime = -1f;
@@ -229,8 +232,11 @@ public class PlayerController : NetworkBehaviour
     private Collider playerCollider;
     
     // Переменные для смерти
+    // Синхронизированное состояние смерти
+    [SyncVar(hook = nameof(OnDeathStateChanged))]
     private bool isDead = false;
     private bool wasDead = false;
+    [SyncVar]
     private bool isDeathAnimationPlaying = false;
     private float deathAnimationStartTime = -1f;
     private bool deathParticleShown = false;
@@ -267,9 +273,30 @@ public class PlayerController : NetworkBehaviour
         return currentStance == PlayerStance.Crouching;
     }
     
+    void Awake()
+    {
+        // Проверяем и отключаем NetworkRigidbodyReliable если нет Rigidbody
+        // (Player использует CharacterController, а не Rigidbody)
+        // Делаем это в Awake, чтобы компонент был отключен до FixedUpdate
+        var networkRigidbody = GetComponent<Mirror.NetworkRigidbodyReliable>();
+        if (networkRigidbody != null)
+        {
+            Rigidbody rb = GetComponent<Rigidbody>();
+            if (rb == null)
+            {
+                // Если нет Rigidbody, отключаем NetworkRigidbodyReliable
+                networkRigidbody.enabled = false;
+                Debug.LogWarning($"[PlayerController] NetworkRigidbodyReliable отключен на {gameObject.name} в Awake, так как нет компонента Rigidbody. Player использует CharacterController.");
+            }
+        }
+    }
+    
     public override void OnStartClient()
     {
         base.OnStartClient();
+        
+        // Сбрасываем все флаги смерти при спавне
+        ResetDeathState();
         
         controller = GetComponent<CharacterController>();
         controller.height = standingHeight;
@@ -295,6 +322,16 @@ public class PlayerController : NetworkBehaviour
                     cam.enabled = false;
                 }
             }
+            
+            // ВАЖНО: Отключаем CharacterController для других игроков
+            // NetworkTransform будет управлять позицией напрямую через transform.position
+            // CharacterController блокирует прямое изменение transform.position
+            if (controller != null)
+            {
+                controller.enabled = false;
+                Debug.Log($"[PlayerController] CharacterController отключен для удаленного игрока {gameObject.name}");
+            }
+            
             // Управление отключится в Update через проверку IsOwner
         }
         else
@@ -307,6 +344,12 @@ public class PlayerController : NetworkBehaviour
                 {
                     cam.enabled = true;
                 }
+            }
+            
+            // Для локального игрока CharacterController должен быть включен
+            if (controller != null)
+            {
+                controller.enabled = true;
             }
         }
         
@@ -369,16 +412,6 @@ public class PlayerController : NetworkBehaviour
         if (pickupableGrabSystem == null)
         {
             pickupableGrabSystem = GetComponent<PickupableGrabSystem>();
-        }
-        
-        // Находим NetworkPlayer для получения никнейма
-        if (networkPlayer == null)
-        {
-            networkPlayer = GetComponent<NetworkPlayer>();
-            if (networkPlayer == null)
-            {
-                networkPlayer = GetComponentInParent<NetworkPlayer>();
-            }
         }
         
         if (playerModel != null)
@@ -560,6 +593,9 @@ public class PlayerController : NetworkBehaviour
     
     void HandleStanceInput()
     {
+        // Обрабатываем ввод только для владельца
+        if (!isOwned) return;
+        
         bool ctrlPressed = Input.GetKey(KeyCode.LeftControl);
         bool zPressed = Input.GetKey(KeyCode.Z);
         
@@ -568,13 +604,28 @@ public class PlayerController : NetworkBehaviour
             // Сохраняем предыдущую стойку перед изменением
             previousStance = currentStance;
             
+            PlayerStance newStance;
             if (currentStance == PlayerStance.Crouching)
             {
-                currentStance = PlayerStance.Standing;
+                newStance = PlayerStance.Standing;
             }
             else if (currentStance == PlayerStance.Standing)
             {
-                currentStance = PlayerStance.Crouching;
+                newStance = PlayerStance.Crouching;
+            }
+            else
+            {
+                newStance = currentStance;
+            }
+            
+            // Синхронизируем изменение стойки через сервер
+            if (isServer)
+            {
+                currentStance = newStance;
+            }
+            else
+            {
+                SetStanceCommand(newStance);
             }
         }
         
@@ -583,18 +634,50 @@ public class PlayerController : NetworkBehaviour
             // Сохраняем предыдущую стойку перед изменением
             previousStance = currentStance;
             
+            PlayerStance newStance;
             if (currentStance == PlayerStance.Prone)
             {
-                currentStance = PlayerStance.Standing;
+                newStance = PlayerStance.Standing;
             }
             else
             {
-                currentStance = PlayerStance.Prone;
+                newStance = PlayerStance.Prone;
+            }
+            
+            // Синхронизируем изменение стойки через сервер
+            if (isServer)
+            {
+                currentStance = newStance;
+            }
+            else
+            {
+                SetStanceCommand(newStance);
             }
         }
         
         ctrlPressedLastFrame = ctrlPressed;
         zPressedLastFrame = zPressed;
+    }
+    
+    /// <summary>
+    /// Command для изменения стойки (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void SetStanceCommand(PlayerStance newStance)
+    {
+        currentStance = newStance;
+    }
+    
+    /// <summary>
+    /// Hook для изменения стойки (вызывается при изменении SyncVar)
+    /// </summary>
+    void OnStanceChanged(PlayerStance oldStance, PlayerStance newStance)
+    {
+        // Обновляем предыдущую стойку для анимаций
+        if (oldStance != newStance)
+        {
+            previousStance = oldStance;
+        }
     }
     
     void HandleStanceChange()
@@ -771,6 +854,9 @@ public class PlayerController : NetworkBehaviour
         bool showLegs = true;
         bool isProne = currentStance == PlayerStance.Prone;
         
+        // Проверяем, открыто ли меню (курсор разблокирован)
+        bool isMenuOpen = Cursor.lockState != CursorLockMode.Locked;
+        
         switch (currentStance)
         {
             case PlayerStance.Prone:
@@ -806,6 +892,12 @@ public class PlayerController : NetworkBehaviour
                 showBody = true;
                 showLegs = true;
                 break;
+        }
+        
+        // Если меню открыто, всегда показываем headObject для владельца
+        if (isMenuOpen && isOwned)
+        {
+            showHead = true;
         }
         
         if (headObject != null) headObject.SetActive(showHead);
@@ -1037,7 +1129,38 @@ public class PlayerController : NetworkBehaviour
         bool holdingFromObjectGrab = (objectGrabSystem != null && objectGrabSystem.IsHoldingObject());
         bool holdingFromPickupable = (pickupableGrabSystem != null && pickupableGrabSystem.IsHoldingObject());
         
-        isHoldingObject = holdingFromObjectGrab || holdingFromPickupable;
+        bool newHoldingState = holdingFromObjectGrab || holdingFromPickupable;
+        
+        // Синхронизируем состояние захвата через сервер
+        if (newHoldingState != isHoldingObject)
+        {
+            if (isServer)
+            {
+                isHoldingObject = newHoldingState;
+            }
+            else if (isOwned)
+            {
+                SetHoldingObjectCommand(newHoldingState);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Command для изменения состояния захвата (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void SetHoldingObjectCommand(bool holding)
+    {
+        isHoldingObject = holding;
+    }
+    
+    /// <summary>
+    /// Hook для изменения состояния захвата (вызывается при изменении SyncVar)
+    /// </summary>
+    void OnHoldingObjectChanged(bool oldValue, bool newValue)
+    {
+        // Обновляем предыдущее состояние для анимаций
+        wasHoldingObject = oldValue;
     }
     
     /// <summary>
@@ -1158,12 +1281,6 @@ public class PlayerController : NetworkBehaviour
         
         string playerName = "Player";
         
-        // Получаем никнейм из NetworkPlayer
-        if (networkPlayer != null)
-        {
-            playerName = networkPlayer.PlayerName;
-        }
-        
         // Получаем здоровье из PlayerHealthStamina
         string healthText = "";
         if (playerHealthStamina != null)
@@ -1203,99 +1320,18 @@ public class PlayerController : NetworkBehaviour
             return;
         
         string playerName = "Player";
-        
-        // Получаем никнейм из NetworkPlayer (как в ChatSystem)
-        if (networkPlayer != null)
-        {
-            playerName = networkPlayer.PlayerName;
-        }
-        
         playerName3DText.text = playerName;
     }
     
     /// <summary>
     /// Проверяет, смотрит ли какой-либо другой игрок на этого игрока
+    /// В локальной игре всегда возвращает false
     /// </summary>
     void CheckIfBeingLookedAt()
     {
-        // Не проверяем если не заспавнен
-        if (netIdentity == null || netIdentity.netId == 0)
-        {
-            isBeingLookedAt = false;
-            return;
-        }
-        
-        // Ищем всех других игроков в сети
-        bool foundLooker = false;
-        
-        if (NetworkClient.active || NetworkServer.active)
-        {
-            // Получаем всех подключенных клиентов через Mirror
-            foreach (var connection in NetworkServer.connections.Values)
-            {
-                // Пропускаем себя
-                int currentConnectionId = connectionToClient != null ? connectionToClient.connectionId : 0;
-                if (connection.connectionId == currentConnectionId)
-                    continue;
-                
-                // Ищем NetworkPlayer для этого клиента
-                NetworkPlayer otherPlayer = FindNetworkPlayerByConnectionId((uint)connection.connectionId);
-                if (otherPlayer == null)
-                    continue;
-                
-                // Получаем камеру другого игрока
-                Camera otherCamera = otherPlayer.GetComponentInChildren<Camera>();
-                if (otherCamera == null || !otherCamera.enabled)
-                    continue;
-                
-                // Проверяем, смотрит ли камера другого игрока на этого игрока
-                Vector3 directionToPlayer = transform.position - otherCamera.transform.position;
-                float distance = directionToPlayer.magnitude;
-                
-                // Проверяем расстояние
-                if (distance > lookAtDistance)
-                    continue;
-                
-                // Проверяем угол (направление камеры должно быть примерно в сторону игрока)
-                Vector3 cameraForward = otherCamera.transform.forward;
-                float dot = Vector3.Dot(cameraForward.normalized, directionToPlayer.normalized);
-                
-                // Если угол меньше 0.7 (примерно 45 градусов), игрок не смотрит
-                if (dot < 0.7f)
-                    continue;
-                
-                // Делаем raycast от камеры другого игрока к этому игроку
-                Ray ray = new Ray(otherCamera.transform.position, directionToPlayer.normalized);
-                if (playerCollider != null && playerCollider.Raycast(ray, out RaycastHit hit, lookAtDistance))
-                {
-                    // Проверяем, что попали именно в этого игрока
-                    if (hit.collider == playerCollider)
-                    {
-                        foundLooker = true;
-                        break;
-                    }
-                }
-            }
-        }
-        
+        // В локальной игре нет других игроков
         wasBeingLookedAt = isBeingLookedAt;
-        isBeingLookedAt = foundLooker;
-    }
-    
-    /// <summary>
-    /// Находит NetworkPlayer по clientId
-    /// </summary>
-    private NetworkPlayer FindNetworkPlayerByConnectionId(uint connectionId)
-    {
-        NetworkPlayer[] allPlayers = FindObjectsOfType<NetworkPlayer>();
-        foreach (NetworkPlayer player in allPlayers)
-        {
-            if (player.netIdentity != null && player.netIdentity.netId != 0 && player.PlayerId == connectionId)
-            {
-                return player;
-            }
-        }
-        return null;
+        isBeingLookedAt = false;
     }
     
     /// <summary>
@@ -1412,7 +1448,20 @@ public class PlayerController : NetworkBehaviour
         
         // Проверяем здоровье
         float currentHealth = playerHealthStamina.GetCurrentHealth();
-        isDead = currentHealth <= 0f;
+        bool newDeadState = currentHealth <= 0f;
+        
+        // Синхронизируем состояние смерти через сервер
+        if (newDeadState != isDead)
+        {
+            if (isServer)
+            {
+                isDead = newDeadState;
+            }
+            else if (isOwned)
+            {
+                SetDeathStateCommand(newDeadState);
+            }
+        }
         
         // Если игрок только что умер
         if (!wasDead && isDead)
@@ -1421,6 +1470,29 @@ public class PlayerController : NetworkBehaviour
         }
         
         wasDead = isDead;
+    }
+    
+    /// <summary>
+    /// Command для изменения состояния смерти (вызывается клиентом, выполняется на сервере)
+    /// </summary>
+    [Command]
+    protected void SetDeathStateCommand(bool dead)
+    {
+        isDead = dead;
+    }
+    
+    /// <summary>
+    /// Hook для изменения состояния смерти (вызывается при изменении SyncVar)
+    /// </summary>
+    void OnDeathStateChanged(bool oldValue, bool newValue)
+    {
+        wasDead = oldValue;
+        
+        // Если игрок только что умер, запускаем последовательность смерти
+        if (!oldValue && newValue)
+        {
+            StartDeathSequence();
+        }
     }
     
     /// <summary>
@@ -1468,6 +1540,27 @@ public class PlayerController : NetworkBehaviour
         {
             CompleteDeath();
         }
+    }
+    
+    /// <summary>
+    /// Сбрасывает состояние смерти при спавне игрока
+    /// </summary>
+    void ResetDeathState()
+    {
+        isDead = false;
+        wasDead = false;
+        isDeathAnimationPlaying = false;
+        deathAnimationStartTime = -1f;
+        deathParticleShown = false;
+        
+        // Деактивируем и останавливаем Particle System смерти
+        if (deathParticleSystem != null)
+        {
+            deathParticleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            deathParticleSystem.gameObject.SetActive(false);
+        }
+        
+        Debug.Log("[PlayerController] Состояние смерти сброшено при спавне");
     }
     
     /// <summary>
@@ -1543,12 +1636,7 @@ public class PlayerController : NetworkBehaviour
             Debug.Log("[PlayerController] Компонент CorpseItem добавлен к трупу");
         }
         
-        // Получаем никнейм игрока из NetworkPlayer
         string playerName = "Unknown Player";
-        if (networkPlayer != null)
-        {
-            playerName = networkPlayer.PlayerName;
-        }
         
         // Устанавливаем никнейм в труп
         corpseItem.SetPlayerName(playerName);
