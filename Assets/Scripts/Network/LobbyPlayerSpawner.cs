@@ -294,6 +294,7 @@ public class LobbyPlayerSpawner : NetworkBehaviour
     public void OnClientDisconnected(NetworkConnectionToClient conn)
     {
         spawnedConnections.Remove(conn.connectionId);
+        PlayerCustomizationStorage.RemoveByConnectionId(conn.connectionId);
     }
 }
 

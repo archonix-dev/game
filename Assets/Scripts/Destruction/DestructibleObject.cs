@@ -4,6 +4,15 @@ using Mirror;
 
 /// <summary>
 /// Компонент для объектов которые могут быть захвачены и разрушены после определенного количества ударов
+/// 
+/// ТРЕБОВАНИЯ ДЛЯ МУЛЬТИПЛЕЕРА:
+/// - GameObject должен иметь компонент NetworkIdentity
+/// - GameObject должен иметь компонент NetworkTransformReliable или NetworkTransformHybrid для синхронизации позиции/ротации
+///   (для физических объектов рекомендуется NetworkTransformReliable с updateMethod = FixedUpdate)
+/// - GameObject должен иметь компонент NetworkDestructibleObject для синхронизации состояния разрушения
+/// 
+/// Примечание: LobbyNetworkManager автоматически добавляет NetworkTransformReliable при регистрации объектов,
+/// но для префабов лучше указать компоненты заранее.
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
 public class DestructibleObject : MonoBehaviour

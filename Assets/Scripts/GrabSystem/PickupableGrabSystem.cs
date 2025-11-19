@@ -91,6 +91,13 @@ public class PickupableGrabSystem : NetworkBehaviour
         // Проверяем, на что смотрит игрок
         CheckForGrabbableObject();
         
+        // Проверяем, что захваченный объект еще существует (не был уничтожен)
+        if (currentGrabbedObject != null && (currentGrabbedObject.gameObject == null || currentGrabbedObject == null))
+        {
+            // Объект был уничтожен - принудительно освобождаем его
+            ForceReleaseObject();
+        }
+        
         // Обработка захвата/отпускания
         if (Input.GetMouseButtonDown(0))
         {
@@ -145,10 +152,24 @@ public class PickupableGrabSystem : NetworkBehaviour
     
     void FixedUpdate()
     {
+        // Проверяем, что объект еще существует (не был уничтожен)
         if (currentGrabbedObject != null && grabbedRigidbody != null)
         {
+            // Дополнительная проверка: объект может быть уничтожен, но ссылка еще не null
+            if (currentGrabbedObject.gameObject == null || grabbedRigidbody.gameObject == null)
+            {
+                // Объект был уничтожен - освобождаем его
+                ForceReleaseObject();
+                return;
+            }
+            
             MoveGrabbedObject();
             UpdateGrabLineRenderer();
+        }
+        else if (grabbedObjectNetId != 0)
+        {
+            // Объект был уничтожен, но netId еще не сброшен - освобождаем
+            ForceReleaseObject();
         }
     }
     
@@ -322,9 +343,56 @@ public class PickupableGrabSystem : NetworkBehaviour
         grabbedObjectNetId = 0;
     }
     
+    /// <summary>
+    /// Принудительно освобождает объект (используется когда объект был уничтожен)
+    /// </summary>
+    void ForceReleaseObject()
+    {
+        // Сбрасываем все переменные
+        currentGrabbedObject = null;
+        grabbedRigidbody = null;
+        currentWeight = 0f;
+        slipAccumulation = 0f;
+        
+        // Синхронизируем через сервер
+        if (isServer)
+        {
+            grabbedObjectNetId = 0;
+        }
+        else if (isOwned)
+        {
+            ReleaseObjectCommand();
+        }
+        
+        // Скрываем линию
+        HideGrabLineRenderer();
+        
+        // Сбрасываем состояние наведения
+        if (currentLookingAt != null)
+        {
+            currentLookingAt.SetPlayerLookingAt(false);
+            currentLookingAt = null;
+        }
+    }
+    
     void MoveGrabbedObject()
     {
-        if (grabbedRigidbody == null) return;
+        if (grabbedRigidbody == null || currentGrabbedObject == null) 
+        {
+            // Объект был уничтожен - освобождаем его
+            if (grabbedObjectNetId != 0)
+            {
+                ForceReleaseObject();
+            }
+            return;
+        }
+        
+        // Дополнительная проверка: объект может быть уничтожен
+        if (currentGrabbedObject.gameObject == null || grabbedRigidbody.gameObject == null)
+        {
+            ForceReleaseObject();
+            return;
+        }
         
         // Целевая позиция - точка удержания + дополнительное расстояние вперед
         Vector3 targetPosition = holdPoint.position + holdPoint.forward * objectDistance;
@@ -392,6 +460,13 @@ public class PickupableGrabSystem : NetworkBehaviour
     {
         // Обрабатываем скольжение только для владельца
         if (!isOwned) return;
+        
+        // Проверяем, что объект еще существует
+        if (currentGrabbedObject == null || (currentGrabbedObject.gameObject == null))
+        {
+            ForceReleaseObject();
+            return;
+        }
         
         // Вычисляем скорость движения игрока
         Vector3 currentPlayerPosition = transform.root.position;
@@ -543,7 +618,29 @@ public class PickupableGrabSystem : NetworkBehaviour
     // Публичные методы для получения информации о состоянии
     public bool IsHoldingObject() 
     {
-        return grabbedObjectNetId != 0 || currentGrabbedObject != null;
+        // Проверяем, что объект действительно существует
+        if (currentGrabbedObject != null)
+        {
+            // Проверяем, что GameObject еще существует
+            if (currentGrabbedObject.gameObject == null)
+            {
+                // Объект был уничтожен - сбрасываем состояние
+                ForceReleaseObject();
+                return false;
+            }
+            
+            // Объект существует и захвачен
+            return true;
+        }
+        
+        // Если currentGrabbedObject null, но netId не 0 - объект мог быть уничтожен
+        if (grabbedObjectNetId != 0)
+        {
+            ForceReleaseObject();
+            return false;
+        }
+        
+        return false;
     }
     public float GetCurrentWeight() => currentWeight;
     public float GetSlipAmount() => slipAccumulation;

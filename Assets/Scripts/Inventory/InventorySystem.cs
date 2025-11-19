@@ -893,6 +893,23 @@ public class InventorySystem : NetworkBehaviour
         droppedItemData.maxStaminaAmount = item.maxStaminaAmount;
         
         pickupable.SetItemData(droppedItemData);
+        
+        // Инициализируем компонент вручную (так как Start() уже мог быть вызван)
+        pickupable.InitializePickupableItem();
+        
+        // Если объект имеет NetworkIdentity, синхронизируем его через сервер
+        NetworkIdentity networkIdentity = droppedItem.GetComponent<NetworkIdentity>();
+        if (networkIdentity != null)
+        {
+            // Если мы на сервере, спавним объект
+            if (isServer)
+            {
+                NetworkServer.Spawn(droppedItem);
+            }
+            // Если мы на клиенте, объект будет создан локально
+            // NetworkIdentity автоматически синхронизирует его при подключении к серверу
+            // Или можно использовать ClientRpc для создания на всех клиентах
+        }
     }
     /// <summary>
     /// Обновляет отображение предмета в руке

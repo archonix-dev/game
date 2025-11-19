@@ -176,6 +176,9 @@ public class PlayerController : NetworkBehaviour
     private float legAnimTime = 0f;
 	private LineRenderer[] legRenderers;
 	private Material legMaterial;
+    private Vector3 lastLegPosition;
+    private float smoothedLegSpeed = 0f;
+    private bool legPositionInitialized = false;
     
     public enum PlayerStance
     {
@@ -498,6 +501,10 @@ public class PlayerController : NetworkBehaviour
 				legRenderers[i] = lr;
 			}
 		}
+
+        lastLegPosition = transform.position;
+        smoothedLegSpeed = 0f;
+        legPositionInitialized = true;
     }
     
     void Update()
@@ -519,7 +526,16 @@ public class PlayerController : NetworkBehaviour
         // Проверяем взгляд других игроков и обрабатываем анимации 3D никнейма (для всех игроков)
         CheckIfBeingLookedAt();
         HandlePlayerNameAnimations();
-        
+
+        // Обновляем стойку/видимость для всех игроков (включая удалённых)
+        HandleStanceChange();
+
+        // Обновляем анимацию ног для всех экземпляров
+        UpdateLegAnimationState();
+
+        // Обновляем общие анимации (для локальных и удалённых игроков)
+        HandleSharedAnimations();
+
         // Обрабатываем ввод только для владельца
         if (!isOwned) return;
         
@@ -527,7 +543,6 @@ public class PlayerController : NetworkBehaviour
         HandleInputTracking();
         
         HandleStanceInput();
-        HandleStanceChange();
         HandleGroundCheck();
         HandleMovement();
         HandleJump();
@@ -536,15 +551,8 @@ public class PlayerController : NetworkBehaviour
         // Обновляем состояние захвата предметов
         UpdateGrabState();
         
-        // Обрабатываем анимации
-        HandleAnimations();
-        
-		// Обновляем тентакли-ноги
-        float horizontal = Input.GetAxis("Horizontal");
-        float vertical = Input.GetAxis("Vertical");
-        float inputMagnitude = new Vector2(horizontal, vertical).magnitude;
-		bool isRunningAnim = Input.GetKey(KeyCode.LeftShift) && currentStance == PlayerStance.Standing && inputMagnitude > 0.1f;
-		UpdateLegs(inputMagnitude, isRunningAnim);
+        // Обрабатываем анимации владельца (IdleLong и др.)
+        HandleOwnerAnimations();
         
         // Обновляем текст с никнеймом и здоровьем
         UpdateNameTagText();
@@ -899,7 +907,7 @@ public class PlayerController : NetworkBehaviour
         {
             showHead = true;
         }
-        
+
         if (headObject != null) headObject.SetActive(showHead);
         if (bodyObject != null) bodyObject.SetActive(showBody);
         SetLegsEnabled(showLegs);
@@ -918,13 +926,58 @@ public class PlayerController : NetworkBehaviour
         }
     }
     
-	void UpdateLegs(float inputMagnitude, bool isRunning)
+    void UpdateLegAnimationState()
+    {
+        if (legAnchors == null || legAnchors.Length == 0 || legFootTargets == null || legFootTargets.Length == 0)
+            return;
+
+        UpdateLegMovementMetrics();
+
+        float normalizedSpeed = Mathf.Clamp01(smoothedLegSpeed / Mathf.Max(0.001f, runSpeed));
+        bool isRunningAnim = false;
+
+        if (isOwned)
+        {
+            float horizontal = Input.GetAxis("Horizontal");
+            float vertical = Input.GetAxis("Vertical");
+            float inputMagnitude = Mathf.Clamp01(new Vector2(horizontal, vertical).magnitude);
+            normalizedSpeed = Mathf.Max(normalizedSpeed, inputMagnitude);
+            isRunningAnim = Input.GetKey(KeyCode.LeftShift) && currentStance == PlayerStance.Standing && inputMagnitude > 0.1f;
+        }
+        else
+        {
+            isRunningAnim = normalizedSpeed > 0.6f && currentStance == PlayerStance.Standing;
+        }
+
+        UpdateLegs(normalizedSpeed, isRunningAnim);
+    }
+
+    void UpdateLegMovementMetrics()
+    {
+        float delta = Time.deltaTime;
+        if (delta <= 0f)
+            return;
+
+        if (!legPositionInitialized)
+        {
+            lastLegPosition = transform.position;
+            smoothedLegSpeed = 0f;
+            legPositionInitialized = true;
+            return;
+        }
+
+        float instantSpeed = (transform.position - lastLegPosition).magnitude / delta;
+        lastLegPosition = transform.position;
+        smoothedLegSpeed = Mathf.Lerp(smoothedLegSpeed, instantSpeed, delta * 10f);
+    }
+
+	void UpdateLegs(float movementFactor, bool isRunning)
     {
         // Ноги видны только когда мы стоим (или когда включены)
 		if (legAnchors == null || legAnchors.Length == 0 || legFootTargets == null || legFootTargets.Length == 0) return;
         
         // Небольшая анимация даже без движения
-        float movementFactor = Mathf.Clamp01(inputMagnitude);
+        movementFactor = Mathf.Clamp01(movementFactor);
 		float freq = Mathf.Lerp(1.0f, waveFrequency, movementFactor);
 		if (isRunning)
 		{
@@ -1018,24 +1071,27 @@ public class PlayerController : NetworkBehaviour
     }
     
     /// <summary>
-    /// Обрабатывает все анимации игрока
+    /// Обрабатывает анимации, которые должны проигрываться у всех игроков
     /// </summary>
-    private void HandleAnimations()
+    private void HandleSharedAnimations()
     {
         if (animator == null)
             return;
         
-        // Постоянно проигрываем idle анимацию
         animator.SetBool("idle", true);
-        
-        // Обрабатываем idlelong анимацию
-        HandleIdleLongAnimation();
-        
-        // Обрабатываем анимации переходов между стойками
         HandleStanceTransitionAnimations();
-        
-        // Обрабатываем анимации захвата предметов
         HandleGrabAnimations();
+    }
+    
+    /// <summary>
+    /// Обрабатывает анимации, зависящие от локального ввода (например, idlelong)
+    /// </summary>
+    private void HandleOwnerAnimations()
+    {
+        if (animator == null)
+            return;
+        
+        HandleIdleLongAnimation();
     }
     
     /// <summary>
@@ -1131,9 +1187,10 @@ public class PlayerController : NetworkBehaviour
         
         bool newHoldingState = holdingFromObjectGrab || holdingFromPickupable;
         
-        // Синхронизируем состояние захвата через сервер
-        if (newHoldingState != isHoldingObject)
+        // Если состояние изменилось или если мы думаем что держим, но на самом деле нет - обновляем
+        if (newHoldingState != isHoldingObject || (isHoldingObject && !newHoldingState))
         {
+            // Синхронизируем состояние захвата через сервер
             if (isServer)
             {
                 isHoldingObject = newHoldingState;
@@ -1233,10 +1290,20 @@ public class PlayerController : NetworkBehaviour
                 animator.speed = animationSpeed;
             }
         }
-        else if (!isGrabHoldAnimationActive)
+        else
         {
-            // Сбрасываем скорость анимации только когда анимация удержания не активна
-            animator.speed = 1f;
+            // Если не держим предмет, но анимация удержания все еще активна - отключаем её
+            if (isGrabHoldAnimationActive && !string.IsNullOrEmpty(grabHoldAnimation))
+            {
+                animator.SetBool(grabHoldAnimation, false);
+                isGrabHoldAnimationActive = false;
+            }
+            
+            // Сбрасываем скорость анимации когда не держим предмет
+            if (!isHoldingObject)
+            {
+                animator.speed = 1f;
+            }
         }
         
         // Проверяем отпускание предмета (было true, стало false)

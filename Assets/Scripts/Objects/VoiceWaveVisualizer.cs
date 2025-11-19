@@ -1,7 +1,9 @@
 using UnityEngine;
 using TMPro;
 using System.Collections;
+using System.Collections.Generic;
 using Mirror;
+using Steamworks;
 
 public class VoiceWaveVisualizer : NetworkBehaviour
 {
@@ -67,6 +69,25 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	[Range(0f, 1f)]
 	public float amplitudeLerp = 0.2f;
 	
+	[Header("Voice Networking")]
+	[Tooltip("Частота отправки пакетов голоса (секунды)")]
+	[Min(0.0001f)]
+	public float voiceSendInterval = 0.05f;
+	[Tooltip("Максимальное количество сэмплов в одном пакете")]
+	[Min(128)]
+	public int maxSamplesPerPacket = 2048;
+	[Tooltip("Минимальная амплитуда, при которой голос отправляется")]
+	[Range(0f, 0.1f)]
+	public float minVoiceAmplitude = 0.005f;
+	
+	[Header("Voice Playback")]
+	[Tooltip("Усиление входящего голоса (увеличьте, если собеседника плохо слышно)")]
+	[Range(0.1f, 4f)]
+	public float remotePlaybackGain = 1.2f;
+	[Tooltip("Максимальная длина буфера входящего голоса (сек)")]
+	[Range(0.1f, 2f)]
+	public float remoteBufferDuration = 0.6f;
+	
 	[Header("Frequency Classification")]
 	[Tooltip("Размер спектра для FFT анализа")]
 	[Min(64)]
@@ -90,6 +111,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	private LineRenderer lineRenderer;
 	private Material lineMaterial;
 	private float[] amplitudeSamples;
+	private float[] micChunkBuffer;
 	private float[] spectrum;
 	private float currentAmplitude;
 	private float timePhase;
@@ -97,6 +119,15 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	private bool micActive;
 	private int currentSampleRate;
 	private string currentMicrophoneDevice = null; // Текущее устройство микрофона
+	private int lastMicSamplePosition = 0;
+	private float voiceSendTimer = 0f;
+	private byte[] voiceByteBuffer;
+	private float lastRemoteSample = 0f;
+	
+	private Queue<float> remoteSampleQueue = new Queue<float>(8192);
+	private readonly object remoteQueueLock = new object();
+	private int remoteSampleRate = 0;
+	private AudioClip remotePlaybackClip;
 	
 	// Статус системы
 	private float statusUpdateTimer = 0f;
@@ -116,7 +147,15 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	[SyncVar]
 	private float networkAmplitude = 0f;
 	
+	// Цвет визуализатора, синхронизированный через сеть
+	[SyncVar(hook = nameof(OnPlayerColorChanged))]
+	private Color syncedPlayerColor = new Color(0.05f, 0.82f, 0.27f, 1f);
+	
 	private string playerName = "";
+	
+	// Цвет по умолчанию и текущий базовый цвет игрока
+	private static readonly Color DefaultPlayerColor = new Color(0.05f, 0.82f, 0.27f, 1f);
+	private Color playerBaseColor = DefaultPlayerColor;
 	
 	// Ссылка на PlayerController для определения позиции игрока
 	private PlayerController playerController;
@@ -128,10 +167,41 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		// Настраиваем AudioSource в зависимости от владельца
 		SetupAudioSource();
 		
-		// Используем значения по умолчанию для цвета и имени
+		// Применяем уже синхронизированный цвет
+		ApplyPlayerColor(syncedPlayerColor, false);
+		
+		// Загружаем цвет и имя игрока из PlayerCustomizationStorage или LobbyPlayer (локально)
+		StartCoroutine(LoadColorAndNameDelayed(false));
 		
 		// Обновляем видимость LineRenderer для владельца
 		UpdateLineRendererVisibility();
+	}
+
+	public override void OnStartServer()
+	{
+		base.OnStartServer();
+		
+		// На сервере сразу применяем цвет из PlayerCustomizationStorage и синхронизируем его
+		StartCoroutine(LoadColorAndNameDelayed(true));
+	}
+	
+	/// <summary>
+	/// Загружает цвет и имя игрока с небольшой задержкой
+	/// </summary>
+	private IEnumerator LoadColorAndNameDelayed(bool syncColorToNetwork)
+	{
+		// Ждем немного, чтобы PlayerCustomizationStorage успел обновиться
+		// Для хоста может потребоваться больше времени
+		float delay = NetworkServer.activeHost ? 0.3f : 0.1f;
+		yield return new WaitForSeconds(delay);
+		bool colorLoaded = LoadColorAndNameFromPlayerData(syncColorToNetwork);
+		
+		// Если цвет не загрузился, пробуем еще раз через некоторое время
+		if (!colorLoaded)
+		{
+			yield return new WaitForSeconds(0.5f);
+			LoadColorAndNameFromPlayerData(syncColorToNetwork);
+		}
 	}
 	
 	// Hook для изменения состояния разговора
@@ -139,6 +209,12 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	{
 		// Обновляем визуализацию при изменении состояния разговора
 		UpdateLineRendererVisibility();
+	}
+
+	// Hook Mirror для обновления цвета на клиентах
+	void OnPlayerColorChanged(Color oldColor, Color newColor)
+	{
+		ApplyPlayerColor(newColor, false);
 	}
 	
 	void Awake()
@@ -174,8 +250,11 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		// Загружаем настройки микрофона из PlayerPrefs
 		LoadMicrophoneSettings();
 		
-		// Используем значения по умолчанию для цвета и имени
-		LoadColorAndNameFromDefaults();
+		// Загружаем цвет и имя игрока (если еще не загружено в OnStartClient)
+		if (netIdentity == null || netIdentity.netId == 0)
+		{
+			LoadColorAndNameFromPlayerData();
+		}
 		
 		// Находим PlayerController
 		FindPlayerController();
@@ -211,7 +290,87 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		}
 	}
 	
-	// Используем значения по умолчанию для цвета и имени
+	// Загружает цвет и имя игрока только из PlayerCustomizationStorage
+	bool LoadColorAndNameFromPlayerData(bool syncColorToNetwork = true)
+	{
+		Color playerColor = DefaultPlayerColor; // Цвет по умолчанию
+		string playerNameToSet = "Player";
+		bool colorFound = false;
+		
+		int connectionId = -1;
+		bool isHost = NetworkServer.activeHost;
+		
+		if (netIdentity != null && netIdentity.netId != 0)
+		{
+			// Определяем connectionId для этого игрока
+			if (netIdentity.connectionToClient != null)
+			{
+				connectionId = netIdentity.connectionToClient.connectionId;
+			}
+			else if (isHost && isOwned)
+			{
+				// Для хоста (когда он владелец объекта) connectionId = LocalConnectionId (0)
+				connectionId = NetworkConnection.LocalConnectionId;
+			}
+			
+			// Одинаковая логика для всех игроков: сначала через connectionId, затем через SteamID
+			
+			// Сначала пробуем найти через PlayerCustomizationStorage по connectionId
+			if (!colorFound && connectionId >= 0)
+			{
+				if (PlayerCustomizationStorage.TryGetByConnectionId(connectionId, out var data))
+				{
+					playerColor = data.PlayerColor;
+					playerNameToSet = string.IsNullOrEmpty(data.playerName) ? "Player" : data.playerName;
+					colorFound = true;
+					Debug.Log($"[VoiceWaveVisualizer] Найден цвет через connectionId {connectionId}: {playerColor}, имя: {playerNameToSet}");
+				}
+			}
+			
+			// Затем пробуем найти через SteamID (если доступен Steam API)
+			if (!colorFound)
+			{
+				try
+				{
+					if (SteamAPI.IsSteamRunning())
+					{
+						ulong steamId = SteamUser.GetSteamID().m_SteamID;
+						if (PlayerCustomizationStorage.TryGetBySteamId(steamId, out var dataBySteam))
+						{
+							playerColor = dataBySteam.PlayerColor;
+							playerNameToSet = string.IsNullOrEmpty(dataBySteam.playerName) ? "Player" : dataBySteam.playerName;
+							colorFound = true;
+							Debug.Log($"[VoiceWaveVisualizer] Найден цвет через SteamID {steamId}: {playerColor}, имя: {playerNameToSet}");
+						}
+					}
+				}
+				catch
+				{
+					// Игнорируем ошибки Steam API
+				}
+			}
+		}
+		
+		// Применяем цвет и имя
+		ApplyPlayerColor(playerColor, syncColorToNetwork);
+		SetPlayerName(playerNameToSet);
+		
+		// Отладочная информация (только для владельца)
+		if (isOwned)
+		{
+			Debug.Log($"[VoiceWaveVisualizer] Владелец: Загружен цвет {playerColor}, имя {playerNameToSet}, connectionId={connectionId}, colorFound={colorFound}");
+		}
+
+		if (isServer && colorFound)
+		{
+			// Убеждаемся, что синхронизированное значение соответствует примененному
+			syncedPlayerColor = playerColor;
+		}
+
+		return colorFound;
+	}
+	
+	// Используем значения по умолчанию для цвета и имени (резервный метод)
 	void LoadColorAndNameFromDefaults()
 	{
 		// Используем значения по умолчанию
@@ -263,6 +422,13 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	void SetAmplitudeCommand(float amplitude)
 	{
 		networkAmplitude = amplitude;
+	}
+	
+	// Command для синхронизации цвета игрока
+	[Command]
+	void CmdSetPlayerColor(Color color)
+	{
+		syncedPlayerColor = color;
 	}
 	
 	private void FindPlayerController()
@@ -333,8 +499,8 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		// Обновляем цвет targetSpriteRenderer на основе амплитуды для визуального эффекта
 		if (targetSpriteRenderer != null)
 		{
-			// Используем цвет по умолчанию
-			Color baseColor = new Color(0.05f, 0.82f, 0.27f, 1f);
+			// Используем сохраненный цвет игрока
+			Color baseColor = playerBaseColor;
 			
 			// Убеждаемся, что спрайт активен и виден
 			if (!targetSpriteRenderer.gameObject.activeSelf)
@@ -380,6 +546,18 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 			StopCoroutine(typingCoroutine);
 			typingCoroutine = null;
 		}
+		
+		lock (remoteQueueLock)
+		{
+			remoteSampleQueue.Clear();
+			lastRemoteSample = 0f;
+		}
+		
+		if (!micActive && microphoneSource != null && microphoneSource.isPlaying)
+		{
+			microphoneSource.Stop();
+		}
+		remotePlaybackClip = null;
 	}
 	
 	private void SetupLineRenderer()
@@ -432,8 +610,8 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	
 	private void ApplySelectedColorIfExists()
 	{
-		// Используем цвет по умолчанию
-		Color c = new Color(0.05f, 0.82f, 0.27f, 1f);
+		// Используем сохраненный цвет игрока, если он установлен, иначе цвет по умолчанию
+		Color c = playerBaseColor;
 		
 		// Применить к линии
 		if (lineRenderer != null)
@@ -530,6 +708,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		
 		microphoneSource.loop = true;
 		microphoneSource.clip = micClip;
+		lastMicSamplePosition = 0;
 		
 		// Ждем, пока микрофон начнет писать хотя бы 1 сэмпл
 		int waitFrames = 0;
@@ -570,6 +749,7 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 			Microphone.End(deviceToStop);
 		}
 		micActive = false;
+		lastMicSamplePosition = 0;
 	}
 	
 	private void UpdateAmplitudeAndWave()
@@ -579,81 +759,64 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		// ВАЖНО: GetOutputData НЕ работает с микрофоном в Unity!
 		// Нужно использовать прямой доступ к AudioClip через GetData()
 		string deviceToCheck = currentMicrophoneDevice;
+		float[] clipData = null;
+		int capturedSamples = 0;
+		
 		if (microphoneSource != null && microphoneSource.clip != null && micActive && Microphone.IsRecording(deviceToCheck))
 		{
 			try
 			{
-				AudioClip micClip = microphoneSource.clip;
-				
-				// Получаем текущую позицию записи микрофона
-				int micPosition = Microphone.GetPosition(deviceToCheck);
-				if (micPosition < 0) micPosition = 0;
-				
-				// Количество сэмплов для чтения (последние N сэмплов)
-				int sampleCount = Mathf.Min(amplitudeSamples.Length, micClip.samples);
-				if (sampleCount <= 0) sampleCount = amplitudeSamples.Length;
-				
-				// Вычисляем начальную позицию для чтения (читаем последние сэмплы)
-				// Микрофон использует кольцевой буфер, поэтому нужно правильно вычислить позицию
-				int startPos = micPosition - sampleCount;
-				if (startPos < 0)
-				{
-					// Если позиция меньше размера буфера, читаем с конца + начало
-					startPos = micClip.samples + startPos;
-				}
-				
-				// Получаем данные напрямую из AudioClip
-				float[] clipData = new float[sampleCount];
-				micClip.GetData(clipData, startPos);
-				
-				// Копируем данные в amplitudeSamples для совместимости
-				int copyCount = Mathf.Min(clipData.Length, amplitudeSamples.Length);
-				for (int i = 0; i < copyCount; i++)
-				{
-					amplitudeSamples[i] = clipData[i];
-				}
-				
-				// Вычисляем RMS (Root Mean Square)
-				float sum = 0f;
-				float maxSample = 0f;
-				for (int i = 0; i < clipData.Length; i++)
-				{
-					float v = clipData[i];
-					float absV = Mathf.Abs(v);
-					if (absV > maxSample) maxSample = absV;
-					sum += v * v;
-				}
-				float rms = Mathf.Sqrt(sum / clipData.Length);
-				// Используем чувствительность из настроек (обновляем при каждом кадре на случай изменения)
-				float sensitivity = PlayerPrefs.GetFloat("MicrophoneSensitivity", amplitudeSensitivity);
-				if (sensitivity < 0.0001f) sensitivity = amplitudeSensitivity; // Fallback на значение по умолчанию
-				float loudness = Mathf.Clamp01(rms * sensitivity);
-				
-				targetAmp = Mathf.Lerp(minAmplitude, maxAmplitude, loudness);
-				
-				// Дебаг лог для проверки работы микрофона (только для владельца)
-				if (netIdentity != null && netIdentity.netId != 0 && isOwned && Time.frameCount % 300 == 0) // Каждые 5 секунд (при 60 FPS)
-				{
-					Debug.Log($"[VoiceWaveVisualizer] Микрофон активен. MicPos: {micPosition}, MaxSample: {maxSample:F6}, RMS: {rms:F6}, Loudness: {loudness:F4}, TargetAmp: {targetAmp:F4}, Samples: {clipData.Length}");
-				}
+				clipData = CaptureMicSamples(microphoneSource.clip, deviceToCheck, out capturedSamples);
 			}
 			catch (System.Exception e)
 			{
 				Debug.LogError($"[VoiceWaveVisualizer] Ошибка получения данных микрофона: {e.Message}\n{e.StackTrace}");
 			}
 		}
-		else if (micActive)
+		else if (micActive && Time.frameCount % 300 == 0)
 		{
-			// Микрофон должен быть активен, но что-то не так
-			if (Time.frameCount % 300 == 0) // Логируем не слишком часто
+			string issue = "";
+			if (microphoneSource == null) issue += "microphoneSource=null; ";
+			else if (microphoneSource.clip == null) issue += "clip=null; ";
+			else if (!microphoneSource.isPlaying) issue += "not playing; ";
+			if (!Microphone.IsRecording(deviceToCheck)) issue += "not recording; ";
+			Debug.LogWarning($"[VoiceWaveVisualizer] Микрофон активен, но данные не получаются! {issue}");
+		}
+		
+		if (clipData != null && capturedSamples > 0)
+		{
+			int copyCount = Mathf.Min(capturedSamples, amplitudeSamples.Length);
+			for (int i = 0; i < copyCount; i++)
 			{
-				string issue = "";
-				if (microphoneSource == null) issue += "microphoneSource=null; ";
-				else if (microphoneSource.clip == null) issue += "clip=null; ";
-				else if (!microphoneSource.isPlaying) issue += "not playing; ";
-				if (!Microphone.IsRecording(deviceToCheck)) issue += "not recording; ";
-				Debug.LogWarning($"[VoiceWaveVisualizer] Микрофон активен, но данные не получаются! {issue}");
+				amplitudeSamples[i] = clipData[i];
 			}
+			
+			float sum = 0f;
+			float maxSample = 0f;
+			for (int i = 0; i < capturedSamples; i++)
+			{
+				float v = clipData[i];
+				float absV = Mathf.Abs(v);
+				if (absV > maxSample) maxSample = absV;
+				sum += v * v;
+			}
+			
+			float rms = Mathf.Sqrt(sum / capturedSamples);
+			float sensitivity = PlayerPrefs.GetFloat("MicrophoneSensitivity", amplitudeSensitivity);
+			if (sensitivity < 0.0001f) sensitivity = amplitudeSensitivity;
+			float loudness = Mathf.Clamp01(rms * sensitivity);
+			
+			targetAmp = Mathf.Lerp(minAmplitude, maxAmplitude, loudness);
+			TrySendVoicePacket(clipData, microphoneSource.clip.frequency, targetAmp);
+			
+			if (netIdentity != null && netIdentity.netId != 0 && isOwned && Time.frameCount % 300 == 0)
+			{
+				Debug.Log($"[VoiceWaveVisualizer] Mic samples: {capturedSamples}, RMS: {rms:F6}, Loudness: {loudness:F4}, TargetAmp: {targetAmp:F4}");
+			}
+		}
+		else
+		{
+			targetAmp = Mathf.Lerp(currentAmplitude, minAmplitude, amplitudeLerp);
 		}
 		
 		currentAmplitude = Mathf.Lerp(currentAmplitude, targetAmp, amplitudeLerp);
@@ -739,6 +902,191 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		lineRenderer.widthMultiplier = w;
 		lineRenderer.startWidth = w;
 		lineRenderer.endWidth = w;
+	}
+	
+	private void TrySendVoicePacket(float[] samples, int sampleRate, float amplitude)
+	{
+		if (!isOwned || !NetworkClient.active || !micActive)
+			return;
+		
+		if (samples == null || samples.Length == 0)
+			return;
+		
+		if (amplitude < minVoiceAmplitude)
+			return;
+		
+		voiceSendTimer += Time.deltaTime;
+		if (voiceSendTimer < voiceSendInterval)
+			return;
+		
+		voiceSendTimer = 0f;
+		
+		int sampleCount = Mathf.Min(samples.Length, Mathf.Max(128, maxSamplesPerPacket));
+		int byteCount = sampleCount * 2;
+		if (voiceByteBuffer == null || voiceByteBuffer.Length != byteCount)
+		{
+			voiceByteBuffer = new byte[byteCount];
+		}
+		
+		for (int i = 0; i < sampleCount; i++)
+		{
+			float clamped = Mathf.Clamp(samples[i], -1f, 1f);
+			short value = (short)Mathf.RoundToInt(clamped * 32767f);
+			int byteIndex = i * 2;
+			voiceByteBuffer[byteIndex] = (byte)(value & 0xFF);
+			voiceByteBuffer[byteIndex + 1] = (byte)((value >> 8) & 0xFF);
+		}
+		
+		byte[] packet = new byte[byteCount];
+		System.Buffer.BlockCopy(voiceByteBuffer, 0, packet, 0, byteCount);
+		CmdSendVoiceData(packet, sampleCount, sampleRate, amplitude);
+	}
+	
+	[Command(channel = Channels.Unreliable)]
+	void CmdSendVoiceData(byte[] encodedSamples, int sampleCount, int sampleRate, float amplitude)
+	{
+		if (encodedSamples == null || sampleCount <= 0 || sampleRate <= 0)
+			return;
+		
+		RpcReceiveVoiceData(encodedSamples, sampleCount, sampleRate, amplitude);
+	}
+	
+	[ClientRpc(includeOwner = false, channel = Channels.Unreliable)]
+	void RpcReceiveVoiceData(byte[] encodedSamples, int sampleCount, int sampleRate, float amplitude)
+	{
+		if (encodedSamples == null || sampleCount <= 0 || sampleRate <= 0)
+			return;
+		
+		PlayRemoteVoice(encodedSamples, sampleCount, sampleRate);
+		networkAmplitude = amplitude;
+		isTalking = amplitude > minVoiceAmplitude * 0.5f;
+	}
+	
+	private void PlayRemoteVoice(byte[] encodedSamples, int sampleCount, int sampleRate)
+	{
+		if (microphoneSource == null)
+			return;
+		
+		int expectedLength = sampleCount * 2;
+		if (encodedSamples.Length < expectedLength)
+			return;
+		
+		float[] floatSamples = new float[sampleCount];
+		for (int i = 0; i < sampleCount; i++)
+		{
+			int byteIndex = i * 2;
+			short sampleValue = (short)(encodedSamples[byteIndex] | (encodedSamples[byteIndex + 1] << 8));
+			floatSamples[i] = sampleValue / 32767f;
+		}
+		
+		QueueRemoteSamples(floatSamples, sampleRate);
+	}
+	
+	private void QueueRemoteSamples(float[] samples, int sampleRate)
+	{
+		if (samples == null || samples.Length == 0)
+			return;
+		
+		EnsureRemoteAudioPlayback(sampleRate);
+		
+		lock (remoteQueueLock)
+		{
+			int maxSamples = Mathf.Max(sampleRate, Mathf.CeilToInt(sampleRate * Mathf.Clamp(remoteBufferDuration, 0.1f, 2f)));
+			int targetCount = remoteSampleQueue.Count + samples.Length;
+			
+			if (targetCount > maxSamples)
+			{
+				int toDrop = targetCount - maxSamples;
+				for (int i = 0; i < toDrop && remoteSampleQueue.Count > 0; i++)
+				{
+					remoteSampleQueue.Dequeue();
+				}
+			}
+			
+			for (int i = 0; i < samples.Length; i++)
+			{
+				remoteSampleQueue.Enqueue(samples[i]);
+			}
+		}
+	}
+	
+	private void EnsureRemoteAudioPlayback(int sampleRate)
+	{
+		if (microphoneSource == null)
+			return;
+		
+		if (remoteSampleRate != sampleRate)
+		{
+			remoteSampleRate = sampleRate;
+			remotePlaybackClip = null;
+		}
+		
+		if (remotePlaybackClip == null)
+		{
+			int clipSamples = Mathf.Max(sampleRate, 1024);
+			remotePlaybackClip = AudioClip.Create("RemoteVoiceStream", clipSamples, 1, sampleRate, false);
+			microphoneSource.clip = remotePlaybackClip;
+		}
+		
+		if (!microphoneSource.isPlaying)
+		{
+			microphoneSource.loop = true;
+			microphoneSource.Play();
+		}
+	}
+	
+	private float[] CaptureMicSamples(AudioClip micClip, string deviceName, out int capturedSamples)
+	{
+		capturedSamples = 0;
+		if (micClip == null)
+			return null;
+		
+		int clipSamples = micClip.samples;
+		if (clipSamples <= 0)
+			return null;
+		
+		int micPosition = Microphone.GetPosition(deviceName);
+		if (micPosition < 0)
+			return null;
+		
+		int samplesAvailable = micPosition - lastMicSamplePosition;
+		if (samplesAvailable < 0)
+		{
+			samplesAvailable += clipSamples;
+		}
+		
+		int samplesToRead = Mathf.Min(samplesAvailable, maxSamplesPerPacket);
+		if (samplesToRead < 128)
+			return null;
+		if (samplesToRead <= 0)
+			return null;
+		
+		if (micChunkBuffer == null || micChunkBuffer.Length != samplesToRead)
+		{
+			micChunkBuffer = new float[samplesToRead];
+		}
+		
+		int startPos = lastMicSamplePosition;
+		if (startPos + samplesToRead <= clipSamples)
+		{
+			micClip.GetData(micChunkBuffer, startPos);
+		}
+		else
+		{
+			int tailLength = clipSamples - startPos;
+			float[] tailBuffer = new float[tailLength];
+			micClip.GetData(tailBuffer, startPos);
+			System.Array.Copy(tailBuffer, 0, micChunkBuffer, 0, tailLength);
+			
+			int headLength = samplesToRead - tailLength;
+			float[] headBuffer = new float[headLength];
+			micClip.GetData(headBuffer, 0);
+			System.Array.Copy(headBuffer, 0, micChunkBuffer, tailLength, headLength);
+		}
+		
+		lastMicSamplePosition = (lastMicSamplePosition + samplesToRead) % clipSamples;
+		capturedSamples = samplesToRead;
+		return micChunkBuffer;
 	}
 	
 	private void UpdateFrequencyRotation()
@@ -889,6 +1237,30 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		}
 	}
 	
+	private void OnAudioFilterRead(float[] data, int channels)
+	{
+		if (microphoneSource == null || data == null || channels <= 0)
+			return;
+		
+		if (netIdentity == null || netIdentity.netId == 0 || isOwned)
+			return;
+		
+		lock (remoteQueueLock)
+		{
+			for (int i = 0; i < data.Length; i += channels)
+			{
+				float sample = remoteSampleQueue.Count > 0 ? remoteSampleQueue.Dequeue() : lastRemoteSample * 0.95f;
+				lastRemoteSample = sample;
+				sample = Mathf.Clamp(sample * remotePlaybackGain, -1f, 1f);
+				
+				for (int ch = 0; ch < channels; ch++)
+				{
+					data[i + ch] = sample;
+				}
+			}
+		}
+	}
+	
 	private void UpdateStatus()
 	{
 		if (statusText == null) return;
@@ -1029,8 +1401,11 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 	/// <summary>
 	/// Применяет цвет игрока к визуализатору
 	/// </summary>
-	public void ApplyPlayerColor(Color color)
+	public void ApplyPlayerColor(Color color, bool syncToNetwork = true)
 	{
+		// Сохраняем базовый цвет игрока
+		playerBaseColor = color;
+		
 		// Применяем к линии
 		if (lineRenderer != null)
 		{
@@ -1053,6 +1428,26 @@ public class VoiceWaveVisualizer : NetworkBehaviour
 		if (statusText != null)
 		{
 			statusText.color = color;
+		}
+
+		if (syncToNetwork)
+		{
+			TrySyncPlayerColor(color);
+		}
+	}
+	
+	private void TrySyncPlayerColor(Color color)
+	{
+		if (netIdentity == null || netIdentity.netId == 0)
+			return;
+		
+		if (isServer)
+		{
+			syncedPlayerColor = color;
+		}
+		else if (isOwned)
+		{
+			CmdSetPlayerColor(color);
 		}
 	}
 	

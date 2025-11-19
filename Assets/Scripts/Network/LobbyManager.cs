@@ -489,6 +489,8 @@ public class LobbyManager : MonoBehaviour
             return;
         }
         
+        NotifyPlayersLoadingScreen();
+        
         // Уничтожаем все LobbyPlayer перед переходом на сцену Lobby
         // Они нужны только на сцене Menu
         DestroyAllLobbyPlayers();
@@ -496,6 +498,18 @@ public class LobbyManager : MonoBehaviour
         if (LobbyNetworkManager.Instance != null)
         {
             LobbyNetworkManager.Instance.LoadLobbyScene();
+        }
+    }
+
+    void NotifyPlayersLoadingScreen()
+    {
+        LobbyPlayer[] lobbyPlayers = FindObjectsOfType<LobbyPlayer>();
+        foreach (LobbyPlayer player in lobbyPlayers)
+        {
+            if (player != null && player.connectionToClient != null)
+            {
+                player.TargetShowLoadingScreen(player.connectionToClient);
+            }
         }
     }
     

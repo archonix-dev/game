@@ -1,8 +1,17 @@
 using UnityEngine;
 using TMPro;
+using Mirror;
 
 /// <summary>
 /// Компонент для предметов, которые можно подобрать в инвентарь
+/// 
+/// ТРЕБОВАНИЯ ДЛЯ МУЛЬТИПЛЕЕРА:
+/// - GameObject должен иметь компонент NetworkIdentity для синхронизации в сети
+/// - GameObject должен иметь компонент NetworkTransformReliable или NetworkTransformHybrid для синхронизации позиции/ротации
+///   (для физических объектов рекомендуется NetworkTransformReliable с updateMethod = FixedUpdate)
+/// 
+/// Примечание: Если объект не имеет NetworkIdentity, он будет уничтожен локально через Destroy().
+/// Если имеет NetworkIdentity, уничтожение происходит через NetworkServer.Destroy() для синхронизации.
 /// </summary>
 public class PickupableItem : MonoBehaviour, IPickupable
 {
@@ -29,6 +38,14 @@ public class PickupableItem : MonoBehaviour, IPickupable
     
     void Start()
     {
+        InitializePickupableItem();
+    }
+    
+    /// <summary>
+    /// Инициализирует компонент PickupableItem (можно вызвать вручную для объектов, созданных в рантайме)
+    /// </summary>
+    public void InitializePickupableItem()
+    {
         // Автоматически создаем ItemData если не назначен
         if (itemData == null)
         {
@@ -40,6 +57,12 @@ public class PickupableItem : MonoBehaviour, IPickupable
         
         // Инициализируем систему отображения подсказки
         InitializePickupPrompt();
+        
+        // Убеждаемся, что тег установлен правильно
+        if (gameObject.tag != "Item")
+        {
+            gameObject.tag = "Item";
+        }
     }
     
     void Update()
@@ -354,8 +377,22 @@ public class PickupableItem : MonoBehaviour, IPickupable
             audioSource.Play();
         }
         
-        // Уничтожаем объект
-        Destroy(gameObject);
+        // Уничтожаем объект (синхронизированно в мультиплеере если есть NetworkIdentity)
+        NetworkIdentity networkIdentity = GetComponent<NetworkIdentity>();
+        if (networkIdentity != null && networkIdentity.netId != 0)
+        {
+            // В мультиплеере уничтожаем через NetworkServer
+            if (NetworkServer.active)
+            {
+                NetworkServer.Destroy(gameObject);
+            }
+            // Если вызывается на клиенте, сервер должен обработать уничтожение через InventorySystem
+        }
+        else
+        {
+            // Локальное уничтожение для объектов без NetworkIdentity
+            Destroy(gameObject);
+        }
     }
     
     /// <summary>

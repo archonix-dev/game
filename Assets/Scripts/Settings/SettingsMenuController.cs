@@ -39,6 +39,10 @@ public class SettingsMenuController : MonoBehaviour
 	// Авто-привязываемый LineRenderer из VoiceWaveVisualizer
 	private LineRenderer voiceWaveLine;
 	private VoiceWaveVisualizer voiceWaveVisualizer;
+
+	[Header("Player Local Visibility")]
+	[Tooltip("Скрипт на игроке, который управляет локальной видимостью объектов (в том числе объекта для меню).")]
+	public PlayerLocalVisibility playerLocalVisibility;
     
     [Header("Buttons")]
     [Tooltip("Кнопка для закрытия меню (продолжить)")]
@@ -70,6 +74,56 @@ public class SettingsMenuController : MonoBehaviour
 		
 		// Автоматически находим VoiceWaveVisualizer и его LineRenderer
 		FindVoiceWaveLineRenderer();
+
+        // Пытаемся автоматически найти PlayerLocalVisibility и PlayerController для ЛОКАЛЬНОГО игрока
+        AutoAssignLocalPlayerReferences();
+    }
+
+    /// <summary>
+    /// Находит PlayerController и PlayerLocalVisibility именно локального игрока,
+    /// чтобы ESC открывал меню только для своего персонажа.
+    /// </summary>
+    private void AutoAssignLocalPlayerReferences()
+    {
+        // Если в инспекторе уже указан PlayerController, но он не локальный - сбрасываем
+        if (playerController != null && !playerController.isOwned)
+        {
+            playerController = null;
+        }
+
+        // Находим локального PlayerController, если не назначен
+        if (playerController == null)
+        {
+            var allPlayers = FindObjectsOfType<PlayerController>();
+            foreach (var pc in allPlayers)
+            {
+                if (pc != null && pc.isOwned)
+                {
+                    playerController = pc;
+                    break;
+                }
+            }
+        }
+
+        // Пытаемся автоматически найти PlayerLocalVisibility по ссылке на PlayerController
+        if (playerLocalVisibility == null && playerController != null)
+        {
+            playerLocalVisibility = playerController.GetComponent<PlayerLocalVisibility>();
+        }
+
+        // Если до сих пор не нашли — ищем локального PlayerLocalVisibility в сцене
+        if (playerLocalVisibility == null)
+        {
+            var allVisibility = FindObjectsOfType<PlayerLocalVisibility>();
+            foreach (var vis in allVisibility)
+            {
+                if (vis != null && vis.isOwned)
+                {
+                    playerLocalVisibility = vis;
+                    break;
+                }
+            }
+        }
     }
     
     void Update()
@@ -129,6 +183,12 @@ public class SettingsMenuController : MonoBehaviour
         
 		// Движение/поворот камеры
 		StartCameraTransition(open);
+
+		// Сообщаем скрипту локальной видимости игрока о состоянии меню
+		if (playerLocalVisibility != null)
+		{
+			playerLocalVisibility.OnMenuStateChanged(open);
+		}
 		
         if (open)
         {

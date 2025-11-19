@@ -270,7 +270,7 @@ public class SimpleDestructionManager : MonoBehaviour
             
             // Создаем материал с указанным цветом для URP
             Material colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            colorMaterial.color = fragmentColor;
+            colorMaterial.color = GetRandomFragmentColor();
             primitive.GetComponent<Renderer>().material = colorMaterial;
         }
         else
@@ -282,7 +282,7 @@ public class SimpleDestructionManager : MonoBehaviour
             
             // Создаем материал с указанным цветом для URP
             Material colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            colorMaterial.color = fragmentColor;
+            colorMaterial.color = GetRandomFragmentColor();
             mr.material = colorMaterial;
         }
         
@@ -363,8 +363,10 @@ public class SimpleDestructionManager : MonoBehaviour
             // Удаляем коллайдер примитива (добавим свой)
             Destroy(primitive.GetComponent<Collider>());
             
-            // Устанавливаем материал
-            primitive.GetComponent<Renderer>().material = material;
+            // Устанавливаем материал с случайным цветом
+            Material colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            colorMaterial.color = GetRandomFragmentColor();
+            primitive.GetComponent<Renderer>().material = colorMaterial;
         }
         else
         {
@@ -372,7 +374,9 @@ public class SimpleDestructionManager : MonoBehaviour
             MeshFilter mf = fragment.AddComponent<MeshFilter>();
             MeshRenderer mr = fragment.AddComponent<MeshRenderer>();
             mf.sharedMesh = originalMesh;
-            mr.material = material;
+            Material colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            colorMaterial.color = GetRandomFragmentColor();
+            mr.material = colorMaterial;
         }
         
         // Добавляем коллайдер (упрощенный для производительности)
@@ -492,7 +496,7 @@ public class SimpleDestructionManager : MonoBehaviour
 
             // Создаем материал с указанным цветом для URP
             Material colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            colorMaterial.color = fragmentColor;
+            colorMaterial.color = GetRandomFragmentColor();
             fragment.GetComponent<Renderer>().material = colorMaterial;
 
             // Физика
@@ -569,7 +573,9 @@ public class SimpleDestructionManager : MonoBehaviour
             fragment.transform.localScale = Vector3.one * fragmentSize;
 
             // Материал
-            fragment.GetComponent<Renderer>().material = objectMaterial;
+            Material colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            colorMaterial.color = GetRandomFragmentColor();
+            fragment.GetComponent<Renderer>().material = colorMaterial;
 
             // Физика
             Rigidbody rb = fragment.AddComponent<Rigidbody>();
@@ -622,6 +628,11 @@ public class SimpleDestructionManager : MonoBehaviour
     {
         fragmentMassMultiplier = Mathf.Clamp(massMultiplier, 0.01f, 1f);
         this.rotationForce = Mathf.Clamp(rotationForce, 0f, 20f);
+    }
+
+    private Color GetRandomFragmentColor()
+    {
+        return Random.value < 0.5f ? Color.green : Color.black;
     }
 }
 

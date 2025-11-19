@@ -71,23 +71,8 @@ public class LobbyMenuUI : MonoBehaviour
     public Text connectionStatusText;
     
     [Header("Scene Loading")]
-    [Tooltip("GameObject с аниматором, который будет показываться во время загрузки")]
-    public GameObject loadingObject;
-    
-    [Tooltip("Аниматор для анимации загрузки")]
-    public Animator loadingAnimator;
-    
-    [Tooltip("Время (в секундах) до начала загрузки сцены")]
-    public float loadStartTime = 3f;
-    
-    [Tooltip("Общее время (в секундах) до скрытия объекта")]
-    public float hideTime = 8f;
-    
-    private const string LOADING_ANIMATION_NAME = "loadingmainscene";
-    
-    private bool isLoading = false;
-    private Coroutine loadingCoroutine;
-    private bool isLoadingObjectInitialized = false;
+    [Tooltip("Контроллер экрана загрузки (DontDestroy)")]
+    public LobbyLoadingController loadingController;
     
     private LobbyManager lobbyManager;
     private LobbyPlayer localPlayer;
@@ -151,26 +136,11 @@ public class LobbyMenuUI : MonoBehaviour
         {
             joinLobbyPanel.SetActive(false);
         }
-        
-        // Инициализируем объект загрузки
-        InitializeLoadingObject();
-        
+
+        HandleExistingLobbyState();
         // Обновляем UI
         InvokeRepeating(nameof(UpdateUI), 0.5f, 0.5f);
         
-        // Периодически обновляем список игроков
-        InvokeRepeating(nameof(UpdatePlayerListPeriodically), 1f, 1f);
-    }
-    
-    /// <summary>
-    /// Периодически обновляет список игроков
-    /// </summary>
-    void UpdatePlayerListPeriodically()
-    {
-        if (lobbyManager != null)
-        {
-            lobbyManager.UpdatePlayerList();
-        }
     }
     
     void UpdateUI()
@@ -271,191 +241,17 @@ public class LobbyMenuUI : MonoBehaviour
     {
         if (lobbyManager != null)
         {
-            // Загружаем сцену с анимацией загрузки, если есть объект загрузки
-            if (loadingObject != null)
+            // Загружаем сцену с анимацией загрузки, если есть контроллер
+            if (loadingController != null)
             {
-                StartLoadingScene();
+                loadingController.StartHostLoadingSequence(lobbyManager);
             }
             else
             {
-                // Если объекта загрузки нет, используем стандартный метод LobbyManager
-                // (который загружает сцену Lobby через NetworkManager)
+                // Если контроллер не назначен, используем стандартный метод LobbyManager
                 lobbyManager.StartGame();
             }
         }
-    }
-    
-    /// <summary>
-    /// Инициализирует объект загрузки и делает его постоянным между сценами
-    /// </summary>
-    private void InitializeLoadingObject()
-    {
-        if (loadingObject != null && !isLoadingObjectInitialized)
-        {
-            // Делаем объект загрузки постоянным между сценами
-            DontDestroyOnLoad(loadingObject);
-            isLoadingObjectInitialized = true;
-            
-            // Скрываем объект загрузки при старте (он будет показан только при вызове StartLoadingScene)
-            loadingObject.SetActive(false);
-            
-            Debug.Log("[LobbyMenuUI] Объект загрузки настроен как постоянный между сценами");
-        }
-    }
-    
-    /// <summary>
-    /// Запускает процесс загрузки сцены с анимацией
-    /// </summary>
-    private void StartLoadingScene()
-    {
-        if (isLoading)
-        {
-            Debug.LogWarning("[LobbyMenuUI] Загрузка уже идет!");
-            return;
-        }
-        
-        if (loadingObject == null)
-        {
-            Debug.LogError("[LobbyMenuUI] Объект загрузки не назначен!");
-            return;
-        }
-        
-        // Инициализируем объект загрузки, если еще не инициализирован
-        InitializeLoadingObject();
-        
-        if (loadingAnimator == null)
-        {
-            loadingAnimator = loadingObject.GetComponent<Animator>();
-            if (loadingAnimator == null)
-            {
-                Debug.LogError("[LobbyMenuUI] Аниматор не найден на объекте загрузки!");
-                return;
-            }
-        }
-        
-        // Убеждаемся, что GameObject активен перед запуском корутины
-        if (!gameObject.activeInHierarchy)
-        {
-            Debug.LogError("[LobbyMenuUI] GameObject неактивен! Невозможно запустить корутину.");
-            isLoading = false;
-            return;
-        }
-        
-        isLoading = true;
-        loadingCoroutine = StartCoroutine(LoadingCoroutine());
-    }
-    
-    /// <summary>
-    /// Корутина для управления процессом загрузки
-    /// </summary>
-    private IEnumerator LoadingCoroutine()
-    {
-        // Показываем объект загрузки
-        loadingObject.SetActive(true);
-        
-        // Получаем аниматор, если не назначен
-        if (loadingAnimator == null)
-        {
-            loadingAnimator = loadingObject.GetComponent<Animator>();
-            if (loadingAnimator == null)
-            {
-                Debug.LogError("[LobbyMenuUI] Аниматор не найден на объекте загрузки!");
-                yield break;
-            }
-        }
-        
-        // Запускаем анимацию
-        loadingAnimator.Play(LOADING_ANIMATION_NAME);
-        
-        // Отслеживаем общее время с начала
-        float totalElapsedTime = 0f;
-        
-        // Ждем до момента начала загрузки (3 секунды)
-        while (totalElapsedTime < loadStartTime)
-        {
-            totalElapsedTime += Time.deltaTime;
-            yield return null;
-        }
-        
-        // Приостанавливаем анимацию на 3 секунде
-        AnimatorStateInfo stateInfo = loadingAnimator.GetCurrentAnimatorStateInfo(0);
-        float normalizedTime = stateInfo.normalizedTime;
-        loadingAnimator.speed = 0f; // Останавливаем анимацию
-        
-        // Запускаем загрузку сцены через LobbyManager (для мультиплеера)
-        if (lobbyManager != null)
-        {
-            lobbyManager.StartGame();
-        }
-        
-        // Ждем, пока сцена загрузится и активируется
-        // Проверяем изменение сцены
-        string initialScene = SceneManager.GetActiveScene().name;
-        while (SceneManager.GetActiveScene().name == initialScene)
-        {
-            totalElapsedTime += Time.deltaTime;
-            yield return null;
-        }
-        
-        // Сцена изменилась, ждем еще немного для полной загрузки
-        yield return new WaitForSeconds(0.5f);
-        
-        // Проверяем, что объект загрузки все еще существует (он должен быть постоянным)
-        if (loadingObject == null || loadingAnimator == null)
-        {
-            Debug.LogWarning("[LobbyMenuUI] Объект загрузки или аниматор уничтожены после загрузки сцены!");
-            isLoading = false;
-            yield break;
-        }
-        
-        // Возобновляем анимацию с того же места (3 секунды)
-        loadingAnimator.speed = 1f;
-        loadingAnimator.Play(LOADING_ANIMATION_NAME, 0, normalizedTime);
-        
-        // Ждем до момента скрытия объекта (8 секунд от начала)
-        // Продолжаем отслеживать время, пока не пройдет 8 секунд
-        while (totalElapsedTime < hideTime)
-        {
-            totalElapsedTime += Time.deltaTime;
-            yield return null;
-        }
-        
-        // Скрываем объект загрузки
-        if (loadingObject != null)
-        {
-            loadingObject.SetActive(false);
-        }
-        
-        isLoading = false;
-    }
-    
-    /// <summary>
-    /// Останавливает процесс загрузки
-    /// </summary>
-    private void StopLoading()
-    {
-        if (loadingCoroutine != null)
-        {
-            StopCoroutine(loadingCoroutine);
-            loadingCoroutine = null;
-        }
-        
-        if (loadingAnimator != null)
-        {
-            loadingAnimator.speed = 1f;
-        }
-        
-        if (loadingObject != null)
-        {
-            loadingObject.SetActive(false);
-        }
-        
-        isLoading = false;
-    }
-    
-    void OnDestroy()
-    {
-        StopLoading();
     }
     
     void OnChooseColorClicked()
@@ -564,6 +360,38 @@ public class LobbyMenuUI : MonoBehaviour
         if (lobbyManager != null)
         {
             lobbyManager.UpdateLobbyList(searchText);
+        }
+    }
+
+    void HandleExistingLobbyState()
+    {
+        if (lobbyManager == null)
+            return;
+
+        bool hasLobbyPlayers = FindObjectsOfType<LobbyPlayer>().Length > 0;
+        bool isNetworkActive = NetworkClient.active || NetworkServer.active;
+
+        if (!lobbyManager.IsLobbyOwner && (hasLobbyPlayers || isNetworkActive))
+        {
+            if (startGameButton != null)
+            {
+                startGameButton.gameObject.SetActive(false);
+            }
+
+            if (lobbySettingsButton != null)
+            {
+                lobbySettingsButton.gameObject.SetActive(false);
+            }
+        }
+
+        if (hasLobbyPlayers)
+        {
+            if (playerListParent != null && lobbyManager.playerListParent != playerListParent)
+            {
+                lobbyManager.playerListParent = playerListParent;
+            }
+
+            lobbyManager.UpdatePlayerList();
         }
     }
 }

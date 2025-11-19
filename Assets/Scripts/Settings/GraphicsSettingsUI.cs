@@ -189,7 +189,16 @@ public class GraphicsSettings
         resolutionIndex = Mathf.Max(0, PlayerPrefs.GetInt("ResolutionIndex", 0));
         targetFrameRate = Mathf.Max(0, PlayerPrefs.GetInt("TargetFrameRate", 60));
 		fpsMatchMonitor = PlayerPrefs.GetInt("FPSMatchMonitor", 0) == 1;
-		screenMode = (FullScreenMode)Mathf.Clamp(PlayerPrefs.GetInt("ScreenMode", (int)FullScreenMode.Windowed), (int)FullScreenMode.Windowed, (int)FullScreenMode.FullScreenWindow);
+		// При первом запуске (если нет сохраненного значения) устанавливаем полноэкранный режим по умолчанию
+		int defaultScreenMode = (int)FullScreenMode.ExclusiveFullScreen;
+		if (PlayerPrefs.HasKey("ScreenMode"))
+		{
+			screenMode = (FullScreenMode)Mathf.Clamp(PlayerPrefs.GetInt("ScreenMode"), (int)FullScreenMode.Windowed, (int)FullScreenMode.FullScreenWindow);
+		}
+		else
+		{
+			screenMode = (FullScreenMode)defaultScreenMode;
+		}
     }
 
     // Сохранение настроек в PlayerPrefs
@@ -705,6 +714,9 @@ public class GraphicsSettingsUI : MonoBehaviour
 		};
 		currentSettings.screenMode = mode;
 		currentSettings.ApplyDisplaySettings(filteredResolutions);
+		// Немедленно сохраняем изменение режима экрана в PlayerPrefs
+		PlayerPrefs.SetInt("ScreenMode", (int)mode);
+		PlayerPrefs.Save();
 	}
 
     private void OnResetButtonClicked()

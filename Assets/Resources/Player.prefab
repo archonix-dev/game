@@ -724,7 +724,7 @@ Light:
   serializedVersion: 11
   m_Type: 0
   m_Color: {r: 0.75, g: 0.9298284, b: 1, a: 1}
-  m_Intensity: 20
+  m_Intensity: 0
   m_Range: 30
   m_SpotAngle: 155.76744
   m_InnerSpotAngle: 47.2684
@@ -1228,7 +1228,6 @@ GameObject:
   - component: {fileID: 7194616659865597641}
   - component: {fileID: 6117075106745349099}
   - component: {fileID: 5719001556372634872}
-  - component: {fileID: 4744211625584026854}
   - component: {fileID: 8094428855745577110}
   - component: {fileID: 3751025228659470221}
   - component: {fileID: 495214188541079448}
@@ -1236,6 +1235,7 @@ GameObject:
   - component: {fileID: 3819053412461272870}
   - component: {fileID: 5844350202360875121}
   - component: {fileID: 475245515639345506}
+  - component: {fileID: 2583524040412392549}
   m_Layer: 9
   m_Name: Player
   m_TagString: Player
@@ -1261,8 +1261,8 @@ Transform:
   - {fileID: 4249955035664878090}
   - {fileID: 7366463203283225046}
   - {fileID: 6233067314166943437}
-  - {fileID: 7166181303641287656}
   - {fileID: 8246658767471964830}
+  - {fileID: 7166181303641287656}
   - {fileID: 5363034099554275649}
   - {fileID: 1571331143891171586}
   - {fileID: 8048311759476041235}
@@ -1682,6 +1682,7 @@ MonoBehaviour:
   menuLookOffset: {x: 0, y: 0, z: 0}
   hideWhenMenuOpenA: {fileID: 1258541400012659133}
   hideWhenMenuOpenB: {fileID: 288550474541492630}
+  playerLocalVisibility: {fileID: 2583524040412392549}
   continueButton: {fileID: 3744224216817526150}
 --- !u!114 &7194616659865597641
 MonoBehaviour:
@@ -1709,12 +1710,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e86fdb9fec033014cb6fa51cac9d94b1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
   headTransform: {fileID: 7635158958377874833}
   playerCamera: {fileID: 6567972267702924239}
   animator: {fileID: 5844350202360875121}
   maxVerticalAngle: 45
   maxHorizontalAngle: 60
   rotationSpeed: 8
+  syncInterval: 0.05
 --- !u!114 &5719001556372634872
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1749,8 +1755,13 @@ MonoBehaviour:
   talkKey: 308
   micSampleRate: 44100
   amplitudeSampleSize: 1024
-  amplitudeSensitivity: 10
+  amplitudeSensitivity: 100
   amplitudeLerp: 0.2
+  voiceSendInterval: 0.01
+  maxSamplesPerPacket: 2048
+  minVoiceAmplitude: 0.003
+  remotePlaybackGain: 2
+  remoteBufferDuration: 0.7
   spectrumSize: 1024
   lowFreqMax: 250
   midFreqMax: 2000
@@ -1759,112 +1770,6 @@ MonoBehaviour:
   statusText: {fileID: 6752254761089349004}
   statusUpdateInterval: 2
   typingAnimationDuration: 0.5
---- !u!114 &4744211625584026854
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 390721689709130332}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7c596caceeaab5c449a36e85a9291e4b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  syncMethod: 0
-  syncDirection: 0
-  syncMode: 0
-  syncInterval: 0
-  chatRoot: {fileID: 8634980056836342948}
-  chatInputField: {fileID: 177831364029168733}
-  playerController: {fileID: 1168798007659827189}
-  mouseLook: {fileID: 3088245207171066616}
-  audioSource: {fileID: 517694384039579006}
-  letterSounds:
-  - {fileID: 8300000, guid: 8e5143a1a8bdb8d499a9243a1fcf6619, type: 3}
-  - {fileID: 8300000, guid: a8f470b56dda65448b8913560ca7a350, type: 3}
-  - {fileID: 8300000, guid: 6028cd30210a73e469db797d354ee016, type: 3}
-  - {fileID: 8300000, guid: 8431a48e6ad941e43bd2fa435a876a57, type: 3}
-  - {fileID: 8300000, guid: 7a9848d52d1fc244b8bb15bdac187176, type: 3}
-  - {fileID: 8300000, guid: 950b425339d81b044b5f88a37c10d8a1, type: 3}
-  - {fileID: 8300000, guid: 96c5bd7bfc9e9d84e9ae0c26cee64d18, type: 3}
-  - {fileID: 8300000, guid: 3fa92ea79d3160744b2660276fc0b80b, type: 3}
-  - {fileID: 8300000, guid: 3b42752cbcd2f354fa805fc3733f3c1d, type: 3}
-  - {fileID: 8300000, guid: 405fd8262d1d01f48973a1d7d2e56c36, type: 3}
-  - {fileID: 8300000, guid: fe834357fa78eed429f2b7dead7fac96, type: 3}
-  - {fileID: 8300000, guid: f17f5e0939c6489419a3c9f0704e6cb7, type: 3}
-  - {fileID: 8300000, guid: cd90c9046d8311948acc72e0f84b3f17, type: 3}
-  - {fileID: 8300000, guid: 189de00c5df332b419599cfcdbffe33a, type: 3}
-  - {fileID: 8300000, guid: 9c26d52deec7fe14db045216f507d396, type: 3}
-  - {fileID: 8300000, guid: 69f25c4c42c738c43bb030189638c1f5, type: 3}
-  - {fileID: 8300000, guid: aa2492c013dd69f4484ad4fda3598fdd, type: 3}
-  - {fileID: 8300000, guid: 246d3c7f14cd5554f8bbbafebbc2835f, type: 3}
-  - {fileID: 8300000, guid: 391bbb010e6c3564fb2e09f507067849, type: 3}
-  - {fileID: 8300000, guid: 4d8f1f294234b2249902c09ba5eb5641, type: 3}
-  - {fileID: 8300000, guid: f27417cf25686994bb77d7b9445165f0, type: 3}
-  - {fileID: 8300000, guid: c6e6e467ffd4b46488a4039030d51735, type: 3}
-  - {fileID: 8300000, guid: 229eb3d9db1b9c641aa20d7c98aac95c, type: 3}
-  - {fileID: 8300000, guid: 2ceb5051bf97518409cf4206eb0e4a50, type: 3}
-  - {fileID: 8300000, guid: e379b4397c852ed4f822b0fc030b6025, type: 3}
-  - {fileID: 8300000, guid: 1f70d6c0b49da6944bbed744640d9d64, type: 3}
-  russianLetterSounds:
-  - {fileID: 8300000, guid: 0a3d473c71d8e994aadccec144e304d2, type: 3}
-  - {fileID: 8300000, guid: f4622e79f1a134941bfd9339183aef5a, type: 3}
-  - {fileID: 8300000, guid: 712ddf72b6e7f074baba7815db3d121b, type: 3}
-  - {fileID: 8300000, guid: 6f900c79dde23604d929bcd0cda0058f, type: 3}
-  - {fileID: 8300000, guid: d5c920fd65af21947a348d70634e3865, type: 3}
-  - {fileID: 8300000, guid: e357cccde01287a49b59573d8adf4105, type: 3}
-  - {fileID: 8300000, guid: fa6d9beee029cb745ae223b22a538d28, type: 3}
-  - {fileID: 8300000, guid: 1b86c7c2b326d084ab5364707bc9d960, type: 3}
-  - {fileID: 8300000, guid: bea712fe48ccf904bbb10da0922ad976, type: 3}
-  - {fileID: 8300000, guid: 56abce53d8502744ab32032bfe7dd515, type: 3}
-  - {fileID: 8300000, guid: 3a68feb941ec625489c4f666f06759ea, type: 3}
-  - {fileID: 8300000, guid: fda79d7a5a210e14db0bb1d15b451a78, type: 3}
-  - {fileID: 8300000, guid: 2a88e31371c095b41bf1bc89cb6a53d0, type: 3}
-  - {fileID: 8300000, guid: 74965cadbb399094d91ab6b91584c437, type: 3}
-  - {fileID: 8300000, guid: 69be3b00aeaacc1408644ed222ffb4a1, type: 3}
-  - {fileID: 8300000, guid: 725a43bc8f18fcf4a9ebc3e677b55229, type: 3}
-  - {fileID: 8300000, guid: 54072a8faeab6d946b18d80d2ae3d157, type: 3}
-  - {fileID: 8300000, guid: f9c483eac7d18394b8714ddce5c39a10, type: 3}
-  - {fileID: 8300000, guid: bb1be36b0403ad7458ddf5b7b13501c5, type: 3}
-  - {fileID: 8300000, guid: 37d68423ec86d104cb31b2b7c9581018, type: 3}
-  - {fileID: 8300000, guid: be621da81ad049941a42842adb676060, type: 3}
-  - {fileID: 8300000, guid: 60b5fa0340b348040960699120a9ab25, type: 3}
-  - {fileID: 8300000, guid: 28e7c77e75b66654b911d85282f30e5a, type: 3}
-  - {fileID: 8300000, guid: 3b2636eba7f3bf9449714a00aeda8c8a, type: 3}
-  - {fileID: 8300000, guid: f8f7ea3a3e89abf40a75785963eea635, type: 3}
-  - {fileID: 8300000, guid: fe0c04003eb68164a94a5477ae9db0d9, type: 3}
-  - {fileID: 8300000, guid: cf4acb87ddbff844ba14de7f57ec5743, type: 3}
-  - {fileID: 8300000, guid: 66dc8315f8ded96408d1ddeeea485af2, type: 3}
-  - {fileID: 8300000, guid: 6f51615901b8dd744bcb0c3f3f4c050d, type: 3}
-  - {fileID: 8300000, guid: 42f6b8a12f4877545aab96bf347d4742, type: 3}
-  - {fileID: 8300000, guid: 3fcf674e7d95c79498bc710831c68f49, type: 3}
-  numberSounds:
-  - {fileID: 8300000, guid: 7d6215bb6349cc94299afb311f3f8d82, type: 3}
-  - {fileID: 8300000, guid: f9c8e3b8001bc444c8a2524b6564bc16, type: 3}
-  - {fileID: 8300000, guid: 58f15c8f38584c346b007ffa9e3d6d46, type: 3}
-  - {fileID: 8300000, guid: 9aa99d57068d20a45b585569a1c50ae3, type: 3}
-  - {fileID: 8300000, guid: 49772ce02eea434429547b6b96b56c30, type: 3}
-  - {fileID: 8300000, guid: bdb89ade5f500bc4fb2541b3e2e6098a, type: 3}
-  - {fileID: 8300000, guid: 2209b6765c4d646419efcd095ba20bac, type: 3}
-  - {fileID: 8300000, guid: dd23941174bb3a842af4b898b4ec611f, type: 3}
-  - {fileID: 8300000, guid: cfbaeb7bbb6aaba41a9dd11cad7c5eaf, type: 3}
-  - {fileID: 8300000, guid: 1fb8492cac05e92438350b8e294a15d7, type: 3}
-  russianNumberSounds:
-  - {fileID: 8300000, guid: b785dcb4a7fc0124bbced8975c527051, type: 3}
-  - {fileID: 8300000, guid: e10285d1eca17af44a6627fed9f4e86c, type: 3}
-  - {fileID: 8300000, guid: a3a37545e7933f04bbd4f9d77ecad852, type: 3}
-  - {fileID: 8300000, guid: 5cde38e54110fa249876753847fb98d1, type: 3}
-  - {fileID: 8300000, guid: a355cf3950a93e74b9dbb88b91ed5ca6, type: 3}
-  - {fileID: 8300000, guid: 2ead0fcf211326142bba422033f58c5d, type: 3}
-  - {fileID: 8300000, guid: 5c85e0d5fee6d574a922dc7e9bced96b, type: 3}
-  - {fileID: 8300000, guid: 86c68492cbc05bc43990c8dacf8b86b9, type: 3}
-  - {fileID: 8300000, guid: 7d958df5db10dae478b4c72b06907c9b, type: 3}
-  - {fileID: 8300000, guid: d938b0dfd06e4ba43a6eb1c6fe46daa4, type: 3}
-  defaultSymbolSound: {fileID: 0}
-  spaceDelay: 0.3
-  messageSpawnParent: {fileID: 6058556729667858216}
-  chatMessagePrefab: {fileID: 493937311598932561, guid: de4811fb9c424544ea408ba9fafb4ce6, type: 3}
 --- !u!114 &8094428855745577110
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1912,11 +1817,12 @@ MonoBehaviour:
     - {fileID: 5366282368281750677}
     - {fileID: 902515147440538438}
     - {fileID: 3612867131337220680}
+    - {fileID: 794023503126302623}
     objectsToShow: []
   - actionName: tosettings
     objectsToHide: []
     objectsToShow:
-    - {fileID: 3612867131337220680}
+    - {fileID: 794023503126302623}
 --- !u!114 &3751025228659470221
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2058,6 +1964,25 @@ MonoBehaviour:
   startingCoins: 0
   animateOnChange: 1
   animationDuration: 0.5
+--- !u!114 &2583524040412392549
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 390721689709130332}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6bf5405f67c08064881fbc851ecd90f1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  hideForLocalOnly:
+  - {fileID: 6873828711289476459}
+  menuLocalObject: {fileID: 3020491587774129687}
 --- !u!1 &450479819251605930
 GameObject:
   m_ObjectHideFlags: 0
@@ -2930,18 +2855,18 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 0}
   m_PlayOnAwake: 0
-  m_Volume: 1
+  m_Volume: 0.0001
   m_Pitch: 1
   Loop: 0
   Mute: 0
   Spatialize: 0
   SpatializePostEffects: 0
   Priority: 128
-  DopplerLevel: 1
-  MinDistance: 1
-  MaxDistance: 500
+  DopplerLevel: 0
+  MinDistance: 2
+  MaxDistance: 100
   Pan2D: 0
-  rolloffMode: 0
+  rolloffMode: 1
   BypassEffects: 0
   BypassListenerEffects: 0
   BypassReverbZones: 0
@@ -6712,7 +6637,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7366463203283225046}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: 3leg_end
   m_TagString: Untagged
   m_Icon: {fileID: 7174288486110832750, guid: 0000000000000000d000000000000000, type: 0}
@@ -7546,11 +7471,11 @@ AudioSource:
   Spatialize: 0
   SpatializePostEffects: 0
   Priority: 128
-  DopplerLevel: 1
-  MinDistance: 1
-  MaxDistance: 500
+  DopplerLevel: 0
+  MinDistance: 2
+  MaxDistance: 100
   Pan2D: 0
-  rolloffMode: 0
+  rolloffMode: 1
   BypassEffects: 0
   BypassListenerEffects: 0
   BypassReverbZones: 0
@@ -9633,7 +9558,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8246658767471964830}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: Head
   m_TagString: Untagged
   m_Icon: {fileID: 8418204508859773708, guid: 0000000000000000d000000000000000, type: 0}
@@ -11417,7 +11342,7 @@ Camera:
   m_Depth: 1
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 509
+    m_Bits: 511
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0
@@ -14309,7 +14234,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2985263603146172556}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: 4leg
   m_TagString: Untagged
   m_Icon: {fileID: -5442936267250999957, guid: 0000000000000000d000000000000000, type: 0}
@@ -15101,7 +15026,7 @@ GameObject:
   - component: {fileID: 4371660629352610702}
   - component: {fileID: 4165074565928156558}
   - component: {fileID: 7779392451565203916}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: Status
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -16648,7 +16573,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 727767926625599125}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: 1leg_end
   m_TagString: Untagged
   m_Icon: {fileID: 7174288486110832750, guid: 0000000000000000d000000000000000, type: 0}
@@ -19758,7 +19683,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1502287896147223603}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: 3leg
   m_TagString: Untagged
   m_Icon: {fileID: -5442936267250999957, guid: 0000000000000000d000000000000000, type: 0}
@@ -20442,7 +20367,7 @@ GameObject:
   - component: {fileID: 7166181303641287656}
   - component: {fileID: 972163130496466174}
   - component: {fileID: 1219725665557640473}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: Body
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -20459,7 +20384,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0.7071068, y: -0, z: -0, w: 0.7071067}
   m_LocalPosition: {x: 0.03383827, y: -0.253, z: 0.1418248}
-  m_LocalScale: {x: 126.62985, y: 126.6299, z: 126.6299}
+  m_LocalScale: {x: 126.62985, y: 126.62991, z: 126.62991}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 4371660629352610702}
@@ -21764,7 +21689,7 @@ GameObject:
   - component: {fileID: 7701692516646771784}
   - component: {fileID: 1805257156551033289}
   - component: {fileID: 6752254761089349004}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: statustext
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -22093,7 +22018,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6233067314166943437}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: 4leg_end
   m_TagString: Untagged
   m_Icon: {fileID: 7174288486110832750, guid: 0000000000000000d000000000000000, type: 0}
@@ -22251,7 +22176,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6935183471953846984}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: PlayerCameraMenuPoint
   m_TagString: MainCamera
   m_Icon: {fileID: -5938655980376293919, guid: 0000000000000000d000000000000000, type: 0}
@@ -23264,7 +23189,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4249955035664878090}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: 2led_end
   m_TagString: Untagged
   m_Icon: {fileID: 7174288486110832750, guid: 0000000000000000d000000000000000, type: 0}
@@ -23698,7 +23623,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2721014108418532084}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: 1leg
   m_TagString: Untagged
   m_Icon: {fileID: -5442936267250999957, guid: 0000000000000000d000000000000000, type: 0}
@@ -24678,7 +24603,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8020063171171690665}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: 2leg
   m_TagString: Untagged
   m_Icon: {fileID: -5442936267250999957, guid: 0000000000000000d000000000000000, type: 0}
@@ -25165,7 +25090,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435_\u043F\u0440\u0435\u0434\u043C\u0435\u0442\u0430"
+  m_Text: 
 --- !u!1 &8979730989238178554
 GameObject:
   m_ObjectHideFlags: 0
@@ -25175,7 +25100,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 9221733790359320257}
-  m_Layer: 9
+  m_Layer: 0
   m_Name: PlayerCameraDefaultPoint
   m_TagString: MainCamera
   m_Icon: {fileID: -5938655980376293919, guid: 0000000000000000d000000000000000, type: 0}

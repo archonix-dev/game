@@ -16162,7 +16162,7 @@ GameObject:
   - component: {fileID: 869262788}
   - component: {fileID: 869262787}
   - component: {fileID: 869262786}
-  - component: {fileID: 869262785}
+  - component: {fileID: 869262790}
   m_Layer: 5
   m_Name: CanvasLoadScene
   m_TagString: Untagged
@@ -16170,25 +16170,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &869262785
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 869262784}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c0b670acd0ef91f4d8b74fbd5af487e9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  sceneName: Lobby
-  loadingObject: {fileID: 1759173549}
-  loadingAnimator: {fileID: 1017997945}
-  loadStartTime: 3
-  hideTime: 8
-  isLoading: 0
-  isInitialized: 0
 --- !u!114 &869262786
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -16265,13 +16246,29 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1759173550}
-  m_Father: {fileID: 1642991283}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+--- !u!114 &869262790
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 869262784}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b63a34d5e14e2e64e8c841850df45232, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  loadingAnimator: {fileID: 1017997945}
+  loadingAnimationName: loadingmainscene
+  loadStartTime: 3
+  hideTime: 8
 --- !u!1 &871216427
 GameObject:
   m_ObjectHideFlags: 0
@@ -34549,8 +34546,7 @@ Transform:
   m_LocalPosition: {x: -4.4841228, y: -7.2170506, z: -14.873747}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 869262789}
+  m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1642991284
@@ -34591,10 +34587,7 @@ MonoBehaviour:
   lobbyListParent: {fileID: 613732295}
   lobbyPasswordText: {fileID: 547504215}
   connectionStatusText: {fileID: 1395846810}
-  loadingObject: {fileID: 869262784}
-  loadingAnimator: {fileID: 1017997945}
-  loadStartTime: 3
-  hideTime: 8
+  loadingController: {fileID: 869262790}
 --- !u!1 &1653393236
 GameObject:
   m_ObjectHideFlags: 0
@@ -45720,6 +45713,7 @@ SceneRoots:
   - {fileID: 1620387773}
   - {fileID: 2080407459}
   - {fileID: 874227043}
+  - {fileID: 869262789}
   - {fileID: 2013410475}
   - {fileID: 1707935180}
   - {fileID: 602148245}

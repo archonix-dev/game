@@ -39,6 +39,16 @@ public class LobbyPlayer : NetworkBehaviour
         Color.green,      // 6 - Зеленый
         new Color(0.5f, 1f, 0.5f)  // 7 - Салатовый
     };
+
+    void CacheCustomizationData()
+    {
+        if (!isServer)
+        {
+            return;
+        }
+
+        PlayerCustomizationStorage.SaveFromLobbyPlayer(this);
+    }
     
     public override void OnStartServer()
     {
@@ -109,6 +119,8 @@ public class LobbyPlayer : NetworkBehaviour
         }
         
         Debug.Log($"[LobbyPlayer] Игрок создан на сервере: {playerName} (Steam ID: {steamID}, Owner: {isOwner}, ConnectionId: {connectionToClient?.connectionId})");
+
+        CacheCustomizationData();
     }
     
     public override void OnStartClient()
@@ -179,6 +191,8 @@ public class LobbyPlayer : NetworkBehaviour
         {
             playerColorIndex = colorIndex;
             Debug.Log($"[LobbyPlayer] Игрок {playerName} выбрал цвет {colorIndex}");
+
+            CacheCustomizationData();
         }
     }
     
@@ -202,6 +216,8 @@ public class LobbyPlayer : NetworkBehaviour
         {
             LobbyManager.Instance.UpdatePlayerList();
         }
+
+        CacheCustomizationData();
     }
     
     private void OnPlayerColorChanged(int oldColor, int newColor)
@@ -211,6 +227,8 @@ public class LobbyPlayer : NetworkBehaviour
         {
             LobbyManager.Instance.UpdatePlayerList();
         }
+
+        CacheCustomizationData();
     }
     
     private void OnIsOwnerChanged(bool oldValue, bool newValue)
@@ -220,6 +238,8 @@ public class LobbyPlayer : NetworkBehaviour
         {
             LobbyManager.Instance.UpdatePlayerList();
         }
+
+        CacheCustomizationData();
     }
     
     private void OnSteamIDChanged(ulong oldID, ulong newID)
@@ -229,6 +249,8 @@ public class LobbyPlayer : NetworkBehaviour
         {
             playersBySteamID[newID] = this;
         }
+
+        CacheCustomizationData();
     }
     
     private void OnPingChanged(int oldPing, int newPing)
@@ -239,7 +261,7 @@ public class LobbyPlayer : NetworkBehaviour
             LobbyManager.Instance.UpdatePlayerList();
         }
     }
-    
+
     void Update()
     {
         // Обновляем пинг каждую секунду на сервере
@@ -256,6 +278,16 @@ public class LobbyPlayer : NetworkBehaviour
             return playersBySteamID[steamID];
         }
         return null;
+    }
+
+    [TargetRpc]
+    public void TargetShowLoadingScreen(NetworkConnection target)
+    {
+        var controller = LobbyLoadingController.Instance;
+        if (controller != null)
+        {
+            controller.StartClientLoadingSequence();
+        }
     }
 }
 

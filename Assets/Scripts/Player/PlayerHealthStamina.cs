@@ -262,24 +262,36 @@ public class PlayerHealthStamina : NetworkBehaviour
         }
     }
     
+    /// <summary>
+    /// Использовать стамину (вызывается на клиенте, выполняется на сервере)
+    /// </summary>
+    [Command(requiresAuthority = false)]
     public void UseStamina(float amount)
     {
-        if (!isServer) return;
+        if (amount <= 0) return;
         
         currentStamina = Mathf.Max(0f, currentStamina - amount);
         lastStaminaUseTime = Time.time;
     }
     
+    /// <summary>
+    /// Использовать здоровье (вызывается на клиенте, выполняется на сервере)
+    /// </summary>
+    [Command(requiresAuthority = false)]
     public void UseHealth(float amount)
     {
-        if (!isServer) return;
+        if (amount <= 0) return;
         
         currentHealth = Mathf.Max(0f, currentHealth - amount);
     }
     
+    /// <summary>
+    /// Лечить игрока (вызывается на клиенте, выполняется на сервере)
+    /// </summary>
+    [Command(requiresAuthority = false)]
     public void Heal(float amount)
     {
-        if (!isServer) return;
+        if (amount <= 0) return;
         
         currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
     }
@@ -289,19 +301,38 @@ public class PlayerHealthStamina : NetworkBehaviour
         return currentStamina >= amount;
     }
     
+    /// <summary>
+    /// Увеличить максимальное здоровье (вызывается на клиенте, выполняется на сервере)
+    /// </summary>
+    [Command(requiresAuthority = false)]
     public void IncreaseMaxHealth(float amount)
     {
-        if (!isServer) return;
+        if (amount <= 0) return;
         
         maxHealth = Mathf.Min(300f, maxHealth + amount);
         currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
     }
     
+    /// <summary>
+    /// Увеличить максимальную стамину (вызывается на клиенте, выполняется на сервере)
+    /// </summary>
+    [Command(requiresAuthority = false)]
     public void IncreaseMaxStamina(float amount)
     {
-        if (!isServer) return;
+        if (amount <= 0) return;
         
         maxStamina = Mathf.Min(300f, maxStamina + amount);
+        currentStamina = Mathf.Min(maxStamina, currentStamina + amount);
+    }
+    
+    /// <summary>
+    /// Добавить стамину (вызывается на клиенте, выполняется на сервере)
+    /// </summary>
+    [Command(requiresAuthority = false)]
+    public void AddStamina(float amount)
+    {
+        if (amount <= 0) return;
+        
         currentStamina = Mathf.Min(maxStamina, currentStamina + amount);
     }
     

@@ -58,6 +58,7 @@ public class CameraMovementController : MonoBehaviour
     private GameObject currentActiveObject = null; // Текущий объект с отключенным коллайдером
     private Canvas currentActiveCanvas = null; // Текущий активный Canvas
     private GameObject currentHiddenObject = null; // Текущий скрытый объект
+    private bool autoConnectMenuOpened = false;
     
     void Start()
     {
@@ -153,6 +154,8 @@ public class CameraMovementController : MonoBehaviour
                 }
             }
         }
+
+        HandleAutoConnectMenu();
     }
     
     /// <summary>
@@ -412,6 +415,33 @@ public class CameraMovementController : MonoBehaviour
     private void OnEscapeButtonClicked()
     {
         PerformEscapeAction();
+    }
+    
+    /// <summary>
+    /// Автоматически открывает меню подключения и подлетает ко второму объекту при входе в чужое лобби Steam
+    /// </summary>
+    private void HandleAutoConnectMenu()
+    {
+        if (autoConnectMenuOpened)
+            return;
+        
+        LobbyManager lobbyManager = LobbyManager.Instance;
+        if (lobbyManager == null)
+            return;
+        
+        if (!lobbyManager.CurrentLobbyID.IsValid())
+            return;
+
+        // Автоподлет нужен только когда мы присоединились к чужому лобби (не являемся владельцем)
+        if (lobbyManager.IsLobbyOwner)
+            return;
+
+        // Проверяем, что у нас есть хотя бы два объекта для навигации
+        if (objectTargets == null || objectTargets.Length <= 1)
+            return;
+
+        OpenConnectMenu(1);
+        autoConnectMenuOpened = true;
     }
     
     

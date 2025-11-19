@@ -3,7 +3,9 @@ using UnityEngine.UI;
 using Mirror;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using Game.Localization;
+using Steamworks;
 
 /// <summary>
 /// Система чата. Открывается по нажатию "/" или "T", блокирует движение игрока и камеру.
@@ -60,6 +62,12 @@ public class ChatSystem : NetworkBehaviour
     private Dictionary<char, AudioClip> characterSoundMap;
     private bool wasEnterPressed = false;
     
+    // Система команд с автодополнением
+    private List<ChatCommand> availableCommands = new List<ChatCommand>();
+    private string currentCommandSuggestion = "";
+    private int currentSuggestionIndex = -1;
+    private List<string> currentSuggestions = new List<string>();
+    
     public override void OnStartClient()
     {
         base.OnStartClient();
@@ -72,8 +80,53 @@ public class ChatSystem : NetworkBehaviour
         // Используем значения по умолчанию для имени и цвета
     }
     
+    private bool TryGetLocalPlayerChatInfo(out string playerName, out Color playerColor, out bool isAdmin, out ulong steamId)
+    {
+        playerName = "Player";
+        playerColor = Color.white;
+        isAdmin = false;
+        steamId = 0;
+
+        LobbyPlayer[] players = FindObjectsOfType<LobbyPlayer>();
+        foreach (var lobbyPlayer in players)
+        {
+            if (lobbyPlayer != null && lobbyPlayer.isLocalPlayer)
+            {
+                playerName = string.IsNullOrEmpty(lobbyPlayer.playerName) ? playerName : lobbyPlayer.playerName;
+                playerColor = lobbyPlayer.GetPlayerColor();
+                isAdmin = lobbyPlayer.isOwner;
+                steamId = lobbyPlayer.steamID;
+                return true;
+            }
+        }
+
+        try
+        {
+            if (SteamAPI.IsSteamRunning())
+            {
+                steamId = SteamUser.GetSteamID().m_SteamID;
+                if (PlayerCustomizationStorage.TryGetBySteamId(steamId, out var dataBySteam))
+                {
+                    playerName = string.IsNullOrEmpty(dataBySteam.playerName) ? playerName : dataBySteam.playerName;
+                    playerColor = dataBySteam.PlayerColor;
+                    isAdmin = dataBySteam.isOwner;
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+            // Игнорируем ошибки Steam API, используем значения по умолчанию
+        }
+
+        return false;
+    }
+
     void Start()
     {
+        // Автоматически находим UI-компоненты, если они не назначены в инспекторе
+        AutoAssignUIReferences();
+
         // Инициализация: чат закрыт
         SetChatState(false);
         
@@ -115,13 +168,61 @@ public class ChatSystem : NetworkBehaviour
         // Инициализация словаря звуков для символов
         InitializeCharacterSoundMap();
         
+        // Инициализация системы команд
+        InitializeCommands();
+        
         // Используем значения по умолчанию для имени и цвета
+    }
+
+    /// <summary>
+    /// Автоматически находит UI-элементы чата, если они не заданы в инспекторе.
+    /// Это позволяет использовать ChatSystem на Prefab'е, не прописывая ссылки вручную.
+    /// </summary>
+    private void AutoAssignUIReferences()
+    {
+        // Находим корневой объект чата
+        if (chatRoot == null)
+        {
+            // Сначала пробуем найти Canvas в дочерних объектах
+            var canvas = GetComponentInChildren<Canvas>(true);
+            if (canvas != null)
+            {
+                chatRoot = canvas.gameObject;
+            }
+            else
+            {
+                // Если Canvas нет, используем сам объект с ChatSystem
+                chatRoot = gameObject;
+            }
+        }
+
+        // Находим поле ввода
+        if (chatInputField == null && chatRoot != null)
+        {
+            chatInputField = chatRoot.GetComponentInChildren<InputField>(true);
+        }
+
+        // Находим родителя для сообщений
+        if (messageSpawnParent == null && chatRoot != null)
+        {
+            // Пробуем найти по типичным именам
+            Transform found = chatRoot.transform.Find("Messages");
+            if (found == null) found = chatRoot.transform.Find("MessageContent");
+            if (found == null) found = chatRoot.transform.Find("Scroll View/Viewport/Content");
+
+            // Если ничего не нашли, используем корневой объект
+            messageSpawnParent = found != null ? found : chatRoot.transform;
+        }
     }
     
     private void SetupAudioSource()
     {
         if (audioSource == null) return;
         
+        audioSource.spatialBlend = 0f;
+        audioSource.spatialize = false;
+        audioSource.dopplerLevel = 0f;
+
         // ВАЖНО: Для визуализации звуки должны работать, но владелец не должен слышать себя
         // Для владельца используем очень маленький volume (почти неслышимый) вместо 0
         // volume = 0 может блокировать воспроизведение в некоторых случаях
@@ -210,10 +311,23 @@ public class ChatSystem : NetworkBehaviour
         }
         else
         {
+            // Повторное нажатие горячих клавиш закрывает чат
+            if (Input.GetKeyDown(KeyCode.Slash) || Input.GetKeyDown(KeyCode.T))
+            {
+                SetChatState(false);
+                return;
+            }
+
             // Если чат открыт, отслеживаем нажатие Enter
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
                 wasEnterPressed = true;
+            }
+            
+            // Обработка Tab для автодополнения
+            if (Input.GetKeyDown(KeyCode.Tab))
+            {
+                HandleTabCompletion();
             }
         }
         
@@ -315,19 +429,24 @@ public class ChatSystem : NetworkBehaviour
                     chatInputField.text = "";
                 }
                 SetChatState(false);
-                return;
+                return; // Выходим, не проигрывая звуки для команд
             }
-            
-            // Проигрываем звуки для каждого символа
-            PlayMessageSounds(text);
             
             // Отправляем сообщение в сеть
             bool isSpawned = netIdentity != null && netIdentity.netId != 0;
-            if (isSpawned && isOwned)
+            if (isSpawned && isClient)
             {
+                string playerNameToSend = "Player";
+                Color playerColorToSend = Color.white;
+                bool isAdminToSend = false;
+                ulong steamIdToSend = 0;
+
+                TryGetLocalPlayerChatInfo(out playerNameToSend, out playerColorToSend, out isAdminToSend, out steamIdToSend);
+
                 // Отправляем сообщение на сервер для спавна префаба
-                Debug.Log($"[ChatSystem] Отправка Command: text={text}, isSpawned={isSpawned}, isOwned={isOwned}");
-                SendChatMessageCommand(text);
+                Debug.Log($"[ChatSystem] Отправка Command: text={text}, isSpawned={isSpawned}, isClient={isClient}, playerName={playerNameToSend}");
+                SendChatMessageCommand(text, playerNameToSend, playerColorToSend, isAdminToSend, steamIdToSend);
+                
             }
             else if (netIdentity == null || netIdentity.netId == 0)
             {
@@ -356,6 +475,7 @@ public class ChatSystem : NetworkBehaviour
                 
                 // Создаем локально
                 SpawnChatMessageLocally(text, playerName, playerColor, 0, isAdmin);
+                
             }
             else
             {
@@ -374,30 +494,210 @@ public class ChatSystem : NetworkBehaviour
     }
     
     /// <summary>
+    /// Инициализирует список доступных команд
+    /// </summary>
+    private void InitializeCommands()
+    {
+        availableCommands = new List<ChatCommand>
+        {
+            new ChatCommand("stamina", "Добавить стамину игроку", new[] { "playerId", "amount" }, ExecuteStaminaCommand),
+            new ChatCommand("health", "Добавить здоровье игроку", new[] { "playerId", "amount" }, ExecuteHealthCommand),
+            new ChatCommand("kill", "Убить игрока", new[] { "playerId" }, ExecuteKillCommand),
+            new ChatCommand("tp", "Телепорт к игроку", new[] { "playerId" }, ExecuteTeleportCommand),
+            new ChatCommand("teleport", "Телепорт к игроку", new[] { "playerId" }, ExecuteTeleportCommand),
+            new ChatCommand("give", "Дать предмет", new[] { "itemName", "amount" }, ExecuteGiveCommand),
+            new ChatCommand("spawn", "Заспавнить объект", new[] { "objectName" }, ExecuteSpawnCommand),
+            new ChatCommand("fly", "Включить/выключить полет", new string[0], ExecuteFlyCommand),
+            new ChatCommand("god", "Включить/выключить бессмертие", new string[0], ExecuteGodCommand),
+            new ChatCommand("speed", "Установить скорость", new[] { "value" }, ExecuteSpeedCommand),
+            new ChatCommand("clear", "Очистить инвентарь", new string[0], ExecuteClearCommand),
+            new ChatCommand("money", "Дать деньги", new[] { "amount" }, ExecuteMoneyCommand),
+            new ChatCommand("kick", "Кикнуть игрока", new[] { "playerId" }, ExecuteKickCommand),
+            new ChatCommand("ban", "Забанить игрока", new[] { "playerId" }, ExecuteBanCommand),
+            new ChatCommand("heal", "Полностью вылечить игрока", new[] { "playerId" }, ExecuteHealCommand),
+            new ChatCommand("maxhealth", "Установить максимальное здоровье", new[] { "playerId", "amount" }, ExecuteMaxHealthCommand),
+            new ChatCommand("maxstamina", "Установить максимальную стамину", new[] { "playerId", "amount" }, ExecuteMaxStaminaCommand),
+            new ChatCommand("list", "Список игроков", new string[0], ExecuteListCommand),
+            new ChatCommand("help", "Список команд", new string[0], ExecuteHelpCommand)
+        };
+    }
+    
+    /// <summary>
     /// Обрабатывает команды чата (начинаются с /)
     /// </summary>
     private void HandleCommand(string command)
     {
-        // Убираем пробелы и приводим к нижнему регистру
-        command = command.Trim().ToLowerInvariant();
-        
-        // Команда /kill - убивает игрока
-        if (command == "/kill")
+        // Проверяем, включены ли читы
+        if (LobbyManager.Instance == null || !LobbyManager.Instance.cheatsEnabled)
         {
-            if (playerController != null)
+            Debug.LogWarning("[ChatSystem] Читы отключены в настройках лобби!");
+            return;
+        }
+        
+        // Проверяем, является ли игрок владельцем лобби или админом
+        bool isOwner = false;
+        if (LobbyManager.Instance != null)
+        {
+            isOwner = LobbyManager.Instance.IsLobbyOwner;
+        }
+        
+        // Также проверяем через LobbyPlayer
+        LobbyPlayer localPlayer = FindObjectOfType<LobbyPlayer>();
+        if (localPlayer != null && localPlayer.isOwner)
+        {
+            isOwner = true;
+        }
+        
+        if (!isOwner)
+        {
+            Debug.LogWarning("[ChatSystem] Только владелец лобби может использовать команды!");
+            return;
+        }
+        
+        // Разбиваем команду на части
+        string[] parts = command.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return;
+        
+        string commandName = parts[0].ToLowerInvariant();
+        
+        // Ищем команду
+        ChatCommand cmd = availableCommands.FirstOrDefault(c => c.name == commandName);
+        if (cmd == null)
+        {
+            Debug.Log($"[ChatSystem] Неизвестная команда: {commandName}. Используйте /help для списка команд.");
+            return;
+        }
+        
+        // Выполняем команду
+        string[] args = parts.Skip(1).ToArray();
+        cmd.Execute(args, this);
+    }
+    
+    /// <summary>
+    /// Обрабатывает автодополнение по Tab
+    /// </summary>
+    private void HandleTabCompletion()
+    {
+        if (chatInputField == null) return;
+        
+        string currentText = chatInputField.text;
+        if (string.IsNullOrEmpty(currentText) || !currentText.StartsWith("/"))
+        {
+            return;
+        }
+        
+        // Получаем текущую позицию курсора
+        int caretPosition = chatInputField.caretPosition;
+        
+        // Находим начало команды
+        int commandStart = currentText.LastIndexOf('/', caretPosition - 1);
+        if (commandStart == -1) return;
+        
+        // Получаем текст от начала команды до курсора
+        string textBeforeCaret = currentText.Substring(commandStart, caretPosition - commandStart);
+        
+        // Разбиваем на части
+        string[] parts = textBeforeCaret.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+        
+        if (parts.Length == 0) return;
+        
+        string commandPart = parts[0].Substring(1).ToLowerInvariant(); // Убираем "/"
+        
+        // Если это первая часть (название команды)
+        if (parts.Length == 1)
+        {
+            // Ищем команды, начинающиеся с этого текста
+            var matchingCommands = availableCommands
+                .Where(c => c.name.StartsWith(commandPart))
+                .Select(c => c.name)
+                .ToList();
+            
+            if (matchingCommands.Count == 0) return;
+            
+            // Если только одна команда, дополняем её
+            if (matchingCommands.Count == 1)
             {
-                playerController.KillPlayer();
-                Debug.Log("[ChatSystem] Команда /kill выполнена - игрок убит");
+                string fullCommand = "/" + matchingCommands[0];
+                string newText = currentText.Substring(0, commandStart) + fullCommand + " " + currentText.Substring(caretPosition);
+                chatInputField.text = newText;
+                chatInputField.caretPosition = commandStart + fullCommand.Length + 1;
             }
             else
             {
-                Debug.LogWarning("[ChatSystem] PlayerController не найден для выполнения команды /kill");
+                // Если несколько команд, циклически переключаемся между ними
+                if (currentSuggestionIndex == -1 || !matchingCommands.Contains(currentCommandSuggestion))
+                {
+                    currentSuggestionIndex = 0;
+                    currentCommandSuggestion = matchingCommands[0];
+                }
+                else
+                {
+                    currentSuggestionIndex = (currentSuggestionIndex + 1) % matchingCommands.Count;
+                    currentCommandSuggestion = matchingCommands[currentSuggestionIndex];
+                }
+                
+                string fullCommand = "/" + currentCommandSuggestion;
+                string newText = currentText.Substring(0, commandStart) + fullCommand + " " + currentText.Substring(caretPosition);
+                chatInputField.text = newText;
+                chatInputField.caretPosition = commandStart + fullCommand.Length + 1;
             }
         }
         else
         {
-            Debug.Log($"[ChatSystem] Неизвестная команда: {command}");
+            // Если это параметр команды
+            ChatCommand cmd = availableCommands.FirstOrDefault(c => c.name == commandPart);
+            if (cmd != null && cmd.parameters.Length > parts.Length - 1)
+            {
+                string paramName = cmd.parameters[parts.Length - 1];
+                
+                // Если параметр - playerId, автозаполняем Steam ID
+                if (paramName == "playerId")
+                {
+                    string lastPart = parts[parts.Length - 1];
+                    var players = GetOnlinePlayers();
+                    
+                    // Ищем игроков по ID или имени
+                    var matchingPlayers = players
+                        .Where(p => 
+                            p.steamID.ToString().StartsWith(lastPart) || 
+                            p.playerName.ToLowerInvariant().StartsWith(lastPart.ToLowerInvariant()))
+                        .ToList();
+                    
+                    if (matchingPlayers.Count > 0)
+                    {
+                        // Если несколько совпадений, циклически переключаемся
+                        LobbyPlayer selectedPlayer = matchingPlayers[0];
+                        if (matchingPlayers.Count > 1)
+                        {
+                            // Находим текущего выбранного игрока (если есть)
+                            int currentIndex = matchingPlayers.FindIndex(p => p.steamID.ToString() == lastPart || p.playerName.ToLowerInvariant() == lastPart.ToLowerInvariant());
+                            if (currentIndex >= 0)
+                            {
+                                currentIndex = (currentIndex + 1) % matchingPlayers.Count;
+                            }
+                            else
+                            {
+                                currentIndex = 0;
+                            }
+                            selectedPlayer = matchingPlayers[currentIndex];
+                        }
+                        
+                        ulong playerId = selectedPlayer.steamID;
+                        string newText = currentText.Substring(0, caretPosition - lastPart.Length) + playerId.ToString() + " " + currentText.Substring(caretPosition);
+                        chatInputField.text = newText;
+                        chatInputField.caretPosition = caretPosition - lastPart.Length + playerId.ToString().Length + 1;
+                    }
+                }
+            }
         }
+    }
+    
+    /// <summary>
+    /// Получает список онлайн игроков
+    /// </summary>
+    private List<LobbyPlayer> GetOnlinePlayers()
+    {
+        return FindObjectsOfType<LobbyPlayer>().ToList();
     }
     
     /// <summary>
@@ -405,6 +705,12 @@ public class ChatSystem : NetworkBehaviour
     /// </summary>
     private void PlayMessageSounds(string message)
     {
+        // Не проигрываем звуки для команд (начинаются с /)
+        if (string.IsNullOrEmpty(message) || message.StartsWith("/"))
+        {
+            return;
+        }
+        
         // Останавливаем предыдущую корутину, если она еще выполняется
         if (playMessageSoundsCoroutine != null)
         {
@@ -487,6 +793,479 @@ public class ChatSystem : NetworkBehaviour
         }
         
         playMessageSoundsCoroutine = null;
+    }
+    
+    // ========== ОБРАБОТЧИКИ КОМАНД ==========
+    
+    private void ExecuteStaminaCommand(string[] args, ChatSystem chatSystem)
+    {
+        if (args.Length < 2)
+        {
+            Debug.LogWarning("[ChatSystem] Использование: /stamina <playerId> <amount>");
+            return;
+        }
+        
+        if (ulong.TryParse(args[0], out ulong playerId) && float.TryParse(args[1], out float amount))
+        {
+            ExecuteStaminaCommandServer(playerId, amount);
+        }
+    }
+    
+    private void ExecuteHealthCommand(string[] args, ChatSystem chatSystem)
+    {
+        if (args.Length < 2)
+        {
+            Debug.LogWarning("[ChatSystem] Использование: /health <playerId> <amount>");
+            return;
+        }
+        
+        if (ulong.TryParse(args[0], out ulong playerId) && float.TryParse(args[1], out float amount))
+        {
+            ExecuteHealthCommandServer(playerId, amount);
+        }
+    }
+    
+    private void ExecuteKillCommand(string[] args, ChatSystem chatSystem)
+    {
+        ulong targetId = 0;
+        if (args.Length > 0 && ulong.TryParse(args[0], out targetId))
+        {
+            ExecuteKillCommandServer(targetId);
+        }
+        else if (playerController != null)
+        {
+            // Если не указан ID, убиваем себя
+            playerController.KillPlayer();
+        }
+    }
+    
+    private void ExecuteTeleportCommand(string[] args, ChatSystem chatSystem)
+    {
+        if (args.Length < 1)
+        {
+            Debug.LogWarning("[ChatSystem] Использование: /tp <playerId>");
+            return;
+        }
+        
+        if (ulong.TryParse(args[0], out ulong targetId))
+        {
+            ExecuteTeleportCommandServer(targetId);
+        }
+    }
+    
+    private void ExecuteGiveCommand(string[] args, ChatSystem chatSystem)
+    {
+        if (args.Length < 1)
+        {
+            Debug.LogWarning("[ChatSystem] Использование: /give <itemName> [amount]");
+            return;
+        }
+        
+        int amount = 1;
+        if (args.Length > 1 && int.TryParse(args[1], out int parsedAmount))
+        {
+            amount = parsedAmount;
+        }
+        
+        ExecuteGiveCommandServer(args[0], amount);
+    }
+    
+    private void ExecuteSpawnCommand(string[] args, ChatSystem chatSystem)
+    {
+        if (args.Length < 1)
+        {
+            Debug.LogWarning("[ChatSystem] Использование: /spawn <objectName>");
+            return;
+        }
+        
+        ExecuteSpawnCommandServer(args[0]);
+    }
+    
+    private void ExecuteFlyCommand(string[] args, ChatSystem chatSystem)
+    {
+        ExecuteFlyCommandServer();
+    }
+    
+    private void ExecuteGodCommand(string[] args, ChatSystem chatSystem)
+    {
+        ExecuteGodCommandServer();
+    }
+    
+    private void ExecuteSpeedCommand(string[] args, ChatSystem chatSystem)
+    {
+        if (args.Length < 1)
+        {
+            Debug.LogWarning("[ChatSystem] Использование: /speed <value>");
+            return;
+        }
+        
+        if (float.TryParse(args[0], out float speed))
+        {
+            ExecuteSpeedCommandServer(speed);
+        }
+    }
+    
+    private void ExecuteClearCommand(string[] args, ChatSystem chatSystem)
+    {
+        ExecuteClearCommandServer();
+    }
+    
+    private void ExecuteMoneyCommand(string[] args, ChatSystem chatSystem)
+    {
+        if (args.Length < 1)
+        {
+            Debug.LogWarning("[ChatSystem] Использование: /money <amount>");
+            return;
+        }
+        
+        if (int.TryParse(args[0], out int amount))
+        {
+            ExecuteMoneyCommandServer(amount);
+        }
+    }
+    
+    private void ExecuteKickCommand(string[] args, ChatSystem chatSystem)
+    {
+        if (args.Length < 1)
+        {
+            Debug.LogWarning("[ChatSystem] Использование: /kick <playerId>");
+            return;
+        }
+        
+        if (ulong.TryParse(args[0], out ulong playerId))
+        {
+            ExecuteKickCommandServer(playerId);
+        }
+    }
+    
+    private void ExecuteBanCommand(string[] args, ChatSystem chatSystem)
+    {
+        if (args.Length < 1)
+        {
+            Debug.LogWarning("[ChatSystem] Использование: /ban <playerId>");
+            return;
+        }
+        
+        if (ulong.TryParse(args[0], out ulong playerId))
+        {
+            ExecuteBanCommandServer(playerId);
+        }
+    }
+    
+    private void ExecuteHealCommand(string[] args, ChatSystem chatSystem)
+    {
+        ulong targetId = 0;
+        if (args.Length > 0 && ulong.TryParse(args[0], out targetId))
+        {
+            ExecuteHealCommandServer(targetId);
+        }
+        else if (playerController != null)
+        {
+            // Если не указан ID, лечим себя
+            var healthStamina = playerController.GetComponent<PlayerHealthStamina>();
+            if (healthStamina != null)
+            {
+                float maxHealth = healthStamina.GetMaxHealth();
+                healthStamina.Heal(maxHealth);
+            }
+        }
+    }
+    
+    private void ExecuteMaxHealthCommand(string[] args, ChatSystem chatSystem)
+    {
+        if (args.Length < 2)
+        {
+            Debug.LogWarning("[ChatSystem] Использование: /maxhealth <playerId> <amount>");
+            return;
+        }
+        
+        if (ulong.TryParse(args[0], out ulong playerId) && float.TryParse(args[1], out float amount))
+        {
+            ExecuteMaxHealthCommandServer(playerId, amount);
+        }
+    }
+    
+    private void ExecuteMaxStaminaCommand(string[] args, ChatSystem chatSystem)
+    {
+        if (args.Length < 2)
+        {
+            Debug.LogWarning("[ChatSystem] Использование: /maxstamina <playerId> <amount>");
+            return;
+        }
+        
+        if (ulong.TryParse(args[0], out ulong playerId) && float.TryParse(args[1], out float amount))
+        {
+            ExecuteMaxStaminaCommandServer(playerId, amount);
+        }
+    }
+    
+    private void ExecuteListCommand(string[] args, ChatSystem chatSystem)
+    {
+        ExecuteListCommandServer();
+    }
+    
+    private void ExecuteHelpCommand(string[] args, ChatSystem chatSystem)
+    {
+        Debug.Log("[ChatSystem] === Доступные команды ===");
+        foreach (var cmd in availableCommands)
+        {
+            string paramsStr = cmd.parameters.Length > 0 ? string.Join(" ", cmd.parameters.Select(p => $"<{p}>")) : "";
+            Debug.Log($"/{cmd.name} {paramsStr} - {cmd.description}");
+        }
+    }
+    
+    // ========== СЕРВЕРНЫЕ КОМАНДЫ ==========
+    
+    [Command]
+    private void ExecuteStaminaCommandServer(ulong playerId, float amount)
+    {
+        // Проверяем права доступа на сервере
+        if (!IsCommandAllowed())
+        {
+            Debug.LogWarning("[ChatSystem] У вас нет прав для выполнения команд!");
+            return;
+        }
+        
+        var targetPlayer = LobbyPlayer.GetPlayerBySteamID(playerId);
+        if (targetPlayer != null)
+        {
+            var playerObj = targetPlayer.GetComponent<PlayerController>();
+            if (playerObj != null)
+            {
+                var healthStamina = playerObj.GetComponent<PlayerHealthStamina>();
+                if (healthStamina != null)
+                {
+                    // Добавляем стамину
+                    healthStamina.AddStamina(amount);
+                }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Проверяет, разрешено ли выполнение команд
+    /// </summary>
+    private bool IsCommandAllowed()
+    {
+        // Проверяем, включены ли читы
+        if (LobbyManager.Instance == null || !LobbyManager.Instance.cheatsEnabled)
+        {
+            return false;
+        }
+        
+        // Проверяем, является ли игрок владельцем
+        LobbyPlayer localPlayer = FindObjectOfType<LobbyPlayer>();
+        if (localPlayer != null && localPlayer.isOwner)
+        {
+            return true;
+        }
+        
+        if (LobbyManager.Instance != null && LobbyManager.Instance.IsLobbyOwner)
+        {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    [Command]
+    private void ExecuteHealthCommandServer(ulong playerId, float amount)
+    {
+        if (!IsCommandAllowed()) return;
+        
+        var targetPlayer = LobbyPlayer.GetPlayerBySteamID(playerId);
+        if (targetPlayer != null)
+        {
+            var playerObj = targetPlayer.GetComponent<PlayerController>();
+            if (playerObj != null)
+            {
+                var healthStamina = playerObj.GetComponent<PlayerHealthStamina>();
+                if (healthStamina != null)
+                {
+                    healthStamina.Heal(amount);
+                }
+            }
+        }
+    }
+    
+    [Command]
+    private void ExecuteKillCommandServer(ulong playerId)
+    {
+        if (!IsCommandAllowed()) return;
+        
+        var targetPlayer = LobbyPlayer.GetPlayerBySteamID(playerId);
+        if (targetPlayer != null)
+        {
+            var playerObj = targetPlayer.GetComponent<PlayerController>();
+            if (playerObj != null)
+            {
+                playerObj.KillPlayer();
+            }
+        }
+    }
+    
+    [Command]
+    private void ExecuteTeleportCommandServer(ulong targetId)
+    {
+        if (!IsCommandAllowed()) return;
+        
+        var targetPlayer = LobbyPlayer.GetPlayerBySteamID(targetId);
+        if (targetPlayer != null && playerController != null)
+        {
+            var targetPlayerObj = targetPlayer.GetComponent<PlayerController>();
+            if (targetPlayerObj != null)
+            {
+                playerController.transform.position = targetPlayerObj.transform.position;
+            }
+        }
+    }
+    
+    [Command]
+    private void ExecuteGiveCommandServer(string itemName, int amount)
+    {
+        // Реализация выдачи предметов
+        Debug.Log($"[ChatSystem] Команда /give {itemName} {amount} выполнена");
+    }
+    
+    [Command]
+    private void ExecuteSpawnCommandServer(string objectName)
+    {
+        // Реализация спавна объектов
+        Debug.Log($"[ChatSystem] Команда /spawn {objectName} выполнена");
+    }
+    
+    [Command]
+    private void ExecuteFlyCommandServer()
+    {
+        // Реализация полета
+        Debug.Log("[ChatSystem] Команда /fly выполнена");
+    }
+    
+    [Command]
+    private void ExecuteGodCommandServer()
+    {
+        // Реализация бессмертия
+        Debug.Log("[ChatSystem] Команда /god выполнена");
+    }
+    
+    [Command]
+    private void ExecuteSpeedCommandServer(float speed)
+    {
+        if (playerController != null)
+        {
+            // Реализация изменения скорости
+            Debug.Log($"[ChatSystem] Команда /speed {speed} выполнена");
+        }
+    }
+    
+    [Command]
+    private void ExecuteClearCommandServer()
+    {
+        var inventory = GetComponent<InventorySystem>();
+        if (inventory != null)
+        {
+            // Реализация очистки инвентаря
+            Debug.Log("[ChatSystem] Команда /clear выполнена");
+        }
+    }
+    
+    [Command]
+    private void ExecuteMoneyCommandServer(int amount)
+    {
+        if (!IsCommandAllowed()) return;
+        
+        var coinManager = GetComponent<CoinManager>();
+        if (coinManager != null)
+        {
+            coinManager.AddCoins(amount);
+        }
+    }
+    
+    [Command]
+    private void ExecuteKickCommandServer(ulong playerId)
+    {
+        if (!IsCommandAllowed()) return;
+        
+        var targetPlayer = LobbyPlayer.GetPlayerBySteamID(playerId);
+        if (targetPlayer != null && targetPlayer.connectionToClient != null)
+        {
+            targetPlayer.connectionToClient.Disconnect();
+        }
+    }
+    
+    [Command]
+    private void ExecuteBanCommandServer(ulong playerId)
+    {
+        // Реализация бана (требует системы банов)
+        Debug.Log($"[ChatSystem] Команда /ban {playerId} выполнена");
+    }
+    
+    [Command]
+    private void ExecuteHealCommandServer(ulong playerId)
+    {
+        var targetPlayer = LobbyPlayer.GetPlayerBySteamID(playerId);
+        if (targetPlayer != null)
+        {
+            var playerObj = targetPlayer.GetComponent<PlayerController>();
+            if (playerObj != null)
+            {
+                var healthStamina = playerObj.GetComponent<PlayerHealthStamina>();
+                if (healthStamina != null)
+                {
+                    float maxHealth = healthStamina.GetMaxHealth();
+                    healthStamina.Heal(maxHealth);
+                }
+            }
+        }
+    }
+    
+    [Command]
+    private void ExecuteMaxHealthCommandServer(ulong playerId, float amount)
+    {
+        var targetPlayer = LobbyPlayer.GetPlayerBySteamID(playerId);
+        if (targetPlayer != null)
+        {
+            var playerObj = targetPlayer.GetComponent<PlayerController>();
+            if (playerObj != null)
+            {
+                var healthStamina = playerObj.GetComponent<PlayerHealthStamina>();
+                if (healthStamina != null)
+                {
+                    float currentMax = healthStamina.GetMaxHealth();
+                    healthStamina.IncreaseMaxHealth(amount - currentMax);
+                }
+            }
+        }
+    }
+    
+    [Command]
+    private void ExecuteMaxStaminaCommandServer(ulong playerId, float amount)
+    {
+        var targetPlayer = LobbyPlayer.GetPlayerBySteamID(playerId);
+        if (targetPlayer != null)
+        {
+            var playerObj = targetPlayer.GetComponent<PlayerController>();
+            if (playerObj != null)
+            {
+                var healthStamina = playerObj.GetComponent<PlayerHealthStamina>();
+                if (healthStamina != null)
+                {
+                    float currentMax = healthStamina.GetMaxStamina();
+                    healthStamina.IncreaseMaxStamina(amount - currentMax);
+                }
+            }
+        }
+    }
+    
+    [Command]
+    private void ExecuteListCommandServer()
+    {
+        var players = GetOnlinePlayers();
+        Debug.Log($"[ChatSystem] === Онлайн игроки ({players.Count}) ===");
+        foreach (var player in players)
+        {
+            Debug.Log($"- {player.playerName} (Steam ID: {player.steamID})");
+        }
     }
     
     /// <summary>
@@ -673,10 +1452,10 @@ public class ChatSystem : NetworkBehaviour
     }
     
     /// <summary>
-    /// ServerRpc для отправки сообщения в чат (вызывается владельцем)
+    /// ServerRpc для отправки сообщения в чат (вызывается любым клиентом, независимо от владения объектом)
     /// </summary>
-    [Command]
-    private void SendChatMessageCommand(string message, NetworkConnectionToClient sender = null)
+    [Command(requiresAuthority = false)]
+    private void SendChatMessageCommand(string message, string fallbackPlayerName, Color fallbackPlayerColor, bool fallbackIsAdmin, ulong fallbackSteamId, NetworkConnectionToClient sender = null)
     {
         // В Mirror, когда клиент вызывает Command, sender автоматически передается
         // Если sender null, используем connectionToClient из этого NetworkIdentity
@@ -686,31 +1465,26 @@ public class ChatSystem : NetworkBehaviour
             actualSender = netIdentity.connectionToClient;
         }
         
-        uint senderId = 0;
-        if (actualSender != null)
-        {
-            senderId = (uint)actualSender.connectionId;
-        }
+        int senderConnectionId = actualSender != null ? actualSender.connectionId : -1;
+        uint senderId = senderConnectionId >= 0 ? (uint)senderConnectionId : 0;
         
         Debug.Log($"[ChatSystem] Command получен: message={message}, senderId={senderId}, sender={(actualSender != null ? "NOT NULL" : "NULL")}, connectionToClient={(netIdentity?.connectionToClient != null ? "NOT NULL" : "NULL")}");
         
-        // Получаем имя и цвет игрока из LobbyPlayer
-        string playerName = "Player";
-        Color playerColor = Color.white;
-        bool isAdmin = false;
+        string playerName = string.IsNullOrWhiteSpace(fallbackPlayerName) ? "Player" : fallbackPlayerName;
+        Color playerColor = fallbackPlayerColor;
+        bool isAdmin = fallbackIsAdmin;
+        ulong steamId = fallbackSteamId;
         
         // Пытаемся найти LobbyPlayer для отправителя
         LobbyPlayer lobbyPlayer = null;
         
         if (actualSender != null)
         {
-            // Вариант 1: Проверяем, есть ли LobbyPlayer как player object у этого подключения
             if (actualSender.identity != null)
             {
                 lobbyPlayer = actualSender.identity.GetComponent<LobbyPlayer>();
             }
             
-            // Вариант 2: Если не нашли, ищем по всем LobbyPlayer и проверяем connectionToClient
             if (lobbyPlayer == null)
             {
                 LobbyPlayer[] allLobbyPlayers = FindObjectsOfType<LobbyPlayer>();
@@ -725,38 +1499,60 @@ public class ChatSystem : NetworkBehaviour
             }
         }
         
-        // Если нашли LobbyPlayer, получаем данные из него
         if (lobbyPlayer != null)
         {
-            playerName = lobbyPlayer.playerName;
+            playerName = string.IsNullOrEmpty(lobbyPlayer.playerName) ? playerName : lobbyPlayer.playerName;
             playerColor = lobbyPlayer.GetPlayerColor();
             isAdmin = lobbyPlayer.isOwner;
+            steamId = lobbyPlayer.steamID;
             Debug.Log($"[ChatSystem] Найден LobbyPlayer: {playerName}, цвет: {playerColor}, isOwner: {isAdmin}");
         }
         else
         {
-            // Если не нашли LobbyPlayer, используем значения по умолчанию
-            // и проверяем, является ли отправитель админом (хостом)
-            if (actualSender != null)
+            bool customizationFound = false;
+            if (senderConnectionId >= 0 &&
+                PlayerCustomizationStorage.TryGetByConnectionId(senderConnectionId, out PlayerCustomizationStorage.PlayerCustomizationData cachedData))
             {
-                // Проверяем, является ли этот connection хостом
-                // Хост - это когда NetworkServer.activeHost == true
-                // И connectionId хоста обычно 0, но нужно проверить через NetworkServer.connections
-                isAdmin = NetworkServer.activeHost && actualSender.connectionId == 0;
+                customizationFound = true;
+                playerName = string.IsNullOrEmpty(cachedData.playerName) ? playerName : cachedData.playerName;
+                playerColor = cachedData.PlayerColor;
+                isAdmin = cachedData.isOwner;
+                steamId = cachedData.steamId;
+                Debug.Log($"[ChatSystem] Используем кешированные данные игрока: {playerName}, цвет: {playerColor}, isOwner: {isAdmin}");
             }
-            else if (senderId == 0 && NetworkServer.activeHost)
+
+            if (!customizationFound)
             {
-                // Если senderId == 0 и мы хост, то это хост
-                isAdmin = true;
+                if (steamId == 0 && fallbackSteamId != 0)
+                {
+                    steamId = fallbackSteamId;
+                }
+
+                if (steamId != 0 && PlayerCustomizationStorage.TryGetBySteamId(steamId, out var cachedBySteam))
+                {
+                    playerName = string.IsNullOrEmpty(cachedBySteam.playerName) ? playerName : cachedBySteam.playerName;
+                    playerColor = cachedBySteam.PlayerColor;
+                    isAdmin = cachedBySteam.isOwner;
+                }
+                else
+                {
+                    if (actualSender != null)
+                    {
+                        isAdmin = NetworkServer.activeHost && actualSender.connectionId == 0;
+                    }
+                    else if (senderId == 0 && NetworkServer.activeHost)
+                    {
+                        isAdmin = true;
+                    }
+                    
+                    Debug.LogWarning($"[ChatSystem] Данные игрока не найдены для connectionId {senderId}, используем переданные значения");
+                }
             }
-            
-            Debug.LogWarning($"[ChatSystem] LobbyPlayer не найден для connectionId {senderId}, используем значения по умолчанию");
         }
         
         Debug.Log($"[ChatSystem] Финальное имя для отправки: {playerName}, цвет: {playerColor}, isAdmin: {isAdmin}");
         
         // Отправляем сообщение всем клиентам через ClientRpc
-        // ClientRpc автоматически отправляется всем клиентам, у которых есть этот NetworkIdentity
         NetworkIdentity networkIdentity = GetComponent<NetworkIdentity>();
         bool isSpawned = networkIdentity != null && networkIdentity.netId != 0;
         Debug.Log($"[ChatSystem] Отправка ClientRpc: message={message}, playerName={playerName}, senderId={senderId}, isSpawned={isSpawned}, netId={networkIdentity?.netId ?? 0}, isServer={isServer}");
@@ -767,9 +1563,6 @@ public class ChatSystem : NetworkBehaviour
             Debug.LogError($"[ChatSystem] NetworkIdentity не найден или не заспавнен! networkIdentity={networkIdentity}, isSpawned={netIsSpawned}");
             return;
         }
-        
-        // Вызываем ClientRpc - он автоматически отправится всем клиентам
-        Debug.Log($"[ChatSystem] Отправка ClientRpc на клиентов");
         
         ReceiveChatMessageClientRpc(playerName, message, playerColor, senderId, isAdmin);
     }
@@ -782,8 +1575,19 @@ public class ChatSystem : NetworkBehaviour
     {
         bool isSpawned = netIdentity != null && netIdentity.netId != 0;
         Debug.Log($"[ChatSystem] ReceiveChatMessageClientRpc получен: message={message}, playerName={playerName}, isSpawned={isSpawned}, isOwned={isOwned}, isClient={isClient}, name={gameObject.name}, netId={GetComponent<NetworkIdentity>()?.netId ?? 0}");
+        
         // Каждый клиент создает локальный UI элемент
         SpawnChatMessageLocally(message, playerName, playerColor, clientId, isAdmin);
+        
+        // Проигрываем звуки набора текста для других игроков
+        // Отправитель уже проиграл звуки локально в OnInputFieldEndEdit, но не слышит их из-за SetupAudioSource
+        // ClientRpc вызывается для всех клиентов, включая отправителя
+        // Если это наш ChatSystem (isOwned), мы уже проиграли звуки локально, поэтому не проигрываем их снова
+        if (!message.StartsWith("/") && !isOwned)
+        {
+            // Это сообщение от другого игрока - проигрываем звуки
+            PlayMessageSounds(message);
+        }
     }
     
     
@@ -879,3 +1683,21 @@ public class ChatSystem : NetworkBehaviour
     }
 }
 
+/// <summary>
+/// Структура команды чата
+/// </summary>
+public class ChatCommand
+{
+    public string name;
+    public string description;
+    public string[] parameters;
+    public System.Action<string[], ChatSystem> Execute;
+    
+    public ChatCommand(string name, string description, string[] parameters, System.Action<string[], ChatSystem> execute)
+    {
+        this.name = name;
+        this.description = description;
+        this.parameters = parameters;
+        this.Execute = execute;
+    }
+}

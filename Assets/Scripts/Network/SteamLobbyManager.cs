@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Steamworks;
 using Mirror;
 
@@ -56,20 +57,24 @@ public class SteamLobbyManager : MonoBehaviour
 
     private void Update()
     {
-        // Обработка нажатия клавиши для открытия Steam оверлея приглашений
-        if (Input.GetKeyDown(inviteKey))
+        // Обрабатываем ввод Steam лобби только на сцене главного меню,
+        // чтобы в игровой сцене (Lobby) ESC и I не перехватывались этим менеджером.
+        if (IsInMenuScene())
         {
-            InviteFriendToLobby();
-        }
-        
-        // Обработка нажатия ESC для выхода из лобби
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            // Проверяем, находимся ли мы в активном лобби
-            if (IsInActiveLobby())
+            // Обработка нажатия клавиши для открытия Steam оверлея приглашений
+            if (Input.GetKeyDown(inviteKey))
             {
-                Debug.Log("[SteamLobbyManager] Нажата клавиша ESC - выход из лобби");
-                LeaveLobbyCompletely();
+                InviteFriendToLobby();
+            }
+            
+            // Обработка нажатия ESC для выхода из лобби
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                if (IsInActiveLobby())
+                {
+                    Debug.Log("[SteamLobbyManager] Нажата клавиша ESC - выход из лобби (сцена Menu)");
+                    LeaveLobbyCompletely();
+                }
             }
         }
     }
@@ -276,6 +281,17 @@ public class SteamLobbyManager : MonoBehaviour
         }
         
         return false;
+    }
+
+    /// <summary>
+    /// Проверяет, находимся ли мы сейчас в сцене главного меню,
+    /// где есть UI для приглашения друзей и управления лобби.
+    /// </summary>
+    private bool IsInMenuScene()
+    {
+        var sceneName = SceneManager.GetActiveScene().name;
+        // Ожидается, что сцена меню содержит "Menu" в названии (например, "Menu" или "MainMenu")
+        return sceneName.Contains("Menu", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
