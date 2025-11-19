@@ -38,6 +38,12 @@ public class PlayerHealthStamina : NetworkBehaviour
     private GameObject[] staminaPrefabs;
     private Image[] healthImages;
     private Image[] staminaImages;
+    private PlayerController playerController;
+
+    void Awake()
+    {
+        playerController = GetComponent<PlayerController>();
+    }
     
     
     public override void OnStartServer()
@@ -89,6 +95,12 @@ public class PlayerHealthStamina : NetworkBehaviour
     {
         UpdateHealthUI();
         UpdateTextUI();
+
+        if (isServer && newValue < oldValue)
+        {
+            float damageAmount = oldValue - newValue;
+            NotifyDamageTaken(damageAmount);
+        }
     }
     
     void OnMaxHealthChanged(float oldValue, float newValue)
@@ -250,6 +262,22 @@ public class PlayerHealthStamina : NetworkBehaviour
         
         // Возвращаем прозрачность от 0 до 1 в зависимости от остатка
         return remainder / 10f;
+    }
+
+    void NotifyDamageTaken(float damageAmount)
+    {
+        if (damageAmount <= 0f)
+            return;
+
+        if (playerController == null)
+        {
+            playerController = GetComponent<PlayerController>();
+        }
+
+        if (playerController != null)
+        {
+            playerController.NotifyDamageTaken(damageAmount);
+        }
     }
     
     void RegenerateStamina()

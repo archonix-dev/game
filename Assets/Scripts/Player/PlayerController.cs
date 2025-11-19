@@ -51,6 +51,15 @@ public class PlayerController : NetworkBehaviour
     [Tooltip("Particle System для эффекта смерти")]
     [SerializeField] private ParticleSystem deathParticleSystem;
     
+    [Tooltip("AudioSource для звука смерти (если не назначен, будет создан автоматически)")]
+    [SerializeField] private AudioSource deathAudioSource;
+    
+    [Tooltip("AudioClip для звука смерти")]
+    [SerializeField] private AudioClip deathAudioClip;
+    
+    [Tooltip("Громкость звука смерти")]
+    [SerializeField] private float deathAudioVolume = 0.8f;
+    
     [Header("Grab System References")]
     [SerializeField] private ObjectGrabSystem objectGrabSystem;
     [SerializeField] private PickupableGrabSystem pickupableGrabSystem;
@@ -136,6 +145,13 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private float crouchingCameraNear = 0.09f;
     [SerializeField] private float proneCameraNear = 0.01f;
     [SerializeField] private float cameraNearChangeSpeed = 10f;
+
+    [Header("Damage Feedback Settings")]
+    [SerializeField] private string hitAnimation = "hit";
+    [SerializeField] private float hitAnimationDuration = 0.1f;
+    [SerializeField] private AudioSource damageAudioSource;
+    [SerializeField] private AudioClip damageAudioClip;
+    [SerializeField] private float damageAudioVolume = 0.6f;
     
     [Header("Animation Settings")]
     [Tooltip("Animator компонент для проигрывания анимаций")]
@@ -415,6 +431,26 @@ public class PlayerController : NetworkBehaviour
         if (pickupableGrabSystem == null)
         {
             pickupableGrabSystem = GetComponent<PickupableGrabSystem>();
+        }
+        
+        // Инициализируем AudioSource для звука смерти если не назначен
+        if (deathAudioSource == null)
+        {
+            deathAudioSource = GetComponent<AudioSource>();
+            if (deathAudioSource == null)
+            {
+                deathAudioSource = gameObject.AddComponent<AudioSource>();
+            }
+        }
+        
+        // Настраиваем AudioSource для звука смерти
+        if (deathAudioSource != null)
+        {
+            deathAudioSource.clip = deathAudioClip;
+            deathAudioSource.volume = deathAudioVolume;
+            deathAudioSource.spatialBlend = 1f; // 3D звук
+            deathAudioSource.rolloffMode = AudioRolloffMode.Logarithmic;
+            deathAudioSource.maxDistance = 100f;
         }
         
         if (playerModel != null)
@@ -1389,6 +1425,51 @@ public class PlayerController : NetworkBehaviour
         string playerName = "Player";
         playerName3DText.text = playerName;
     }
+
+    [Server]
+    public void NotifyDamageTaken(float damageAmount)
+    {
+        if (damageAmount <= 0f)
+            return;
+
+        PlayDamageFeedbackLocal();
+        RpcPlayDamageFeedback();
+    }
+
+    [ClientRpc]
+    void RpcPlayDamageFeedback()
+    {
+        if (isServer)
+            return;
+
+        PlayDamageFeedbackLocal();
+    }
+
+    void PlayDamageFeedbackLocal()
+    {
+        PlayHitAnimation();
+        PlayDamageSound();
+    }
+
+    void PlayHitAnimation()
+    {
+        if (animator == null || string.IsNullOrEmpty(hitAnimation))
+            return;
+
+        animator.ResetTrigger(hitAnimation);
+        animator.SetTrigger(hitAnimation);
+    }
+
+    void PlayDamageSound()
+    {
+        if (damageAudioSource == null || damageAudioClip == null)
+            return;
+
+        damageAudioSource.clip = damageAudioClip;
+        damageAudioSource.volume = damageAudioVolume;
+        damageAudioSource.Stop();
+        damageAudioSource.Play();
+    }
     
     /// <summary>
     /// Проверяет, смотрит ли какой-либо другой игрок на этого игрока
@@ -1581,8 +1662,25 @@ public class PlayerController : NetworkBehaviour
             Debug.Log($"[PlayerController] Начата анимация смерти: {deathAnimation}");
         }
         
+        // Проигрываем звук смерти
+        PlayDeathSound();
+        
         // Останавливаем движение
         velocity = Vector3.zero;
+    }
+    
+    /// <summary>
+    /// Проигрывает звук смерти
+    /// </summary>
+    void PlayDeathSound()
+    {
+        if (deathAudioSource == null || deathAudioClip == null)
+            return;
+        
+        deathAudioSource.clip = deathAudioClip;
+        deathAudioSource.volume = deathAudioVolume;
+        deathAudioSource.Stop();
+        deathAudioSource.Play();
     }
     
     /// <summary>
@@ -1625,6 +1723,12 @@ public class PlayerController : NetworkBehaviour
         {
             deathParticleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             deathParticleSystem.gameObject.SetActive(false);
+        }
+        
+        // Останавливаем звук смерти
+        if (deathAudioSource != null && deathAudioSource.isPlaying)
+        {
+            deathAudioSource.Stop();
         }
         
         Debug.Log("[PlayerController] Состояние смерти сброшено при спавне");

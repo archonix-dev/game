@@ -239,7 +239,9 @@ public class FlyingMob : NetworkBehaviour
         idleAudioSource.loop = true;
         idleAudioSource.spatialBlend = 1f; // 3D звук
         idleAudioSource.rolloffMode = AudioRolloffMode.Logarithmic;
+        idleAudioSource.minDistance = 1f;
         idleAudioSource.maxDistance = 100f;
+        idleAudioSource.dopplerLevel = 0f;
         
         // Настраиваем AudioSource для scanning звука
         scanningAudioSource.clip = scanningSound;
@@ -247,7 +249,9 @@ public class FlyingMob : NetworkBehaviour
         scanningAudioSource.loop = true;
         scanningAudioSource.spatialBlend = 1f; // 3D звук
         scanningAudioSource.rolloffMode = AudioRolloffMode.Logarithmic;
+        scanningAudioSource.minDistance = 1f;
         scanningAudioSource.maxDistance = 100f;
+        scanningAudioSource.dopplerLevel = 0f;
         
         if (alarmAudioSource == null)
         {
@@ -257,8 +261,10 @@ public class FlyingMob : NetworkBehaviour
         alarmAudioSource.volume = alarmVolume;
         alarmAudioSource.loop = true;
         alarmAudioSource.spatialBlend = 1f;
-        alarmAudioSource.rolloffMode = AudioRolloffMode.Linear;
+        alarmAudioSource.rolloffMode = AudioRolloffMode.Logarithmic;
+        alarmAudioSource.minDistance = 1f;
         alarmAudioSource.maxDistance = 120f;
+        alarmAudioSource.dopplerLevel = 0f;
 
         if (explosionAudioSource == null)
         {
@@ -272,8 +278,10 @@ public class FlyingMob : NetworkBehaviour
         explosionAudioSource.loop = false;
         explosionAudioSource.playOnAwake = false;
         explosionAudioSource.spatialBlend = 1f;
-        explosionAudioSource.rolloffMode = AudioRolloffMode.Linear;
+        explosionAudioSource.rolloffMode = AudioRolloffMode.Logarithmic;
+        explosionAudioSource.minDistance = 1f;
         explosionAudioSource.maxDistance = 120f;
+        explosionAudioSource.dopplerLevel = 0f;
     }
 
     void InitializeMobMaterial()
@@ -306,9 +314,19 @@ public class FlyingMob : NetworkBehaviour
     {
         if (isServer)
         {
+            // Обновляем ссылку на игрока если он null, неактивен или не имеет валидного NetworkIdentity
             if (player == null || !player.gameObject.activeInHierarchy)
             {
                 player = FindClosestPlayer();
+            }
+            else
+            {
+                // Проверяем, что игрок все еще в сети
+                NetworkIdentity playerIdentity = player.GetComponent<NetworkIdentity>();
+                if (playerIdentity == null || !NetworkServer.spawned.ContainsKey(playerIdentity.netId))
+                {
+                    player = FindClosestPlayer();
+                }
             }
             
             HandleHoverMovement();
@@ -403,6 +421,9 @@ public class FlyingMob : NetworkBehaviour
     
     void PlayIdleSound()
     {
+        // Звуки проигрываются только на клиентах для правильной пространственной обработки
+        if (!isClient) return;
+        
         if (idleAudioSource != null && idleSound != null)
         {
             idleAudioSource.Play();
@@ -411,6 +432,8 @@ public class FlyingMob : NetworkBehaviour
     
     void StopIdleSound()
     {
+        if (!isClient) return;
+        
         if (idleAudioSource != null)
         {
             idleAudioSource.Stop();
@@ -419,6 +442,9 @@ public class FlyingMob : NetworkBehaviour
     
     void PlayScanningSound()
     {
+        // Звуки проигрываются только на клиентах для правильной пространственной обработки
+        if (!isClient) return;
+        
         if (scanningAudioSource != null && scanningSound != null)
         {
             scanningAudioSource.Play();
@@ -427,6 +453,8 @@ public class FlyingMob : NetworkBehaviour
     
     void StopScanningSound()
     {
+        if (!isClient) return;
+        
         if (scanningAudioSource != null)
         {
             scanningAudioSource.Stop();
@@ -435,6 +463,9 @@ public class FlyingMob : NetworkBehaviour
     
     void PlayAlarmSound(bool play)
     {
+        // Звуки проигрываются только на клиентах для правильной пространственной обработки
+        if (!isClient) return;
+        
         if (alarmAudioSource == null || alarmClip == null)
             return;
         
@@ -793,13 +824,35 @@ public class FlyingMob : NetworkBehaviour
         
         while (elapsed < presentationDuration)
         {
+            // Проверяем валидность игрока
             if (player == null || !player.gameObject.activeInHierarchy)
             {
-                BroadcastStopAttackAlertVisuals();
-                SetAlertVisuals(false);
-                currentState = MobState.Wandering;
-                SetWanderPoint();
-                yield break;
+                player = FindClosestPlayer();
+                if (player == null)
+                {
+                    BroadcastStopAttackAlertVisuals();
+                    SetAlertVisuals(false);
+                    currentState = MobState.Wandering;
+                    SetWanderPoint();
+                    yield break;
+                }
+            }
+            else
+            {
+                // Проверяем, что игрок все еще в сети
+                NetworkIdentity playerIdentity = player.GetComponent<NetworkIdentity>();
+                if (playerIdentity == null || !NetworkServer.spawned.ContainsKey(playerIdentity.netId))
+                {
+                    player = FindClosestPlayer();
+                    if (player == null)
+                    {
+                        BroadcastStopAttackAlertVisuals();
+                        SetAlertVisuals(false);
+                        currentState = MobState.Wandering;
+                        SetWanderPoint();
+                        yield break;
+                    }
+                }
             }
 
             FacePlayer();
@@ -815,13 +868,35 @@ public class FlyingMob : NetworkBehaviour
         
         while (currentState == MobState.Chasing)
         {
+            // Проверяем валидность игрока
             if (player == null || !player.gameObject.activeInHierarchy)
             {
-                BroadcastStopAttackAlertVisuals();
-                SetAlertVisuals(false);
-                currentState = MobState.Wandering;
-                SetWanderPoint();
-                break;
+                player = FindClosestPlayer();
+                if (player == null)
+                {
+                    BroadcastStopAttackAlertVisuals();
+                    SetAlertVisuals(false);
+                    currentState = MobState.Wandering;
+                    SetWanderPoint();
+                    break;
+                }
+            }
+            else
+            {
+                // Проверяем, что игрок все еще в сети
+                NetworkIdentity playerIdentity = player.GetComponent<NetworkIdentity>();
+                if (playerIdentity == null || !NetworkServer.spawned.ContainsKey(playerIdentity.netId))
+                {
+                    player = FindClosestPlayer();
+                    if (player == null)
+                    {
+                        BroadcastStopAttackAlertVisuals();
+                        SetAlertVisuals(false);
+                        currentState = MobState.Wandering;
+                        SetWanderPoint();
+                        break;
+                    }
+                }
             }
             
             Vector3 direction = (player.position - transform.position);
@@ -957,6 +1032,9 @@ public class FlyingMob : NetworkBehaviour
 
     void PlayExplosionSound()
     {
+        // Звук проигрывается только на клиентах для правильной пространственной обработки
+        if (!isClient) return;
+        
         if (explosionAudioSource == null || explosionSound == null)
             return;
 
@@ -982,31 +1060,46 @@ public class FlyingMob : NetworkBehaviour
         float baseRadius = Mathf.Max(spotDetectionRadius, 0.01f);
         float maxDistance = Mathf.Sqrt(height * height + baseRadius * baseRadius);
         Vector3 apex = transform.position;
-        Collider[] hits = Physics.OverlapSphere(apex, maxDistance, playerLayer, QueryTriggerInteraction.Ignore);
         
-        foreach (Collider hit in hits)
+        // Используем NetworkServer.spawned для поиска всех игроков в сети
+        foreach (var identity in NetworkServer.spawned.Values)
         {
-            if (hit == null) continue;
+            if (identity == null) continue;
             
-            PlayerController controller = hit.GetComponent<PlayerController>();
+            PlayerController controller = identity.GetComponent<PlayerController>();
             if (controller == null) continue;
             
-            Vector3 point = hit.bounds.center;
-            Vector3 toPoint = point - apex;
-            
-            if (toPoint.y > 0f)
+            // Проверяем, что игрок активен
+            if (!controller.gameObject.activeInHierarchy)
                 continue;
             
-            float verticalDepth = Mathf.Min(height, -toPoint.y);
+            Transform playerTransform = controller.transform;
+            Vector3 playerPosition = playerTransform.position;
+            Vector3 toPlayer = playerPosition - apex;
+            float distanceToPlayer = toPlayer.magnitude;
+            
+            // Проверяем, что игрок в пределах максимального расстояния
+            if (distanceToPlayer > maxDistance)
+                continue;
+            
+            // Проверяем, что игрок находится под мобом (y < apex.y)
+            if (toPlayer.y > 0f)
+                continue;
+            
+            // Вычисляем вертикальную глубину
+            float verticalDepth = Mathf.Min(height, -toPlayer.y);
             if (verticalDepth <= 0f)
                 continue;
             
+            // Вычисляем допустимый радиус на этой глубине (конус)
             float normalizedDepth = verticalDepth / height;
             float allowedRadius = baseRadius * normalizedDepth;
-            Vector2 horizontal = new Vector2(toPoint.x, toPoint.z);
+            
+            // Проверяем горизонтальное расстояние
+            Vector2 horizontal = new Vector2(toPlayer.x, toPlayer.z);
             if (horizontal.sqrMagnitude <= allowedRadius * allowedRadius)
             {
-                return controller.transform;
+                return playerTransform;
             }
         }
         
@@ -1019,12 +1112,22 @@ public class FlyingMob : NetworkBehaviour
         Transform closest = null;
         float closestDistance = float.MaxValue;
         
+        // Ищем всех игроков через NetworkServer.spawned
         foreach (var identity in NetworkServer.spawned.Values)
         {
             if (identity == null) continue;
             
+            // Проверяем, что объект активен
+            if (!identity.gameObject.activeInHierarchy)
+                continue;
+            
             PlayerController controller = identity.GetComponent<PlayerController>();
             if (controller == null) continue;
+            
+            // Проверяем, что игрок не мертв (если есть компонент здоровья)
+            PlayerHealthStamina health = identity.GetComponent<PlayerHealthStamina>();
+            if (health != null && health.GetCurrentHealth() <= 0f)
+                continue;
             
             Transform candidate = controller.transform;
             float sqrDistance = (candidate.position - transform.position).sqrMagnitude;
@@ -1036,12 +1139,24 @@ public class FlyingMob : NetworkBehaviour
             }
         }
         
+        // Fallback: ищем по тегу (для одиночной игры или если NetworkServer не работает)
         if (closest == null)
         {
-            GameObject taggedPlayer = GameObject.FindGameObjectWithTag("Player");
-            if (taggedPlayer != null)
+            GameObject[] taggedPlayers = GameObject.FindGameObjectsWithTag("Player");
+            foreach (GameObject taggedPlayer in taggedPlayers)
             {
-                closest = taggedPlayer.transform;
+                if (taggedPlayer == null || !taggedPlayer.activeInHierarchy)
+                    continue;
+                
+                PlayerController controller = taggedPlayer.GetComponent<PlayerController>();
+                if (controller == null) continue;
+                
+                float sqrDistance = (taggedPlayer.transform.position - transform.position).sqrMagnitude;
+                if (sqrDistance < closestDistance)
+                {
+                    closestDistance = sqrDistance;
+                    closest = taggedPlayer.transform;
+                }
             }
         }
         
