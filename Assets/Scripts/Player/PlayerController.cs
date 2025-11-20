@@ -78,6 +78,11 @@ public class PlayerController : NetworkBehaviour
     
     [Tooltip("TextMeshPro компонент для отображения никнейма игрока при взгляде других игроков (3D)")]
     [SerializeField] private TextMeshPro playerName3DText;
+
+    [Header("Player Identity")]
+    [SyncVar(hook = nameof(OnPlayerDisplayNameChanged))]
+    private string syncedPlayerDisplayName = string.Empty;
+    private string cachedPlayerDisplayName = string.Empty;
     
     [Tooltip("Название анимации показа никнейма (используется существующий animator)")]
     [SerializeField] private string playerNameShowAnimation = "Show";
@@ -309,6 +314,12 @@ public class PlayerController : NetworkBehaviour
             }
         }
     }
+
+    public override void OnStartServer()
+    {
+        base.OnStartServer();
+        RefreshPlayerDisplayName();
+    }
     
     public override void OnStartClient()
     {
@@ -372,6 +383,8 @@ public class PlayerController : NetworkBehaviour
             }
         }
         
+        cachedPlayerDisplayName = string.IsNullOrEmpty(syncedPlayerDisplayName) ? cachedPlayerDisplayName : syncedPlayerDisplayName;
+
         InitializeComponents();
     }
     
@@ -1382,7 +1395,7 @@ public class PlayerController : NetworkBehaviour
         if (nameTagText == null)
             return;
         
-        string playerName = "Player";
+        string playerName = GetPlayerDisplayName();
         
         // Получаем здоровье из PlayerHealthStamina
         string healthText = "";
@@ -1422,9 +1435,97 @@ public class PlayerController : NetworkBehaviour
         if (playerName3DText == null)
             return;
         
-        string playerName = "Player";
+        string playerName = GetPlayerDisplayName();
         playerName3DText.text = playerName;
     }
+
+    #region Player Identity
+    void OnPlayerDisplayNameChanged(string _, string newName)
+    {
+        cachedPlayerDisplayName = string.IsNullOrWhiteSpace(newName) ? GetFallbackPlayerName() : newName;
+        UpdateNameTagText();
+        UpdatePlayerName3DText();
+    }
+
+    string GetPlayerDisplayName()
+    {
+        if (!string.IsNullOrEmpty(cachedPlayerDisplayName))
+            return cachedPlayerDisplayName;
+
+        if (!string.IsNullOrEmpty(syncedPlayerDisplayName))
+        {
+            cachedPlayerDisplayName = syncedPlayerDisplayName;
+            return cachedPlayerDisplayName;
+        }
+
+        if (isServer)
+        {
+            RefreshPlayerDisplayName();
+            if (!string.IsNullOrEmpty(cachedPlayerDisplayName))
+                return cachedPlayerDisplayName;
+        }
+
+        return GetFallbackPlayerName();
+    }
+
+    string GetFallbackPlayerName()
+    {
+        return $"Player {netId}";
+    }
+
+    [Server]
+    void RefreshPlayerDisplayName()
+    {
+        string resolvedName = ResolvePlayerDisplayName();
+        if (string.IsNullOrWhiteSpace(resolvedName))
+        {
+            resolvedName = GetFallbackPlayerName();
+        }
+
+        cachedPlayerDisplayName = resolvedName;
+
+        if (syncedPlayerDisplayName != resolvedName)
+        {
+            syncedPlayerDisplayName = resolvedName;
+        }
+    }
+
+    [Server]
+    string ResolvePlayerDisplayName()
+    {
+        string fallbackName = GetFallbackPlayerName();
+        int connectionId = -1;
+
+        if (connectionToClient != null)
+        {
+            connectionId = connectionToClient.connectionId;
+        }
+        else if (netIdentity != null && netIdentity.connectionToClient != null)
+        {
+            connectionId = netIdentity.connectionToClient.connectionId;
+        }
+
+        if (connectionId >= 0 &&
+            PlayerCustomizationStorage.TryGetByConnectionId(connectionId, out var data) &&
+            data != null)
+        {
+            if (!string.IsNullOrWhiteSpace(data.playerName))
+            {
+                return data.playerName;
+            }
+
+            if (data.steamId != 0 &&
+                PlayerCustomizationStorage.TryGetBySteamId(data.steamId, out var steamData) &&
+                steamData != null &&
+                !string.IsNullOrWhiteSpace(steamData.playerName))
+            {
+                return steamData.playerName;
+            }
+        }
+
+        return fallbackName;
+    }
+    #endregion
 
     [Server]
     public void NotifyDamageTaken(float damageAmount)
@@ -1807,7 +1908,7 @@ public class PlayerController : NetworkBehaviour
             Debug.Log("[PlayerController] Компонент CorpseItem добавлен к трупу");
         }
         
-        string playerName = "Unknown Player";
+        string playerName = GetPlayerDisplayName();
         
         // Устанавливаем никнейм в труп
         corpseItem.SetPlayerName(playerName);

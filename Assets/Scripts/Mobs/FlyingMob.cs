@@ -68,6 +68,8 @@ public class FlyingMob : NetworkBehaviour
     [SerializeField] private AudioClip alarmClip;
     [SerializeField] private float alarmVolume = 0.8f;
     [SerializeField] private bool mirrorFacingWhenAlerted = true;
+[Header("Model Settings")]
+[SerializeField] private bool invertModelForwardAxis = true;
     
     private Transform player;
     private Vector3 targetPosition;
@@ -209,13 +211,7 @@ public class FlyingMob : NetworkBehaviour
         if (direction.sqrMagnitude < 0.0001f)
             return;
         
-        Vector3 lookDirection = direction;
-        if (mirrorFacingWhenAlerted)
-        {
-            lookDirection = -lookDirection;
-        }
-        
-        Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
+        Quaternion targetRotation = GetLookRotation(direction, true);
         transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
     }
     
@@ -720,7 +716,7 @@ public class FlyingMob : NetworkBehaviour
                 Vector3 horizontalDirection = new Vector3(direction.x, 0, direction.z);
                 if (horizontalDirection.magnitude > 0.1f)
                 {
-                    Quaternion targetRotation = Quaternion.LookRotation(horizontalDirection);
+                    Quaternion targetRotation = GetLookRotation(horizontalDirection, false);
                     transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
                 }
             }
@@ -916,13 +912,7 @@ public class FlyingMob : NetworkBehaviour
             Vector3 horizontalDirection = new Vector3(direction.x, 0f, direction.z);
             if (horizontalDirection.sqrMagnitude > 0.01f)
             {
-                Vector3 lookDir = horizontalDirection;
-                if (mirrorFacingWhenAlerted)
-                {
-                    lookDir = -lookDir;
-                }
-                
-                Quaternion targetRot = Quaternion.LookRotation(lookDir);
+                Quaternion targetRot = GetLookRotation(horizontalDirection, true);
                 transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, rotationSpeed * Time.deltaTime);
             }
             
@@ -1238,5 +1228,26 @@ public class FlyingMob : NetworkBehaviour
         {
             Gizmos.DrawLine(apex, baseCenter + dir * baseRadius);
         }
+    }
+
+    Quaternion GetLookRotation(Vector3 worldDirection, bool applyAlertMirror)
+    {
+        Vector3 lookDirection = worldDirection.normalized;
+        if (lookDirection.sqrMagnitude < 0.0001f)
+        {
+            lookDirection = transform.forward;
+        }
+
+        if (invertModelForwardAxis)
+        {
+            lookDirection = -lookDirection;
+        }
+
+        if (applyAlertMirror && mirrorFacingWhenAlerted)
+        {
+            lookDirection = -lookDirection;
+        }
+
+        return Quaternion.LookRotation(lookDirection);
     }
 }

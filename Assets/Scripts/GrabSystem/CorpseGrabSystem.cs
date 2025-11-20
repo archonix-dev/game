@@ -1,3 +1,7 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 using Mirror;
 
@@ -34,6 +38,18 @@ public class CorpseGrabSystem : NetworkBehaviour
     [SerializeField] private int lineSegments = 20; // Количество сегментов для волн
     [SerializeField] private float waveAmplitude = 0.1f; // Амплитуда волн
     [SerializeField] private float waveFrequency = 2f; // Частота волн
+
+    [Header("Shooting Settings")]
+    [SerializeField] private Transform shootPoint;
+    [SerializeField] private float fireRate = 3f;
+    [SerializeField] private float bulletRange = 30f;
+    [SerializeField] private float bulletDamage = 1f;
+    [SerializeField] private float bulletSpeed = 25f;
+    [SerializeField] private float bulletScale = 0.12f;
+    [SerializeField] private LayerMask shootingLayerMask = ~0;
+    [SerializeField] private ParticleSystem muzzleFlashPrefab;
+    [SerializeField] private ParticleSystem hitParticlesPrefab;
+    [SerializeField] private AudioSource shootAudioSource;
     
     // Синхронизированный захваченный труп (NetworkIdentity)
     [SyncVar(hook = nameof(OnGrabbedCorpseChanged))]
@@ -59,6 +75,14 @@ public class CorpseGrabSystem : NetworkBehaviour
     
     // Для визуализации удержания
     private LineRenderer grabLineRenderer;
+    private float nextLocalShootTime;
+    private float nextServerShootTime;
+    private readonly Color32[] bulletPalette = new Color32[]
+    {
+        new Color32(0, 255, 0, 255),   // Зеленый
+        new Color32(0, 0, 0, 255)      // Черный
+    };
+    private readonly List<MonoBehaviour> damageReceiversBuffer = new List<MonoBehaviour>(8);
     
     void Start()
     {
@@ -75,6 +99,11 @@ public class CorpseGrabSystem : NetworkBehaviour
             holdPointObj.transform.parent = transform;
             holdPointObj.transform.localPosition = new Vector3(0, -0.3f, holdDistance);
             holdPoint = holdPointObj.transform;
+        }
+
+        if (shootPoint == null)
+        {
+            shootPoint = holdPoint;
         }
         
         lastPlayerPosition = transform.root.position;
@@ -131,6 +160,8 @@ public class CorpseGrabSystem : NetworkBehaviour
         {
             HandleWeightAndSlipping();
         }
+
+        HandleShootInput();
     }
     
     void FixedUpdate()
@@ -610,6 +641,258 @@ public class CorpseGrabSystem : NetworkBehaviour
         if (grabLineRenderer != null)
         {
             grabLineRenderer.enabled = false;
+        }
+    }
+
+    void HandleShootInput()
+    {
+        if (!isOwned || shootPoint == null)
+            return;
+
+        if (Input.GetMouseButton(1))
+        {
+            TryShoot();
+        }
+    }
+
+    void TryShoot()
+    {
+        if (Time.time < nextLocalShootTime || bulletPalette.Length == 0)
+            return;
+
+        Vector3 origin = shootPoint.position;
+        Vector3 direction = playerCamera != null ? playerCamera.transform.forward : shootPoint.forward;
+
+        if (direction.sqrMagnitude < 0.0001f)
+            return;
+
+        Color32 selectedColor = bulletPalette[UnityEngine.Random.Range(0, bulletPalette.Length)];
+
+        nextLocalShootTime = Time.time + (fireRate > 0f ? 1f / fireRate : 0.333f);
+        CmdShoot(origin, direction.normalized, selectedColor);
+    }
+
+    [Command]
+    void CmdShoot(Vector3 origin, Vector3 direction, Color32 color)
+    {
+        if (fireRate <= 0f)
+            return;
+
+        if (Time.time < nextServerShootTime)
+            return;
+
+        nextServerShootTime = Time.time + 1f / fireRate;
+
+        if (direction.sqrMagnitude < 0.0001f)
+        {
+            direction = transform.forward;
+        }
+        direction.Normalize();
+
+        Vector3 impactPoint;
+        bool impactedSomething;
+        HandleServerShot(origin, direction, out impactPoint, out impactedSomething);
+
+        float travelDistance = Vector3.Distance(origin, impactPoint);
+        RpcPlayShotFx(origin, direction, travelDistance, impactedSomething, color);
+    }
+
+    void HandleServerShot(Vector3 origin, Vector3 direction, out Vector3 impactPoint, out bool impactedSomething)
+    {
+        impactPoint = origin + direction * bulletRange;
+        impactedSomething = false;
+
+        RaycastHit[] hits = Physics.RaycastAll(origin, direction, bulletRange, shootingLayerMask, QueryTriggerInteraction.Collide);
+        if (hits == null || hits.Length == 0)
+            return;
+
+        Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+        foreach (RaycastHit hit in hits)
+        {
+            if (hit.collider == null)
+                continue;
+
+            if (IsSelfCollider(hit.collider))
+                continue;
+
+            impactPoint = hit.point;
+            impactedSomething = true;
+
+            GameObject target = hit.collider.gameObject;
+            if (IsFriendly(target))
+            {
+                break;
+            }
+
+            TryApplyDamage(target);
+            break;
+        }
+    }
+
+    [ClientRpc]
+    void RpcPlayShotFx(Vector3 origin, Vector3 direction, float travelDistance, bool impactedSomething, Color32 color)
+    {
+        PlayShotFx(origin, direction, travelDistance, impactedSomething, color);
+    }
+
+    void PlayShotFx(Vector3 origin, Vector3 direction, float travelDistance, bool impactedSomething, Color32 color)
+    {
+        if (muzzleFlashPrefab != null)
+        {
+            ParticleSystem muzzle = Instantiate(muzzleFlashPrefab, origin, Quaternion.LookRotation(direction));
+            muzzle.Play();
+            Destroy(muzzle.gameObject, muzzle.main.duration + muzzle.main.startLifetime.constantMax);
+        }
+
+        if (shootAudioSource != null)
+        {
+            shootAudioSource.pitch = UnityEngine.Random.Range(0.9f, 1f);
+            if (shootAudioSource.clip != null)
+            {
+                shootAudioSource.PlayOneShot(shootAudioSource.clip);
+            }
+            else
+            {
+                shootAudioSource.Play();
+            }
+        }
+
+        StartCoroutine(AnimateBulletVisual(origin, direction, travelDistance, impactedSomething, color));
+    }
+
+    IEnumerator AnimateBulletVisual(Vector3 origin, Vector3 direction, float travelDistance, bool impactedSomething, Color32 color)
+    {
+        GameObject bullet = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        if (bullet == null)
+            yield break;
+
+        Collider bulletCollider = bullet.GetComponent<Collider>();
+        if (bulletCollider != null)
+        {
+            Destroy(bulletCollider);
+        }
+
+        bullet.transform.position = origin;
+        float scale = Mathf.Max(0.01f, bulletScale);
+        bullet.transform.localScale = Vector3.one * scale;
+
+        Renderer renderer = bullet.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            Material materialInstance = new Material(renderer.material);
+            materialInstance.color = color;
+            renderer.material = materialInstance;
+        }
+
+        float traveled = 0f;
+        float speed = Mathf.Max(0.01f, bulletSpeed);
+        Vector3 normalizedDirection = direction.normalized;
+
+        while (traveled < travelDistance && bullet != null)
+        {
+            float step = speed * Time.deltaTime;
+            traveled += step;
+            bullet.transform.position += normalizedDirection * step;
+            yield return null;
+        }
+
+        Vector3 impactPosition = bullet != null ? bullet.transform.position : origin + normalizedDirection * travelDistance;
+
+        if (impactedSomething && hitParticlesPrefab != null)
+        {
+            ParticleSystem hitFx = Instantiate(hitParticlesPrefab, impactPosition, Quaternion.LookRotation(normalizedDirection));
+            hitFx.Play();
+            Destroy(hitFx.gameObject, hitFx.main.duration + hitFx.main.startLifetime.constantMax);
+        }
+
+        if (bullet != null)
+        {
+            Destroy(bullet);
+        }
+    }
+
+    bool IsSelfCollider(Collider collider)
+    {
+        if (collider == null)
+            return false;
+
+        return collider.transform == transform || collider.transform.IsChildOf(transform);
+    }
+
+    bool IsFriendly(GameObject target)
+    {
+        if (target == null)
+            return false;
+
+        return target.GetComponentInParent<PlayerHealthStamina>() != null;
+    }
+
+    bool TryApplyDamage(GameObject target)
+    {
+        if (!isServer || target == null)
+            return false;
+
+        ShieldMob shieldMob = target.GetComponentInParent<ShieldMob>();
+        if (shieldMob != null)
+        {
+            shieldMob.TakeDamage(bulletDamage);
+            return true;
+        }
+
+        FlyingMob flyingMob = target.GetComponentInParent<FlyingMob>();
+        if (flyingMob != null)
+        {
+            InvokeDamageMethod(flyingMob, bulletDamage);
+            return true;
+        }
+
+        damageReceiversBuffer.Clear();
+        target.GetComponentsInParent(true, damageReceiversBuffer);
+
+        foreach (MonoBehaviour behaviour in damageReceiversBuffer)
+        {
+            if (behaviour == null || behaviour == this)
+                continue;
+
+            if (behaviour.GetComponent<PlayerHealthStamina>() != null)
+                continue;
+
+            if (InvokeDamageMethod(behaviour, bulletDamage))
+            {
+                damageReceiversBuffer.Clear();
+                return true;
+            }
+        }
+
+        damageReceiversBuffer.Clear();
+        return false;
+    }
+
+    bool InvokeDamageMethod(MonoBehaviour target, float damage)
+    {
+        if (target == null)
+            return false;
+
+        MethodInfo method = target.GetType().GetMethod(
+            "TakeDamage",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            null,
+            new[] { typeof(float) },
+            null);
+
+        if (method == null)
+            return false;
+
+        try
+        {
+            method.Invoke(target, new object[] { damage });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[CorpseGrabSystem] Не удалось нанести урон объекту {target.name}: {ex.Message}");
+            return false;
         }
     }
 }

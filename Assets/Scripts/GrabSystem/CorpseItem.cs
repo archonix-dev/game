@@ -225,7 +225,7 @@ public class CorpseItem : MonoBehaviour
     /// </summary>
     string GetCorpsePromptText()
     {
-        return $"Труп: {playerName}";
+        return $"{playerName}";
     }
     
     /// <summary>

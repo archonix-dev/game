@@ -760,6 +760,7 @@ MonoBehaviour:
   alarmClip: {fileID: 8300000, guid: 7c722219cd45edf419f10405442f0c6c, type: 3}
   alarmVolume: 0.8
   mirrorFacingWhenAlerted: 1
+  invertModelForwardAxis: 1
   explosionEffectLifetime: 3
 --- !u!114 &4566422800202836117
 MonoBehaviour:
@@ -967,16 +968,16 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8887946462679334036}
-  m_LocalRotation: {x: 0, y: -0.5, z: -0.8660254, w: 0}
-  m_LocalPosition: {x: 0, y: 0, z: 0.02473}
+  m_LocalRotation: {x: 0.7358257, y: -0.008995948, z: -0.0048274505, w: 0.67709404}
+  m_LocalPosition: {x: 0, y: 0, z: 0.02948}
   m_LocalScale: {x: 0.002123386, y: 0.0015225766, z: 0.0015225767}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 5101230913132817127}
-  m_LocalEulerAnglesHint: {x: 240, y: 180, z: 0}
+  m_LocalEulerAnglesHint: {x: 94.890015, y: 13.074997, z: 13.412994}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -0.0184, y: -0.0192}
+  m_AnchoredPosition: {x: 0.0203, y: -0.0075}
   m_SizeDelta: {x: 20, y: 5}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!23 &5158328994284634329

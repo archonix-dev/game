@@ -7108,6 +7108,7 @@ MonoBehaviour:
   spawnPrefabs:
   - {fileID: 4507427122488418390, guid: 988d12ce22052ec488aa56461506ca0b, type: 3}
   - {fileID: 3461113982369359427, guid: 2eca334379718e648bc9a4285a158d69, type: 3}
+  - {fileID: 6639211694942793617, guid: 3bcb03274e3eeb74d9e969b4330d55a7, type: 3}
   - {fileID: 5995607814140916578, guid: 58f7a0bee11f70b439b59c30c7be9b79, type: 3}
   - {fileID: 390721689709130332, guid: adb4cec01f6ddfb4e9dd8c9565cb1ea4, type: 3}
   - {fileID: 493937311598932561, guid: de4811fb9c424544ea408ba9fafb4ce6, type: 3}
