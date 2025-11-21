@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
+using TMPro;
 using Mirror;
 
 /// <summary>
@@ -77,6 +78,9 @@ public class CorpseGrabSystem : NetworkBehaviour
     private LineRenderer grabLineRenderer;
     private float nextLocalShootTime;
     private float nextServerShootTime;
+    [Header("Bullet Visuals")]
+    [SerializeField] private TMP_FontAsset bulletFont;
+    [SerializeField] [Min(1f)] private float bulletFontSize = 100f;
     private readonly Color32[] bulletPalette = new Color32[]
     {
         new Color32(0, 255, 0, 255),   // Зеленый
@@ -763,27 +767,36 @@ public class CorpseGrabSystem : NetworkBehaviour
 
     IEnumerator AnimateBulletVisual(Vector3 origin, Vector3 direction, float travelDistance, bool impactedSomething, Color32 color)
     {
-        GameObject bullet = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        GameObject bullet = new GameObject("CorpseGrabDigit");
         if (bullet == null)
             yield break;
 
-        Collider bulletCollider = bullet.GetComponent<Collider>();
-        if (bulletCollider != null)
+        TextMeshPro tmp = bullet.AddComponent<TextMeshPro>();
+        if (tmp == null)
         {
-            Destroy(bulletCollider);
+            Destroy(bullet);
+            yield break;
         }
+
+        string digit = UnityEngine.Random.Range(0, 2).ToString();
+        float scale = Mathf.Max(0.01f, bulletScale);
 
         bullet.transform.position = origin;
-        float scale = Mathf.Max(0.01f, bulletScale);
         bullet.transform.localScale = Vector3.one * scale;
+        bullet.transform.rotation = Quaternion.LookRotation(direction);
 
-        Renderer renderer = bullet.GetComponent<Renderer>();
-        if (renderer != null)
+        if (bulletFont != null)
         {
-            Material materialInstance = new Material(renderer.material);
-            materialInstance.color = color;
-            renderer.material = materialInstance;
+            tmp.font = bulletFont;
         }
+
+        tmp.text = digit;
+        tmp.color = color;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.fontSize = scale * bulletFontSize;
+        tmp.enableWordWrapping = false;
+        tmp.richText = false;
+        tmp.GetComponent<Renderer>().material.renderQueue = 3000;
 
         float traveled = 0f;
         float speed = Mathf.Max(0.01f, bulletSpeed);

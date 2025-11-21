@@ -931,11 +931,11 @@ public class DestructibleObject : MonoBehaviour
     {
         if (objectData == null) 
         {
-            return "0";
+            return CurrencyFormatter.FormatBits(0);
         }
         
         int coins = objectData.CoinAmount;
-        return $"{coins}";
+        return CurrencyFormatter.FormatBits(coins);
     }
     
     void UpdateOutlineMaterial()

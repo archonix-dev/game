@@ -168,7 +168,7 @@ public class CoinManager : NetworkBehaviour
             return;
         }
         
-        string coinText = displayedCoins.ToString();
+        string coinText = CurrencyFormatter.FormatBits(displayedCoins);
         
         // Обновляем обычный Text
         if (coinsText != null)

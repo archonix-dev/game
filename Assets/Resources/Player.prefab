@@ -1517,13 +1517,15 @@ MonoBehaviour:
   bulletRange: 15
   bulletDamage: 1
   bulletSpeed: 35
-  bulletScale: 0.12
+  bulletScale: 0.3
   shootingLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
   muzzleFlashPrefab: {fileID: 6815846847700003865, guid: 493511e1e48b4ef48bceb4fcf9aeed5c, type: 3}
   hitParticlesPrefab: {fileID: 6815846847700003865, guid: 493511e1e48b4ef48bceb4fcf9aeed5c, type: 3}
   shootAudioSource: {fileID: 4427432530148310436}
+  bulletFont: {fileID: 11400000, guid: 3c427d86694cc004593d806614bc2cf2, type: 2}
+  bulletFontSize: 25
 --- !u!114 &3568448473808132602
 MonoBehaviour:
   m_ObjectHideFlags: 0
