@@ -60,6 +60,13 @@ public class PlayerController : NetworkBehaviour
     [Tooltip("Громкость звука смерти")]
     [SerializeField] private float deathAudioVolume = 0.8f;
     
+    [Header("Death Explosion Settings")]
+    [Tooltip("Радиус взрыва при смерти игрока (для тряски камеры)")]
+    [SerializeField] private float deathExplosionRadius = 10f;
+    
+    [Tooltip("Максимальная интенсивность тряски камеры при смерти игрока")]
+    [SerializeField] private float maxDeathExplosionShakeIntensity = 0.25f;
+    
     [Header("Grab System References")]
     [SerializeField] private ObjectGrabSystem objectGrabSystem;
     [SerializeField] private PickupableGrabSystem pickupableGrabSystem;
@@ -1858,6 +1865,9 @@ public class PlayerController : NetworkBehaviour
     void CompleteDeath()
     {
         if (netIdentity == null || netIdentity.netId == 0) return;
+        
+        // Вызываем тряску камеры для всех игроков при смерти
+        BodyCamEffect.TriggerExplosionShakeForAllPlayers(transform.position, maxDeathExplosionShakeIntensity, deathExplosionRadius);
         
         // Спавним труп на месте игрока
         SpawnCorpse();

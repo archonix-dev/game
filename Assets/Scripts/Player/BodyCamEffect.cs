@@ -44,6 +44,45 @@ public class BodyCamEffect : NetworkBehaviour
     [Tooltip("Множитель покачивания в положении лежа")]
     [SerializeField] private float proneMultiplier = 0.2f;
     
+    [Header("Stance Transition Settings")]
+    [Tooltip("Длительность перехода между стойками (в секундах)")]
+    [SerializeField] private float stanceTransitionDuration = 0.5f;
+    
+    [Tooltip("Интенсивность покачивания при переходе в присед")]
+    [SerializeField] private float crouchTransitionShake = 0.05f;
+    
+    [Tooltip("Интенсивность покачивания при переходе в лежа")]
+    [SerializeField] private float proneTransitionShake = 0.1f;
+    
+    [Tooltip("Интенсивность покачивания при подъеме из приседа/лежа")]
+    [SerializeField] private float standUpTransitionShake = 0.08f;
+    
+    [Tooltip("Скорость затухания покачивания при переходе")]
+    [SerializeField] private float transitionShakeDamping = 3f;
+    
+    [Header("Stance-Based Tilt Settings")]
+    [Tooltip("Множитель наклона при приседании (0.5 = в два раза меньше)")]
+    [SerializeField] private float crouchTiltMultiplier = 0.5f;
+    
+    [Tooltip("Множитель наклона в положении лежа (0 = отключено)")]
+    [SerializeField] private float proneTiltMultiplier = 0.1f;
+    
+    [Header("Explosion Shake Settings")]
+    [Tooltip("Максимальная интенсивность тряски при взрыве (на минимальном расстоянии)")]
+    [SerializeField] private float maxExplosionShakeIntensity = 0.3f;
+    
+    [Tooltip("Максимальное расстояние, на котором взрыв вызывает тряску камеры")]
+    [SerializeField] private float maxExplosionShakeDistance = 20f;
+    
+    [Tooltip("Длительность тряски при взрыве (в секундах)")]
+    [SerializeField] private float explosionShakeDuration = 0.5f;
+    
+    [Tooltip("Скорость затухания тряски при взрыве")]
+    [SerializeField] private float explosionShakeDamping = 5f;
+    
+    [Tooltip("Частота тряски при взрыве")]
+    [SerializeField] private float explosionShakeFrequency = 20f;
+    
     [Header("References")]
     [Tooltip("PlayerController для получения информации о движении и стойке")]
     [SerializeField] private PlayerController playerController;
@@ -60,6 +99,20 @@ public class BodyCamEffect : NetworkBehaviour
     private float smoothedMovementSpeed = 0f;
     private Vector3 randomShakeOffset = Vector3.zero;
     private float randomShakeTimer = 0f;
+    
+    // Переменные для отслеживания стойки и переходов
+    private bool wasCrouching = false;
+    private bool wasProne = false;
+    private bool wasStanding = true;
+    private float stanceTransitionTimer = 0f;
+    private Vector3 transitionShakeOffset = Vector3.zero;
+    private float smoothedStanceMultiplier = 1f;
+    private float targetStanceMultiplier = 1f;
+    
+    // Переменные для тряски при взрывах
+    private float explosionShakeTimer = 0f;
+    private float explosionShakeIntensity = 0f;
+    private Vector3 explosionShakeOffset = Vector3.zero;
     
     void Awake()
     {
@@ -99,6 +152,29 @@ public class BodyCamEffect : NetworkBehaviour
         {
             lastPosition = transform.position;
         }
+        
+        // Инициализируем состояние стойки
+        if (playerController != null)
+        {
+            wasCrouching = playerController.IsCrouching();
+            wasProne = playerController.IsProne();
+            wasStanding = playerController.IsStanding();
+            
+            // Устанавливаем начальный множитель стойки
+            if (wasProne)
+            {
+                targetStanceMultiplier = proneMultiplier;
+            }
+            else if (wasCrouching)
+            {
+                targetStanceMultiplier = crouchMultiplier;
+            }
+            else
+            {
+                targetStanceMultiplier = 1f;
+            }
+            smoothedStanceMultiplier = targetStanceMultiplier;
+        }
     }
     
     void Update()
@@ -109,10 +185,14 @@ public class BodyCamEffect : NetworkBehaviour
         // Вычисляем скорость движения
         CalculateMovementSpeed();
         
+        // Обрабатываем переходы между стойками
+        HandleStanceTransitions();
+        
         // Применяем эффекты
         ApplyHeadBob();
         ApplyTilt();
         ApplyRandomShake();
+        ApplyExplosionShake();
     }
     
     void LateUpdate()
@@ -169,27 +249,96 @@ public class BodyCamEffect : NetworkBehaviour
     }
     
     /// <summary>
+    /// Обрабатывает переходы между стойками и применяет покачивание при переходе
+    /// </summary>
+    void HandleStanceTransitions()
+    {
+        if (playerController == null) return;
+        
+        bool isCrouching = playerController.IsCrouching();
+        bool isProne = playerController.IsProne();
+        bool isStanding = playerController.IsStanding();
+        
+        // Определяем целевую стойку для множителя
+        targetStanceMultiplier = 1f;
+        if (isProne)
+        {
+            targetStanceMultiplier = proneMultiplier;
+        }
+        else if (isCrouching)
+        {
+            targetStanceMultiplier = crouchMultiplier;
+        }
+        else if (Input.GetKey(KeyCode.LeftShift) && smoothedMovementSpeed > 0.1f)
+        {
+            targetStanceMultiplier = runMultiplier;
+        }
+        
+        // Плавно интерполируем множитель стойки
+        smoothedStanceMultiplier = Mathf.Lerp(smoothedStanceMultiplier, targetStanceMultiplier, Time.deltaTime * 5f);
+        
+        // Обнаруживаем изменение стойки
+        float transitionShakeIntensity = 0f;
+        bool isTransitioningToStanding = false;
+        
+        // Переход в присед
+        if (isCrouching && !wasCrouching)
+        {
+            transitionShakeIntensity = crouchTransitionShake;
+            stanceTransitionTimer = 0f;
+        }
+        // Переход в лежа
+        else if (isProne && !wasProne)
+        {
+            transitionShakeIntensity = proneTransitionShake;
+            stanceTransitionTimer = 0f;
+        }
+        // Подъем из приседа/лежа
+        else if (isStanding && (wasCrouching || wasProne))
+        {
+            transitionShakeIntensity = standUpTransitionShake;
+            stanceTransitionTimer = 0f;
+            isTransitioningToStanding = true;
+        }
+        
+        // Обновляем состояние
+        wasCrouching = isCrouching;
+        wasProne = isProne;
+        wasStanding = isStanding;
+        
+        // Применяем покачивание при переходе
+        if (stanceTransitionTimer < stanceTransitionDuration)
+        {
+            stanceTransitionTimer += Time.deltaTime;
+            
+            // Вычисляем силу покачивания (убывает со временем)
+            float transitionProgress = stanceTransitionTimer / stanceTransitionDuration;
+            float shakeStrength = transitionShakeIntensity * (1f - transitionProgress);
+            
+            // Применяем покачивание вниз при переходе в присед/лежа, вверх при подъеме
+            float verticalDirection = isTransitioningToStanding ? 1f : -1f;
+            float horizontalShake = Mathf.Sin(stanceTransitionTimer * 15f) * shakeStrength * 0.5f;
+            
+            transitionShakeOffset = new Vector3(
+                horizontalShake,
+                Mathf.Sin(stanceTransitionTimer * 12f) * shakeStrength * verticalDirection,
+                Mathf.Cos(stanceTransitionTimer * 10f) * shakeStrength * 0.3f
+            );
+        }
+        else
+        {
+            // Плавно затухаем покачивание после перехода
+            transitionShakeOffset = Vector3.Lerp(transitionShakeOffset, Vector3.zero, Time.deltaTime * transitionShakeDamping);
+        }
+    }
+    
+    /// <summary>
     /// Применяет эффект head bob (вертикальное покачивание при ходьбе)
     /// </summary>
     void ApplyHeadBob()
     {
-        // Получаем множитель в зависимости от стойки
-        float stanceMultiplier = 1f;
-        if (playerController != null)
-        {
-            if (playerController.IsProne())
-            {
-                stanceMultiplier = proneMultiplier;
-            }
-            else if (playerController.IsCrouching())
-            {
-                stanceMultiplier = crouchMultiplier;
-            }
-            else if (Input.GetKey(KeyCode.LeftShift) && smoothedMovementSpeed > 0.1f)
-            {
-                stanceMultiplier = runMultiplier;
-            }
-        }
+        // Используем плавно интерполированный множитель стойки
+        float stanceMultiplier = smoothedStanceMultiplier;
         
         // Вычисляем интенсивность покачивания на основе скорости
         // Используем скорость бега (6 м/с) как максимальную для нормализации
@@ -215,15 +364,29 @@ public class BodyCamEffect : NetworkBehaviour
     }
     
     /// <summary>
-    /// Применяет наклон камеры при поворотах
+    /// Применяет наклон камеры при поворотах с учетом стойки
     /// </summary>
     void ApplyTilt()
     {
         // Получаем скорость поворота мыши
         float mouseX = Input.GetAxis("Mouse X");
         
-        // Вычисляем целевой наклон на основе скорости поворота
-        float targetTilt = -mouseX * maxTiltAngle;
+        // Определяем множитель наклона в зависимости от стойки
+        float tiltMultiplier = 1f;
+        if (playerController != null)
+        {
+            if (playerController.IsProne())
+            {
+                tiltMultiplier = proneTiltMultiplier;
+            }
+            else if (playerController.IsCrouching())
+            {
+                tiltMultiplier = crouchTiltMultiplier;
+            }
+        }
+        
+        // Вычисляем целевой наклон на основе скорости поворота с учетом множителя
+        float targetTilt = -mouseX * maxTiltAngle * tiltMultiplier;
         
         // Плавно интерполируем к целевому наклону
         if (Mathf.Abs(mouseX) > 0.01f)
@@ -233,7 +396,9 @@ public class BodyCamEffect : NetworkBehaviour
         else
         {
             // Возвращаем наклон в исходное положение при отсутствии поворота
-            currentTilt = Mathf.Lerp(currentTilt, 0f, Time.deltaTime * tiltReturnSpeed);
+            // Используем более быстрое возвращение при приседе/лежа для реалистичности
+            float returnSpeed = tiltMultiplier < 0.5f ? tiltReturnSpeed * 1.5f : tiltReturnSpeed;
+            currentTilt = Mathf.Lerp(currentTilt, 0f, Time.deltaTime * returnSpeed);
         }
     }
     
@@ -261,6 +426,133 @@ public class BodyCamEffect : NetworkBehaviour
     }
     
     /// <summary>
+    /// Применяет тряску камеры при взрывах
+    /// </summary>
+    void ApplyExplosionShake()
+    {
+        if (explosionShakeIntensity <= 0f || explosionShakeTimer <= 0f)
+        {
+            // Плавно затухаем остаточную тряску
+            explosionShakeOffset = Vector3.Lerp(explosionShakeOffset, Vector3.zero, Time.deltaTime * explosionShakeDamping);
+            return;
+        }
+        
+        // Уменьшаем таймер
+        explosionShakeTimer -= Time.deltaTime;
+        
+        // Вычисляем силу тряски (убывает со временем и расстоянием)
+        float timeFactor = explosionShakeTimer / explosionShakeDuration;
+        float currentIntensity = explosionShakeIntensity * timeFactor;
+        
+        // Генерируем тряску с использованием синусоидальных функций для реалистичности
+        float shakeTime = (explosionShakeDuration - explosionShakeTimer) * explosionShakeFrequency;
+        float x = Mathf.Sin(shakeTime * 1.3f) * currentIntensity;
+        float y = Mathf.Sin(shakeTime * 1.7f + Mathf.PI * 0.5f) * currentIntensity;
+        float z = Mathf.Cos(shakeTime * 1.1f) * currentIntensity * 0.5f;
+        
+        explosionShakeOffset = new Vector3(x, y, z);
+        
+        // Сбрасываем интенсивность когда таймер закончился
+        if (explosionShakeTimer <= 0f)
+        {
+            explosionShakeIntensity = 0f;
+        }
+    }
+    
+    /// <summary>
+    /// Вызывает тряску камеры при взрыве (вызывается извне)
+    /// </summary>
+    /// <param name="intensity">Интенсивность тряски (0-1)</param>
+    public void TriggerExplosionShake(float intensity)
+    {
+        if (intensity <= 0f)
+            return;
+        
+        // Устанавливаем новую тряску, перезаписывая старую если она сильнее
+        if (intensity > explosionShakeIntensity || explosionShakeTimer <= 0f)
+        {
+            explosionShakeIntensity = intensity;
+            explosionShakeTimer = explosionShakeDuration;
+        }
+    }
+    
+    /// <summary>
+    /// Статический метод для вызова тряски камеры на всех игроках при взрыве
+    /// Работает на сервере и клиентах, вызывая тряску для всех найденных игроков
+    /// </summary>
+    /// <param name="explosionPosition">Позиция взрыва</param>
+    /// <param name="maxIntensity">Максимальная интенсивность тряски (на минимальном расстоянии)</param>
+    /// <param name="maxDistance">Максимальное расстояние, на котором взрыв вызывает тряску</param>
+    public static void TriggerExplosionShakeForAllPlayers(Vector3 explosionPosition, float maxIntensity = 0.3f, float maxDistance = 20f)
+    {
+        // Ищем всех игроков в сети
+        // На сервере используем NetworkServer.spawned, на клиентах используем FindObjectsOfType
+        System.Collections.Generic.IEnumerable<PlayerController> players;
+        
+        if (NetworkServer.active)
+        {
+            // На сервере используем NetworkServer.spawned для поиска всех игроков
+            System.Collections.Generic.List<PlayerController> serverPlayers = new System.Collections.Generic.List<PlayerController>();
+            foreach (var kvp in NetworkServer.spawned)
+            {
+                NetworkIdentity identity = kvp.Value;
+                if (identity == null)
+                    continue;
+                
+                PlayerController playerController = identity.GetComponent<PlayerController>();
+                if (playerController != null)
+                {
+                    serverPlayers.Add(playerController);
+                }
+            }
+            players = serverPlayers;
+        }
+        else
+        {
+            // На клиенте используем FindObjectsOfType для поиска всех игроков
+            players = Object.FindObjectsOfType<PlayerController>();
+        }
+        
+        // Применяем тряску для каждого игрока
+        foreach (PlayerController playerController in players)
+        {
+            if (playerController == null)
+                continue;
+            
+            // Проверяем, что игрок активен и не мертв
+            if (!playerController.gameObject.activeInHierarchy)
+                continue;
+            
+            PlayerHealthStamina health = playerController.GetComponent<PlayerHealthStamina>();
+            if (health != null && health.GetCurrentHealth() <= 0f)
+                continue;
+            
+            // Вычисляем расстояние до взрыва
+            Vector3 playerPosition = playerController.transform.position;
+            float distance = Vector3.Distance(playerPosition, explosionPosition);
+            
+            // Если игрок вне радиуса взрыва, пропускаем
+            if (distance > maxDistance)
+                continue;
+            
+            // Вычисляем интенсивность на основе расстояния (обратная зависимость)
+            float distanceFactor = 1f - (distance / maxDistance);
+            float intensity = maxIntensity * distanceFactor;
+            
+            // Находим BodyCamEffect на камере игрока
+            Camera playerCamera = playerController.GetComponentInChildren<Camera>();
+            if (playerCamera != null)
+            {
+                BodyCamEffect bodyCamEffect = playerCamera.GetComponent<BodyCamEffect>();
+                if (bodyCamEffect != null)
+                {
+                    bodyCamEffect.TriggerExplosionShake(intensity);
+                }
+            }
+        }
+    }
+    
+    /// <summary>
     /// Обновляет позицию и поворот камеры с учетом всех эффектов
     /// </summary>
     void UpdateCameraPosition()
@@ -275,8 +567,14 @@ public class BodyCamEffect : NetworkBehaviour
         Vector3 newPosition = originalLocalPosition;
         newPosition.y += currentHeadBobOffset;
         
+        // Добавляем покачивание при переходе между стойками
+        newPosition += transitionShakeOffset;
+        
         // Добавляем случайные покачивания
         newPosition += randomShakeOffset;
+        
+        // Добавляем тряску при взрывах
+        newPosition += explosionShakeOffset;
         
         transform.localPosition = newPosition;
         
@@ -298,6 +596,16 @@ public class BodyCamEffect : NetworkBehaviour
         currentTilt = 0f;
         randomShakeOffset = Vector3.zero;
         randomShakeTimer = 0f;
+        transitionShakeOffset = Vector3.zero;
+        stanceTransitionTimer = 0f;
+        smoothedStanceMultiplier = 1f;
+        targetStanceMultiplier = 1f;
+        wasCrouching = false;
+        wasProne = false;
+        wasStanding = true;
+        explosionShakeTimer = 0f;
+        explosionShakeIntensity = 0f;
+        explosionShakeOffset = Vector3.zero;
         transform.localPosition = originalLocalPosition;
         transform.localEulerAngles = new Vector3(transform.localEulerAngles.x, transform.localEulerAngles.y, 0f);
     }

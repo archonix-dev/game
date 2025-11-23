@@ -11511,6 +11511,13 @@ MonoBehaviour:
   runMultiplier: 1.5
   crouchMultiplier: 0.5
   proneMultiplier: 0.2
+  transitionShakeIntensity: 0
+  transitionShakeDuration: 0
+  transitionTiltDown: 15
+  transitionForwardOffset: 0.1
+  transitionDownOffset: 0.05
+  transitionSpeed: 8
+  transitionReturnSpeed: 3
   playerController: {fileID: 1168798007659827189}
   characterController: {fileID: 1380856656457734632}
 --- !u!1 &3601367213483089286

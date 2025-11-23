@@ -30,6 +30,7 @@ public class FlyingMob : NetworkBehaviour
     [SerializeField] private float explosionRadius = 3f;
     [SerializeField] private int damageToPlayer = 5;
     [SerializeField] private float chaseDistance = 2f;
+    [SerializeField] private float maxExplosionShakeIntensity = 0.3f;
     
     [Header("Volumetric Light Settings")]
     [SerializeField] private VolumetricLightBeam volumetricLight;
@@ -984,6 +985,9 @@ public class FlyingMob : NetworkBehaviour
         StopScanningSound();
         PlayAlarmSound(false);
         PlayExplosionSound();
+        
+        // Вызываем тряску камеры для всех игроков при взрыве
+        BodyCamEffect.TriggerExplosionShakeForAllPlayers(transform.position, maxExplosionShakeIntensity, explosionRadius * 2f);
         
         if (explosionEffectObject != null)
         {

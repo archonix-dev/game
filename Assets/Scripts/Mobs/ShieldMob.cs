@@ -54,6 +54,10 @@ public class ShieldMob : NetworkBehaviour
     [SerializeField] private int damagePerAttack = 5;
     [SerializeField] private float attackKnockbackForce = 6f;
     [SerializeField] private float attackKnockbackUpwardFactor = 0.2f;
+    
+    [Header("Death Explosion Settings")]
+    [SerializeField] private float deathExplosionRadius = 5f;
+    [SerializeField] private float maxExplosionShakeIntensity = 0.2f;
 
     [Header("Text Feedback")]
     [SerializeField] private TMP_Text statusText3D;
@@ -531,6 +535,9 @@ public class ShieldMob : NetworkBehaviour
             deathParticleSystem.Play(true);
             particleLifetime = deathParticleSystem.main.duration + deathParticleSystem.main.startLifetime.constantMax;
         }
+        
+        // Вызываем тряску камеры для всех игроков при смерти моба
+        BodyCamEffect.TriggerExplosionShakeForAllPlayers(transform.position, maxExplosionShakeIntensity, deathExplosionRadius);
 
         if (particleLifetime > 0f)
         {
