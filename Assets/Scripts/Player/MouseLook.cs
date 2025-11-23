@@ -102,7 +102,9 @@ public class MouseLook : NetworkBehaviour
         
         xRotation = Mathf.Clamp(xRotation, minXRotation, maxXRotation);
         
-        transform.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
+        // Сохраняем Z-компонент поворота (для BodyCamEffect наклона)
+        Vector3 currentEuler = transform.localRotation.eulerAngles;
+        transform.localRotation = Quaternion.Euler(xRotation, 0f, currentEuler.z);
         
         if (playerBody != null)
         {

@@ -7121,10 +7121,12 @@ MonoBehaviour:
   - {fileID: 390721689709130332, guid: adb4cec01f6ddfb4e9dd8c9565cb1ea4, type: 3}
   - {fileID: 493937311598932561, guid: de4811fb9c424544ea408ba9fafb4ce6, type: 3}
   - {fileID: 6837124140594114082, guid: 00ae39dcd85de22458a9814588cdde4c, type: 3}
-  - {fileID: 1740947421717535027, guid: 13aafe03e64f86248abf8c635cfdf29e, type: 3}
   - {fileID: 799657143986765592, guid: 7bb6b17da81f83248890675c8559898d, type: 3}
   - {fileID: 4600419253279357442, guid: c9726151e87560b49853fa9f74fef821, type: 3}
   - {fileID: 3991202923644355819, guid: cc1af6a6d5cf56f4b8499ca1d0264f68, type: 3}
+  - {fileID: 492335888368618483, guid: 28a63509ec74b2941811b032f61d0fb4, type: 3}
+  - {fileID: 3149772124784503020, guid: 5dc4d990960aaf44bad0827b8ffb1b28, type: 3}
+  - {fileID: 2799772820947535767, guid: 4c0b5ab15851698418277f8942a1502c, type: 3}
   snapshotSettings:
     bufferTimeMultiplier: 2
     bufferLimit: 32
@@ -36370,10 +36372,10 @@ RectTransform:
   - {fileID: 1017997944}
   m_Father: {fileID: 869262789}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0.00012207031, y: 8.714722}
-  m_SizeDelta: {x: 1920, y: 1098.8492}
+  m_SizeDelta: {x: 0, y: 18.849243}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1759173552
 MonoBehaviour:

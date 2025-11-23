@@ -264,6 +264,8 @@ public class PlayerController : NetworkBehaviour
     private bool isDeathAnimationPlaying = false;
     private float deathAnimationStartTime = -1f;
     private bool deathParticleShown = false;
+    // Опциональная позиция для спавна трупа (если null, используется позиция игрока)
+    private Vector3? customCorpseSpawnPosition = null;
     
     /// <summary>
     /// Проверяет, может ли игрок открыть меню (стоя или сидя)
@@ -1447,7 +1449,7 @@ public class PlayerController : NetworkBehaviour
         UpdatePlayerName3DText();
     }
 
-    string GetPlayerDisplayName()
+    public string GetPlayerDisplayName()
     {
         if (!string.IsNullOrEmpty(cachedPlayerDisplayName))
             return cachedPlayerDisplayName;
@@ -1889,7 +1891,8 @@ public class PlayerController : NetworkBehaviour
         }
         
         // Позиция и ротация для спавна трупа
-        Vector3 spawnPosition = transform.position;
+        // Используем кастомную позицию, если она задана, иначе позицию игрока
+        Vector3 spawnPosition = customCorpseSpawnPosition.HasValue ? customCorpseSpawnPosition.Value : transform.position;
         Quaternion spawnRotation = transform.rotation;
         
         // Спавним префаб
@@ -1913,6 +1916,19 @@ public class PlayerController : NetworkBehaviour
         // Устанавливаем никнейм в труп
         corpseItem.SetPlayerName(playerName);
         Debug.Log($"[PlayerController] Труп игрока {playerName} заспавнен на позиции {spawnPosition} с размером {corpseScale}");
+        
+        // Сбрасываем кастомную позицию после использования
+        customCorpseSpawnPosition = null;
+    }
+    
+    /// <summary>
+    /// Устанавливает кастомную позицию для спавна трупа (вызывается перед смертью)
+    /// </summary>
+    [Server]
+    public void SetCustomCorpseSpawnPosition(Vector3 position)
+    {
+        customCorpseSpawnPosition = position;
+        Debug.Log($"[PlayerController] Установлена кастомная позиция для спавна трупа: {position}");
     }
     
     /// <summary>
