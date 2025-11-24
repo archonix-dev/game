@@ -1,8 +1,9 @@
+using Mirror;
 using UnityEngine;
 
 namespace Objects
 {
-    public class RaritySpawner : MonoBehaviour
+    public class RaritySpawner : NetworkBehaviour
     {
         [System.Serializable]
         public class RarityPool
@@ -18,11 +19,17 @@ namespace Objects
         [SerializeField] private RarityPool[] rarePools;
         [SerializeField] private RarityPool[] veryRarePools;
 
-        private void Start()
+        private bool hasSpawned;
+
+        public override void OnStartServer()
         {
+            base.OnStartServer();
+            if (hasSpawned) return;
             SpawnAll();
+            hasSpawned = true;
         }
 
+        [Server]
         private void SpawnAll()
         {
             SpawnFromPools(commonPools);
@@ -31,6 +38,7 @@ namespace Objects
             SpawnFromPools(veryRarePools);
         }
 
+        [Server]
         private void SpawnFromPools(RarityPool[] pools)
         {
             if (pools == null || pools.Length == 0)
@@ -58,7 +66,8 @@ namespace Objects
                     }
 
                     var prefab = pool.prefabs[Random.Range(0, pool.prefabs.Length)];
-                    Instantiate(prefab, point.position, point.rotation, point);
+                    var instance = Instantiate(prefab, point.position, point.rotation);
+                    NetworkServer.Spawn(instance);
                 }
             }
         }

@@ -78,3 +78,9 @@ text_menu_loading_mods;Загрузка модов...;Loading mods...;Mods werde
 text_micro_;Выбор микрофона;Microphone Selection;Mikrofonauswahl;Sélection du microphone;Selección de micrófono;Selezione del microfono;麦克风选择
 text_micro_sensevity;Чувствительность микрофона;Microphone Sensitivity;Mikrofonempfindlichkeit;Sensibilité du microphone;Sensibilidad del micrófono;Sensibilità del microfono;麦克风灵敏度
 text_graphic_screenfactor;Экран;Screen;Bildschirm;Écran;Pantalla;Schermo;屏幕
+text_volume_enivoment;Громкость окружения;Ambient Volume;Umgebungslautstärke;Volume ambiant;Volumen ambiental;Volume ambientale;环境音量
+text_mouse_sensevity;Чувствительность мыши;Mouse Sensitivity;Mausempfindlichkeit;Sensibilité de la souris;Sensibilidad del ratón;Sensibilità del mouse;鼠标灵敏度
+text_settings_testmicrophone;Тест микрофона;Microphone Test;Mikrofontest;Test du microphone;Prueba del micrófono;Test del microfono;麦克风测试
+text_location_name;Блок питания;Power Supply;Netzteil;Alimentation électrique;Fuente de alimentación;Alimentazione;电源
+text_location;Этап 1;Step 1;Schritt 1;Étape 1;Paso 1;Fase 1;步骤 1
+game_tasks;Задачи;Tasks;Die Aufgaben;Mission;Tareas;Compiti;任务

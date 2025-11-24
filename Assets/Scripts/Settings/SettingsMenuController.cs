@@ -135,6 +135,11 @@ public class SettingsMenuController : MonoBehaviour
     
     void Update()
     {
+        if (LobbyTerminalController.IsAnyTerminalOpen || LobbyTerminalController.EscapeConsumedThisFrame)
+        {
+            return;
+        }
+        
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             // Открываем меню только если оно закрыто и игрок может его открыть (не лежит)
@@ -349,23 +354,14 @@ public class SettingsMenuController : MonoBehaviour
 		if (bodyCamEffect == null)
 			return;
 		
-		if (opening)
+		if (!opening)
+			return;
+		
+		bodyCamEffectWasEnabledBeforeMenu = bodyCamEffect.enabled;
+		if (bodyCamEffect.enabled)
 		{
-			bodyCamEffectWasEnabledBeforeMenu = bodyCamEffect.enabled;
-			if (bodyCamEffect.enabled)
-			{
-				bodyCamEffect.ResetEffects();
-				bodyCamEffect.enabled = false;
-			}
-		}
-		else
-		{
-			// Гарантируем, что эффект отключен на время обратного перехода камеры
-			if (bodyCamEffect.enabled)
-			{
-				bodyCamEffect.ResetEffects();
-				bodyCamEffect.enabled = false;
-			}
+			bodyCamEffect.ResetEffects();
+			bodyCamEffect.enabled = false;
 		}
 	}
 

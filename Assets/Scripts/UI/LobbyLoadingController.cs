@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -52,7 +53,15 @@ public class LobbyLoadingController : MonoBehaviour
     /// </summary>
     public void StartHostLoadingSequence(LobbyManager lobbyManager)
     {
-        StartLoadingSequenceInternal(lobbyManager, true);
+        StartLoadingSequenceInternal(lobbyManager, true, null);
+    }
+
+    /// <summary>
+    /// Запускает загрузку для хоста с произвольным действием при готовности.
+    /// </summary>
+    public void StartHostLoadingSequence(Action hostAction)
+    {
+        StartLoadingSequenceInternal(null, true, hostAction);
     }
 
     /// <summary>
@@ -60,10 +69,10 @@ public class LobbyLoadingController : MonoBehaviour
     /// </summary>
     public void StartClientLoadingSequence()
     {
-        StartLoadingSequenceInternal(null, false);
+        StartLoadingSequenceInternal(null, false, null);
     }
-
-    private void StartLoadingSequenceInternal(LobbyManager lobbyManager, bool isHost)
+    
+    private void StartLoadingSequenceInternal(LobbyManager lobbyManager, bool isHost, Action hostActionOverride)
     {
         if (isLoading)
         {
@@ -88,10 +97,10 @@ public class LobbyLoadingController : MonoBehaviour
         }
 
         gameObject.SetActive(true);
-        loadingCoroutine = StartCoroutine(LoadingRoutine(lobbyManager, isHost));
+        loadingCoroutine = StartCoroutine(LoadingRoutine(lobbyManager, isHost, hostActionOverride));
     }
 
-    IEnumerator LoadingRoutine(LobbyManager lobbyManager, bool isHost)
+    IEnumerator LoadingRoutine(LobbyManager lobbyManager, bool isHost, Action hostActionOverride)
     {
         isLoading = true;
         string initialScene = SceneManager.GetActiveScene().name;
@@ -109,9 +118,16 @@ public class LobbyLoadingController : MonoBehaviour
         cachedState = loadingAnimator.GetCurrentAnimatorStateInfo(0);
         loadingAnimator.speed = 0f;
 
-        if (isHost && lobbyManager != null)
+        if (isHost)
         {
-            lobbyManager.StartGame();
+            if (hostActionOverride != null)
+            {
+                hostActionOverride.Invoke();
+            }
+            else if (lobbyManager != null)
+            {
+                lobbyManager.StartGame();
+            }
         }
 
         while (SceneManager.GetActiveScene().name == initialScene)

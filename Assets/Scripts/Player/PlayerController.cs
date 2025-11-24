@@ -1974,6 +1974,16 @@ public class PlayerController : NetworkBehaviour
         }
     }
     
+    [TargetRpc]
+    public void TargetShowTerminalLoadingScreen(NetworkConnection target)
+    {
+        var loadingController = LobbyMainLoadingController.Instance;
+        if (loadingController != null)
+        {
+            loadingController.StartClientLoadingSequence();
+        }
+    }
+    
     void OnDrawGizmosSelected()
     {
         if (groundCheck != null)

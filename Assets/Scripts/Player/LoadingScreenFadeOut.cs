@@ -54,25 +54,9 @@ public class LoadingScreenFadeOut : MonoBehaviour
             return;
         }
         
-        // Проверяем, завершилась ли анимация загрузки
-        // LobbyLoadingController становится неактивным после завершения анимации
-        if (LobbyLoadingController.Instance != null)
+        if (IsAnyLoadingControllerActive())
         {
-            // Если объект активен, значит анимация еще идет
-            if (LobbyLoadingController.Instance.gameObject.activeSelf)
-            {
-                return;
-            }
-        }
-        else
-        {
-            // Если Instance == null, возможно объект был уничтожен или еще не создан
-            // В этом случае проверяем, есть ли вообще LobbyLoadingController в сцене
-            LobbyLoadingController controller = FindObjectOfType<LobbyLoadingController>();
-            if (controller != null && controller.gameObject.activeSelf)
-            {
-                return;
-            }
+            return;
         }
         
         // Анимация завершена, начинаем затухание
@@ -149,6 +133,36 @@ public class LoadingScreenFadeOut : MonoBehaviour
             StopCoroutine(fadeCoroutine);
             fadeCoroutine = null;
         }
+    }
+
+    bool IsAnyLoadingControllerActive()
+    {
+        if (IsControllerActive(LobbyLoadingController.Instance))
+            return true;
+
+        if (LobbyLoadingController.Instance == null)
+        {
+            LobbyLoadingController controller = FindObjectOfType<LobbyLoadingController>();
+            if (IsControllerActive(controller))
+                return true;
+        }
+
+        if (IsControllerActive(LobbyMainLoadingController.Instance))
+            return true;
+
+        if (LobbyMainLoadingController.Instance == null)
+        {
+            LobbyMainLoadingController controller = FindObjectOfType<LobbyMainLoadingController>();
+            if (IsControllerActive(controller))
+                return true;
+        }
+
+        return false;
+    }
+
+    bool IsControllerActive(MonoBehaviour controller)
+    {
+        return controller != null && controller.gameObject.activeSelf;
     }
 }
 

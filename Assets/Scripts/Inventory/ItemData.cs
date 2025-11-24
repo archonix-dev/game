@@ -30,6 +30,11 @@ public class ItemData : ScriptableObject
     public string itemTag = "Untagged";
     public int itemLayer = 0;
     
+    [Header("Экономика")]
+    [Tooltip("Стоимость предмета в битах для терминала магазина")]
+    [Min(0)]
+    public int bitPrice = 0;
+    
     [Header("Эффекты предмета")]
     [Tooltip("Количество здоровья для восстановления (только для Health)")]
     public float healthAmount = 0f;

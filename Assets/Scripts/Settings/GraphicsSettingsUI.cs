@@ -242,6 +242,9 @@ public class GraphicsSettingsUI : MonoBehaviour
     public Toggle postProcessToggle;
 	public Toggle fpsUnderMonitorToggle;
 
+    [Header("Post Processing Volume")]
+    public Volume postProcessVolume;
+
     [Header("Sliders")]
     public Slider renderScaleSlider;
     public Text renderScaleLabel;
@@ -493,6 +496,7 @@ public class GraphicsSettingsUI : MonoBehaviour
 
         if (postProcessToggle != null)
             postProcessToggle.isOn = currentSettings.postProcessDataEnabled;
+        UpdatePostProcessVolumeState();
 
 		if (fpsUnderMonitorToggle != null)
 			fpsUnderMonitorToggle.isOn = currentSettings.fpsMatchMonitor;
@@ -657,6 +661,7 @@ public class GraphicsSettingsUI : MonoBehaviour
         {
             currentSettings.postProcessDataEnabled = value;
             currentSettings.ApplyPostProcessSettings();
+            UpdatePostProcessVolumeState();
         }
     }
 
@@ -668,6 +673,13 @@ public class GraphicsSettingsUI : MonoBehaviour
             currentSettings.ApplyURPSettings();
         }
         UpdateRenderScaleLabel();
+    }
+
+    private void UpdatePostProcessVolumeState()
+    {
+        if (postProcessVolume == null) return;
+        bool enableVolume = currentSettings != null && currentSettings.postProcessDataEnabled;
+        postProcessVolume.enabled = enableVolume;
     }
 
 	private void OnResolutionChanged(int value)

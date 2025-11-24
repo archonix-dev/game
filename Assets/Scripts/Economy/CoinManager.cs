@@ -142,6 +142,25 @@ public class CoinManager : NetworkBehaviour
     }
     
     /// <summary>
+    /// Пытается списать монеты напрямую на сервере (без команды).
+    /// Возвращает true при успехе.
+    /// </summary>
+    [Server]
+    public bool TrySpendCoinsServer(int amount)
+    {
+        if (amount <= 0)
+            return true;
+        
+        if (currentCoins >= amount)
+        {
+            currentCoins -= amount;
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /// <summary>
     /// Получить текущее количество монет
     /// </summary>
     public int GetCoins()

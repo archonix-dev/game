@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using Mirror;
 using UnityEngine.SceneManagement;
@@ -21,7 +22,20 @@ public class LobbyNetworkManager : NetworkManager
     [Tooltip("Сцена меню (Menu)")]
     public string menuSceneName = "Menu";
     
+    [Header("Main Game Settings")]
+    [Tooltip("Сцена основной игры (Main)")]
+    public string mainSceneName = "Main";
+    
     private static LobbyNetworkManager instance;
+    
+    class PendingPurchase
+    {
+        public uint connectionId;
+        public ItemData itemData;
+    }
+    
+    private readonly List<PendingPurchase> pendingPurchases = new List<PendingPurchase>();
+    private bool mainSceneLoadInProgress;
     
     public static LobbyNetworkManager Instance
     {
@@ -45,6 +59,8 @@ public class LobbyNetworkManager : NetworkManager
     {
         base.OnStartServer();
         Debug.Log("[LobbyNetworkManager] Сервер запущен");
+        mainSceneLoadInProgress = false;
+        pendingPurchases.Clear();
         
         // Регистрируем префабы для спавна (когда сервер запущен, LobbyPlayerSpawner уже должен быть на сцене)
         RegisterSpawnablePrefabs();
@@ -102,6 +118,8 @@ public class LobbyNetworkManager : NetworkManager
     {
         base.OnStopServer();
         Debug.Log("[LobbyNetworkManager] Сервер остановлен");
+        pendingPurchases.Clear();
+        mainSceneLoadInProgress = false;
     }
     
     public override void OnClientConnect()
@@ -131,6 +149,61 @@ public class LobbyNetworkManager : NetworkManager
     {
         base.OnClientDisconnect();
         Debug.Log("[LobbyNetworkManager] Клиент отключен от сервера");
+    }
+    
+    /// <summary>
+    /// Регистрирует покупку предмета, чтобы заспавнить его позже на сцене Main.
+    /// </summary>
+    [Server]
+    public void RegisterPurchasedItem(NetworkConnectionToClient buyerConnection, ItemData itemData)
+    {
+        if (!NetworkServer.active || buyerConnection == null || itemData == null)
+            return;
+        
+        pendingPurchases.Add(new PendingPurchase
+        {
+            connectionId = (uint)buyerConnection.connectionId,
+            itemData = itemData
+        });
+        
+        Debug.Log($"[LobbyNetworkManager] Зарегистрирована покупка предмета {itemData.name} для подключения {buyerConnection.connectionId}");
+    }
+    
+    /// <summary>
+    /// Спавнит купленные предметы на сцене Main в указанных точках.
+    /// </summary>
+    [Server]
+    public void SpawnPurchasedItemsAtPoints(Transform[] spawnPoints)
+    {
+        if (!NetworkServer.active || pendingPurchases.Count == 0)
+            return;
+        
+        int pointIndex = 0;
+        foreach (var purchase in pendingPurchases)
+        {
+            if (purchase.itemData == null || purchase.itemData.itemPrefab == null)
+            {
+                Debug.LogWarning("[LobbyNetworkManager] Пропущен предмет без itemPrefab при спавне покупок.");
+                continue;
+            }
+            
+            Transform targetPoint = null;
+            if (spawnPoints != null && spawnPoints.Length > 0)
+            {
+                targetPoint = spawnPoints[pointIndex % spawnPoints.Length];
+            }
+            
+            Vector3 spawnPosition = targetPoint != null ? targetPoint.position : Vector3.zero;
+            Quaternion spawnRotation = targetPoint != null ? targetPoint.rotation : Quaternion.identity;
+            
+            GameObject spawnedItem = Instantiate(purchase.itemData.itemPrefab, spawnPosition, spawnRotation);
+            NetworkServer.Spawn(spawnedItem);
+            Debug.Log($"[LobbyNetworkManager] Заспавнен купленный предмет {purchase.itemData.name} в позиции {spawnPosition}");
+            
+            pointIndex++;
+        }
+        
+        pendingPurchases.Clear();
     }
     
     /// <summary>
@@ -164,6 +237,50 @@ public class LobbyNetworkManager : NetworkManager
         }
     }
     
+    /// <summary>
+    /// Помечает начало подготовки к переходу на сцену Main. Возвращает false, если переход уже выполняется.
+    /// </summary>
+    [Server]
+    public bool TryBeginMainSceneLoad()
+    {
+        if (mainSceneLoadInProgress)
+        {
+            return false;
+        }
+        
+        mainSceneLoadInProgress = true;
+        return true;
+    }
+    
+    /// <summary>
+    /// Возвращает true, если переход на основную сцену уже запущен.
+    /// </summary>
+    public bool IsMainSceneLoading => mainSceneLoadInProgress;
+    
+    /// <summary>
+    /// Переходит на сцену основной игры (Main).
+    /// </summary>
+    [Server]
+    public void LoadMainScene()
+    {
+        if (!NetworkServer.active)
+            return;
+        
+        if (!mainSceneLoadInProgress)
+        {
+            mainSceneLoadInProgress = true;
+        }
+        
+        if (string.IsNullOrEmpty(mainSceneName))
+        {
+            Debug.LogError("[LobbyNetworkManager] mainSceneName не задан, не можем загрузить основную сцену.");
+            return;
+        }
+        
+        Debug.Log("[LobbyNetworkManager] Загрузка основной сцены...");
+        ServerChangeScene(mainSceneName);
+    }
+    
     public override void OnServerSceneChanged(string sceneName)
     {
         base.OnServerSceneChanged(sceneName);
@@ -180,6 +297,10 @@ public class LobbyNetworkManager : NetworkManager
             
             // Спавним игроков
             SpawnPlayersOnLobbyScene();
+        }
+        else if (sceneName == mainSceneName)
+        {
+            StartCoroutine(SpawnPlayersOnMainScene());
         }
     }
     
@@ -447,6 +568,43 @@ public class LobbyNetworkManager : NetworkManager
         }
         
         Debug.Log($"[LobbyNetworkManager] Обработано подключений: {spawnedCount}");
+    }
+    
+    System.Collections.IEnumerator SpawnPlayersOnMainScene()
+    {
+        yield return null;
+        yield return null;
+        
+        LobbyPlayerSpawner spawner = FindObjectOfType<LobbyPlayerSpawner>();
+        if (spawner != null)
+        {
+            spawner.ResetSpawnedConnections();
+        }
+
+        foreach (NetworkConnectionToClient conn in NetworkServer.connections.Values)
+        {
+            if (conn == null)
+                continue;
+            
+            if (conn.identity != null)
+            {
+                NetworkServer.Destroy(conn.identity.gameObject);
+            }
+            
+            if (spawner != null)
+            {
+                spawner.ForceSpawnPlayer(conn);
+            }
+            else
+            {
+                Transform startPosition = GetStartPosition();
+                Vector3 spawnPosition = startPosition != null ? startPosition.position : Vector3.zero;
+                Quaternion spawnRotation = startPosition != null ? startPosition.rotation : Quaternion.identity;
+                
+                GameObject player = Instantiate(playerPrefab, spawnPosition, spawnRotation);
+                NetworkServer.AddPlayerForConnection(conn, player);
+            }
+        }
     }
 }
 

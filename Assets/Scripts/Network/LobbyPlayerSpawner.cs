@@ -226,6 +226,28 @@ public class LobbyPlayerSpawner : NetworkBehaviour
         // Проверяем через небольшую задержку, что объект все еще существует
         StartCoroutine(CheckPlayerAfterSpawn(player, conn.connectionId));
     }
+
+    /// <summary>
+    /// Сбрасывает состояние заспавненных подключений (используется при смене сцены)
+    /// </summary>
+    [Server]
+    public void ResetSpawnedConnections()
+    {
+        spawnedConnections.Clear();
+    }
+
+    /// <summary>
+    /// Принудительно спавнит игрока, даже если он уже числится заспавненным (например, после смены сцены)
+    /// </summary>
+    [Server]
+    public void ForceSpawnPlayer(NetworkConnectionToClient conn)
+    {
+        if (conn == null)
+            return;
+
+        spawnedConnections.Remove(conn.connectionId);
+        SpawnPlayer(conn);
+    }
     
     /// <summary>
     /// Ожидает готовности подключения и спавнит игрока
