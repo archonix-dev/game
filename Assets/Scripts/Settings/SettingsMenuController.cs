@@ -12,6 +12,10 @@ public class SettingsMenuController : MonoBehaviour
 	[Tooltip("Камера, которую нужно перемещать/поворачивать при открытии/закрытии меню")]
 	public Transform cameraTransform;
 	
+	[Header("Camera Effects")]
+	[Tooltip("BodyCamEffect, который нужно временно отключать во время меню")]
+	public BodyCamEffect bodyCamEffect;
+	
 	[Header("Camera Transition")]
 	[Tooltip("Точка, к которой плавно переместится камера при открытии меню")]
 	public Transform openCameraPoint;
@@ -50,6 +54,7 @@ public class SettingsMenuController : MonoBehaviour
     
     private bool isMenuOpen = false;
 	private Coroutine cameraMoveRoutine;
+	private bool bodyCamEffectWasEnabledBeforeMenu = false;
     
     void Start()
     {
@@ -70,6 +75,8 @@ public class SettingsMenuController : MonoBehaviour
 				cameraTransform = cam.transform;
 			}
 		}
+		
+		EnsureBodyCamReference();
 		
 		
 		// Автоматически находим VoiceWaveVisualizer и его LineRenderer
@@ -182,6 +189,7 @@ public class SettingsMenuController : MonoBehaviour
 		}
         
 		// Движение/поворот камеры
+		HandleBodyCamEffectForState(open);
 		StartCameraTransition(open);
 
 		// Сообщаем скрипту локальной видимости игрока о состоянии меню
@@ -279,6 +287,11 @@ public class SettingsMenuController : MonoBehaviour
 		cameraTransform.position = endPos;
 		cameraTransform.rotation = endRot;
 		cameraMoveRoutine = null;
+		
+		if (!opening)
+		{
+			RestoreBodyCamEffectIfNeeded();
+		}
 	}
 	
 	/// <summary>
@@ -315,6 +328,59 @@ public class SettingsMenuController : MonoBehaviour
 					voiceWaveLine = lineParent.GetComponent<LineRenderer>();
 				}
 			}
+		}
+	}
+	
+	private void EnsureBodyCamReference()
+	{
+		if (bodyCamEffect != null)
+			return;
+		
+		if (cameraTransform == null)
+			return;
+		
+		bodyCamEffect = cameraTransform.GetComponent<BodyCamEffect>();
+	}
+
+	private void HandleBodyCamEffectForState(bool opening)
+	{
+		EnsureBodyCamReference();
+		
+		if (bodyCamEffect == null)
+			return;
+		
+		if (opening)
+		{
+			bodyCamEffectWasEnabledBeforeMenu = bodyCamEffect.enabled;
+			if (bodyCamEffect.enabled)
+			{
+				bodyCamEffect.ResetEffects();
+				bodyCamEffect.enabled = false;
+			}
+		}
+		else
+		{
+			// Гарантируем, что эффект отключен на время обратного перехода камеры
+			if (bodyCamEffect.enabled)
+			{
+				bodyCamEffect.ResetEffects();
+				bodyCamEffect.enabled = false;
+			}
+		}
+	}
+
+	private void RestoreBodyCamEffectIfNeeded()
+	{
+		EnsureBodyCamReference();
+		
+		if (bodyCamEffect == null)
+			return;
+		
+		if (bodyCamEffectWasEnabledBeforeMenu)
+		{
+			bodyCamEffect.ResetEffects();
+			bodyCamEffect.enabled = true;
+			bodyCamEffectWasEnabledBeforeMenu = false;
 		}
 	}
 }

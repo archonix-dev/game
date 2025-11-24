@@ -27,7 +27,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 10, y: 10, z: 10}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 541287800083086103}
@@ -52,7 +52,7 @@ MonoBehaviour:
   usePhysics: 1
   maxDistanceWithSelectedPos: 0.01
   segmentsSeparation: 0.02
-  limitMax: 500
+  limitMax: 2147483647
   segmentsRadius: 1.5
   currentDistanceToStartAnchor: 0
   maxDistanceToStarAnchor: 0.44

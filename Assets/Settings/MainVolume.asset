@@ -56,7 +56,7 @@ MonoBehaviour:
   rounded:
     m_OverrideState: 0
     m_Value: 0
---- !u!114 &-2865815362200610988
+--- !u!114 &-1953640838617921363
 MonoBehaviour:
   m_ObjectHideFlags: 3
   m_CorrespondingSourceObject: {fileID: 0}
@@ -65,13 +65,31 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 81180773991d8724ab7f2d216912b564, type: 3}
-  m_Name: ChromaticAberration
+  m_Script: {fileID: 11500000, guid: bbb2952b95454955ba507c3d96778a76, type: 3}
+  m_Name: VhsVol
   m_EditorClassIdentifier: 
   active: 1
-  intensity:
+  _weight:
+    m_OverrideState: 1
+    m_Value: 1
+  _bleed:
+    m_OverrideState: 1
+    m_Value: 1
+  _rocking:
+    m_OverrideState: 1
+    m_Value: 0
+  _tape:
+    m_OverrideState: 1
+    m_Value: 1
+  _noise:
     m_OverrideState: 1
     m_Value: 0.5
+  _flickering:
+    m_OverrideState: 1
+    m_Value: 0
+  _glitch:
+    m_OverrideState: 1
+    m_Value: {r: 1, g: 0, b: 0, a: 1}
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -88,8 +106,8 @@ MonoBehaviour:
   - {fileID: -6371840218021034749}
   - {fileID: 7381480154123018211}
   - {fileID: -3582171945646552704}
-  - {fileID: -2865815362200610988}
   - {fileID: 146844097389343306}
+  - {fileID: -1953640838617921363}
 --- !u!114 &13365377312271869
 MonoBehaviour:
   m_ObjectHideFlags: 3
@@ -103,39 +121,27 @@ MonoBehaviour:
   m_Name: VhsVol
   m_EditorClassIdentifier: 
   active: 1
-  <displayName>k__BackingField: 
   _weight:
-    <fieldHash>k__BackingField: -1247609432
     m_OverrideState: 1
     m_Value: 1
   _bleed:
-    <fieldHash>k__BackingField: -1008259040
     m_OverrideState: 1
     m_Value: 10
   _rocking:
-    <fieldHash>k__BackingField: -290207864
     m_OverrideState: 1
     m_Value: 0.1
   _tape:
-    <fieldHash>k__BackingField: -50857472
     m_OverrideState: 1
     m_Value: 2
   _noise:
-    <fieldHash>k__BackingField: 1384479592
     m_OverrideState: 1
     m_Value: 1
   _flickering:
-    <fieldHash>k__BackingField: 1623829984
     m_OverrideState: 1
     m_Value: 2
   _glitch:
-    <fieldHash>k__BackingField: -1953086136
     m_OverrideState: 1
-    m_Value:
-      r: 1
-      g: 0
-      b: 0
-      a: 1
+    m_Value: {r: 1, g: 0, b: 0, a: 1}
 --- !u!114 &146844097389343306
 MonoBehaviour:
   m_ObjectHideFlags: 3
@@ -151,7 +157,7 @@ MonoBehaviour:
   active: 1
   intensity:
     m_OverrideState: 1
-    m_Value: -0.171
+    m_Value: 0.44
   xMultiplier:
     m_OverrideState: 0
     m_Value: 1

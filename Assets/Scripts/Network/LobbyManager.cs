@@ -1,6 +1,9 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Mirror;
+using Mirror.Examples.NetworkRoom;
 using Steamworks;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -31,6 +34,16 @@ public class LobbyManager : MonoBehaviour
     
     [Tooltip("Префаб для элемента списка лобби")]
     public GameObject lobbyListPrefab;
+
+    [Header("Scene Loading")]
+    [Tooltip("Тайм-аут ожидания загрузки сцены и готовности игроков (сек)")]
+    [SerializeField] float clientSceneTimeout = 45f;
+    
+    [Tooltip("Тайм-аут ожидания спавнера (сек)")]
+    [SerializeField] float spawnerWaitTimeout = 20f;
+    
+    [Tooltip("Дополнительная задержка перед началом игры (сек) для стабилизации сцены")]
+    [SerializeField] float postSceneWarmupDelay = 0.5f;
     
     private static LobbyManager instance;
     private List<GameObject> spawnedPlayerListItems = new List<GameObject>();
@@ -38,6 +51,8 @@ public class LobbyManager : MonoBehaviour
     private CSteamID currentLobbyID;
     private bool isLobbyOwner = false;
     private Callback<LobbyEnter_t> lobbyEnterCallback;
+    private Coroutine lobbySceneLoadRoutine;
+    private bool isGameStarting;
     
     public static LobbyManager Instance
     {
@@ -479,7 +494,7 @@ public class LobbyManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Начинает игру (переход на сцену Lobby)
+    /// Начинает игру (переход на сцену Lobby) с улучшенной асинхронной загрузкой
     /// </summary>
     public void StartGame()
     {
@@ -489,16 +504,156 @@ public class LobbyManager : MonoBehaviour
             return;
         }
         
-        NotifyPlayersLoadingScreen();
-        
-        // Уничтожаем все LobbyPlayer перед переходом на сцену Lobby
-        // Они нужны только на сцене Menu
-        DestroyAllLobbyPlayers();
-        
-        if (LobbyNetworkManager.Instance != null)
+        if (isGameStarting || lobbySceneLoadRoutine != null)
         {
-            LobbyNetworkManager.Instance.LoadLobbyScene();
+            Debug.LogWarning("[LobbyManager] Запуск игры уже выполняется, повторный вызов проигнорирован.");
+            return;
         }
+        
+        if (LobbyNetworkManager.Instance == null)
+        {
+            Debug.LogError("[LobbyManager] Невозможно начать игру: LobbyNetworkManager.Instance == null");
+            return;
+        }
+        
+        lobbySceneLoadRoutine = StartCoroutine(StartLobbySceneAsync());
+    }
+    
+    IEnumerator StartLobbySceneAsync()
+    {
+        isGameStarting = true;
+        ThreadPriority originalPriority = Application.backgroundLoadingPriority;
+        Application.backgroundLoadingPriority = ThreadPriority.High;
+        
+        try
+        {
+            Debug.Log("[LobbyManager] Стартуем улучшенную последовательность загрузки Lobby...");
+            
+            NotifyPlayersLoadingScreen();
+            
+            yield return PrepareSceneLoadAsync();
+            
+            // Уничтожаем все LobbyPlayer перед переходом на сцену Lobby
+            // Они нужны только на сцене Menu
+            DestroyAllLobbyPlayers();
+            
+            yield return null; // даем кадр на очистку и отображение загрузочных экранов
+            
+            LobbyNetworkManager.Instance.LoadLobbyScene();
+            
+            string lobbySceneName = LobbyNetworkManager.Instance.lobbySceneName;
+            
+            yield return WaitForServerSceneActivation(lobbySceneName, clientSceneTimeout);
+            yield return WaitForAllClientsReady(clientSceneTimeout);
+            yield return WaitForRewardSpawner(spawnerWaitTimeout);
+            
+            if (postSceneWarmupDelay > 0f)
+            {
+                yield return new WaitForSeconds(postSceneWarmupDelay);
+            }
+            
+            Debug.Log("[LobbyManager] ✓ Сцена Lobby полностью загружена, все игроки синхронизированы.");
+        }
+        finally
+        {
+            Application.backgroundLoadingPriority = originalPriority;
+            isGameStarting = false;
+            lobbySceneLoadRoutine = null;
+        }
+    }
+    
+    IEnumerator PrepareSceneLoadAsync()
+    {
+        Debug.Log("[LobbyManager] Оптимизируем память перед загрузкой сцены (GC + UnloadUnusedAssets)...");
+        
+        // Выгружаем неиспользуемые ресурсы и очищаем память, чтобы уменьшить лаги при загрузке
+        yield return Resources.UnloadUnusedAssets();
+        System.GC.Collect();
+        
+        // Плавное распределение нагрузки
+        yield return null;
+    }
+    
+    IEnumerator WaitForServerSceneActivation(string sceneName, float timeout)
+    {
+        if (string.IsNullOrEmpty(sceneName))
+            yield break;
+        
+        float elapsed = 0f;
+        while (elapsed < timeout)
+        {
+            if (SceneManager.GetActiveScene().name == sceneName)
+            {
+                Debug.Log($"[LobbyManager] Сервер перешел на сцену {sceneName}");
+                yield break;
+            }
+            
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+        
+        Debug.LogWarning($"[LobbyManager] Тайм-аут ожидания загрузки сцены {sceneName} на сервере ({timeout} сек)");
+    }
+    
+    IEnumerator WaitForAllClientsReady(float timeout)
+    {
+        if (!NetworkServer.active)
+            yield break;
+        
+        float elapsed = 0f;
+        while (elapsed < timeout)
+        {
+            if (AreAllConnectionsReady())
+            {
+                Debug.Log("[LobbyManager] Все клиенты подтвердили загрузку сцены.");
+                yield break;
+            }
+            
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+        
+        Debug.LogWarning($"[LobbyManager] Тайм-аут ожидания готовности всех клиентов ({timeout} сек)");
+    }
+    
+    IEnumerator WaitForRewardSpawner(float timeout)
+    {
+        if (!Spawner.HasActivePool || Spawner.IsInitialSpawnComplete)
+            yield break;
+        
+        Debug.Log("[LobbyManager] Ожидаем завершения спавнера объектов (Spawner.cs)...");
+        
+        float elapsed = 0f;
+        while (elapsed < timeout)
+        {
+            if (Spawner.IsInitialSpawnComplete)
+            {
+                Debug.Log("[LobbyManager] Спавнер завершил создание стартовых объектов.");
+                yield break;
+            }
+            
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+        
+        Debug.LogWarning("[LobbyManager] Тайм-аут ожидания завершения работы спавнера. Продолжаем загрузку.");
+    }
+    
+    bool AreAllConnectionsReady()
+    {
+        if (!NetworkServer.active)
+            return true;
+        
+        foreach (NetworkConnectionToClient conn in NetworkServer.connections.Values)
+        {
+            if (conn == null)
+                continue;
+            
+            if (!conn.isAuthenticated || !conn.isReady)
+                return false;
+        }
+        
+        return true;
     }
 
     void NotifyPlayersLoadingScreen()

@@ -33,7 +33,7 @@ text_menu_settings;Настройки;Settings;Einstellungen;Paramètres;Ajustes
 text_menu_editor;Редактор карт;Map Editor;Karteneditor;Éditeur de carte;Editor de mapas;Editor di mappe;地图编辑器
 text_menu_mods;Модификации;Modifications;Modifikationen;Modifications;Modificaciones;Modifiche;修改
 text_menu_exit;Выход;Exit;Beenden;Quitter;Salir;Esci;退出
-text_about_game;Lastrite inc. bulid 0.12a;Lastrite inc. bulid 0.12a;Lastrite Inc. Build 0.12a;Lastrite inc. version 0.12a;Lastrite Inc. versión 0.12a;Lastrite inc. versione 0.12a;Lastrite 公司出品 0.12a 版本
+text_about_game;localhost preclassic;localhost preclassic;localhost preclassic;localhost preclassic;localhost preclassic;localhost preclassic;localhost preclassic
 text_about_users;Все права защищены Archonix. Копирование запрещено.;All rights reserved Archonix. Copying prohibited.;Alle Rechte vorbehalten. Archonix. Kopieren verboten.;Tous droits réservés Archonix. Reproduction interdite.;Todos los derechos reservados Archonix. Prohibida su reproducción.;Tutti i diritti riservati Archonix. Vietata la copia.;Archonix 版权所有。禁止复制。
 text_menu_graphic;Графика;Graphics;Grafik;Graphismes;Gráficos;Grafica;画面
 text_menu_volume;Аудио;Audio;Audio;Audio;Audio;Audio;音频

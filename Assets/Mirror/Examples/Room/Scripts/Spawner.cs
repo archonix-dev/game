@@ -1,14 +1,26 @@
+using System;
 using System.Threading.Tasks;
 using UnityEngine;
 
 namespace Mirror.Examples.NetworkRoom
 {
-    internal static class Spawner
+    public static class Spawner
     {
         static GameObject prefab;
         static byte poolSize = 10;
         static Pool<GameObject> pool;
         static ushort counter;
+        static bool isInitialSpawnPending;
+        static int initialSpawnTarget;
+        static int initialSpawnCompleted;
+
+        public static event Action OnInitialSpawnCompleted;
+
+        public static bool HasActivePool => pool != null;
+        public static bool IsInitialSpawnComplete => !isInitialSpawnPending || initialSpawnTarget == 0;
+        public static float InitialSpawnProgress => initialSpawnTarget <= 0
+            ? 1f
+            : Mathf.Clamp01((float)initialSpawnCompleted / initialSpawnTarget);
 
         // Called from custom network manager on both server and client
         internal static void InitializePool(GameObject poolPrefab, byte count)
@@ -18,6 +30,7 @@ namespace Mirror.Examples.NetworkRoom
 
             NetworkClient.RegisterPrefab(prefab, SpawnHandler, UnspawnHandler);
             pool = new Pool<GameObject>(CreateNew, poolSize);
+            ResetInitialSpawnTracking();
         }
 
         // Called from custom network manager on both server and client
@@ -30,10 +43,11 @@ namespace Mirror.Examples.NetworkRoom
             if (pool == null) return;
 
             while (pool.Count > 0)
-                Object.Destroy(pool.Get());
+                UnityEngine.Object.Destroy(pool.Get());
 
             counter = 0;
             pool = null;
+            ResetInitialSpawnTracking();
         }
 
         static GameObject SpawnHandler(SpawnMessage msg) => Get(msg.position, msg.rotation);
@@ -52,7 +66,7 @@ namespace Mirror.Examples.NetworkRoom
 
         static GameObject CreateNew()
         {
-            GameObject next = Object.Instantiate(prefab);
+            GameObject next = UnityEngine.Object.Instantiate(prefab);
             counter++;
             next.name = $"{prefab.name}_pooled_{counter:00}";
             next.SetActive(false);
@@ -73,8 +87,20 @@ namespace Mirror.Examples.NetworkRoom
         [ServerCallback]
         internal static void InitialSpawn()
         {
+            if (pool == null)
+            {
+                Debug.LogWarning("[Spawner] InitialSpawn called before pool initialization.");
+                return;
+            }
+
+            isInitialSpawnPending = true;
+            initialSpawnTarget = poolSize;
+            initialSpawnCompleted = 0;
+
             for (byte i = 0; i < poolSize; i++)
                 SpawnReward();
+
+            TryCompleteInitialSpawn();
         }
 
         // Called from the Reward script
@@ -95,8 +121,46 @@ namespace Mirror.Examples.NetworkRoom
         [ServerCallback]
         static void SpawnReward()
         {
-            Vector3 spawnPosition = new Vector3(Random.Range(-19, 20), 1, Random.Range(-19, 20));
+            if (pool == null)
+            {
+                Debug.LogWarning("[Spawner] SpawnReward called while pool is null.");
+                return;
+            }
+
+            Vector3 spawnPosition = new Vector3(UnityEngine.Random.Range(-19, 20), 1, UnityEngine.Random.Range(-19, 20));
             NetworkServer.Spawn(Get(spawnPosition, Quaternion.identity));
+            TrackInitialSpawnProgress();
+        }
+
+        static void TrackInitialSpawnProgress()
+        {
+            if (!isInitialSpawnPending)
+                return;
+
+            initialSpawnCompleted++;
+            if (initialSpawnCompleted >= initialSpawnTarget)
+            {
+                TryCompleteInitialSpawn();
+            }
+        }
+
+        static void TryCompleteInitialSpawn()
+        {
+            if (!isInitialSpawnPending)
+                return;
+
+            if (initialSpawnCompleted < initialSpawnTarget)
+                return;
+
+            isInitialSpawnPending = false;
+            OnInitialSpawnCompleted?.Invoke();
+        }
+
+        static void ResetInitialSpawnTracking()
+        {
+            isInitialSpawnPending = false;
+            initialSpawnTarget = 0;
+            initialSpawnCompleted = 0;
         }
     }
 }

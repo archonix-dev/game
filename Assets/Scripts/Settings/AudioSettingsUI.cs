@@ -28,6 +28,10 @@ public class AudioSettings
     
     [Range(0f, 1f)]
     public float stepsVolume = 1f;
+    
+    [Range(0f, 1f)]
+    [Tooltip("Громкость окружающих звуков (AudioMixer параметр 'Enivoment')")]
+    public float environmentVolume = 1f;
 
     [Header("Microphone Settings")]
     [Tooltip("Имя устройства микрофона (null = устройство по умолчанию)")]
@@ -60,6 +64,7 @@ public class AudioSettings
             success &= audioMixer.SetFloat("Players", LinearToDecibels(playersVolume));
             success &= audioMixer.SetFloat("UI", LinearToDecibels(uiVolume));
             success &= audioMixer.SetFloat("Steps", LinearToDecibels(stepsVolume));
+            success &= audioMixer.SetFloat("Enivoment", LinearToDecibels(environmentVolume));
 
         }
         catch (System.Exception e)
@@ -75,6 +80,7 @@ public class AudioSettings
         playersVolume = PlayerPrefs.GetFloat("PlayersVolume", 1f);
         uiVolume = PlayerPrefs.GetFloat("UIVolume", 1f);
         stepsVolume = PlayerPrefs.GetFloat("StepsVolume", 1f);
+        environmentVolume = PlayerPrefs.GetFloat("EnvironmentVolume", 1f);
         microphoneDevice = PlayerPrefs.GetString("MicrophoneDevice", null);
         if (string.IsNullOrEmpty(microphoneDevice)) microphoneDevice = null;
         microphoneSensitivity = PlayerPrefs.GetFloat("MicrophoneSensitivity", 10f);
@@ -88,6 +94,7 @@ public class AudioSettings
         PlayerPrefs.SetFloat("PlayersVolume", playersVolume);
         PlayerPrefs.SetFloat("UIVolume", uiVolume);
         PlayerPrefs.SetFloat("StepsVolume", stepsVolume);
+        PlayerPrefs.SetFloat("EnvironmentVolume", environmentVolume);
         if (string.IsNullOrEmpty(microphoneDevice))
         {
             PlayerPrefs.DeleteKey("MicrophoneDevice");
@@ -109,6 +116,7 @@ public class AudioSettingsUI : MonoBehaviour
     public Slider playersVolumeSlider;
     public Slider uiVolumeSlider;
     public Slider stepsVolumeSlider;
+    public Slider environmentVolumeSlider;
     public Slider microphoneSensitivitySlider;
     public Text microphoneSensitivityLabel;
 
@@ -220,6 +228,13 @@ public class AudioSettingsUI : MonoBehaviour
             stepsVolumeSlider.maxValue = 1f;
             stepsVolumeSlider.onValueChanged.AddListener(OnStepsVolumeChanged);
         }
+        
+        if (environmentVolumeSlider != null)
+        {
+            environmentVolumeSlider.minValue = 0f;
+            environmentVolumeSlider.maxValue = 1f;
+            environmentVolumeSlider.onValueChanged.AddListener(OnEnvironmentVolumeChanged);
+        }
 
         // Настройка Microphone Sensitivity Slider
         if (microphoneSensitivitySlider != null)
@@ -297,6 +312,9 @@ public class AudioSettingsUI : MonoBehaviour
 
         if (stepsVolumeSlider != null)
             stepsVolumeSlider.value = currentSettings.stepsVolume;
+        
+        if (environmentVolumeSlider != null)
+            environmentVolumeSlider.value = currentSettings.environmentVolume;
 
         if (microphoneSensitivitySlider != null)
             microphoneSensitivitySlider.value = currentSettings.microphoneSensitivity;
@@ -431,6 +449,18 @@ public class AudioSettingsUI : MonoBehaviour
             }
         }
     }
+    
+    private void OnEnvironmentVolumeChanged(float value)
+    {
+        if (currentSettings != null)
+        {
+            currentSettings.environmentVolume = Mathf.Clamp01(value);
+            if (audioMixer != null)
+            {
+                currentSettings.ApplySettings(audioMixer);
+            }
+        }
+    }
 
     private void OnMicrophoneSensitivityChanged(float value)
     {
@@ -488,6 +518,7 @@ public class AudioSettingsUI : MonoBehaviour
             currentSettings.playersVolume = 1f;
             currentSettings.uiVolume = 1f;
             currentSettings.stepsVolume = 1f;
+            currentSettings.environmentVolume = 1f;
             currentSettings.microphoneDevice = null;
             currentSettings.microphoneSensitivity = 10f;
 
