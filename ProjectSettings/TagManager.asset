@@ -12,6 +12,7 @@ TagManager:
   - leftdoor
   - rightdoor
   - Over
+  - Hidden
   layers:
   - Default
   - TransparentFX

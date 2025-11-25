@@ -65,8 +65,16 @@ public class LobbyPlayerSpawner : NetworkBehaviour
         Debug.Log($"[LobbyPlayerSpawner] Подключение готово (isReady): {conn.isReady}");
         Debug.Log($"[LobbyPlayerSpawner] Текущая сцена: {UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}");
         
-        // Спавним игрока для подключившегося клиента
-        SpawnPlayer(conn);
+        if (LobbyNetworkManager.Instance != null)
+        {
+            Debug.Log("[LobbyPlayerSpawner] Запрашиваем спавн через LobbyNetworkManager");
+            LobbyNetworkManager.Instance.RequestLobbyPlayerSpawn(conn);
+        }
+        else
+        {
+            Debug.LogWarning("[LobbyPlayerSpawner] LobbyNetworkManager.Instance не найден, спавним напрямую");
+            SpawnPlayer(conn);
+        }
     }
     
     /// <summary>
@@ -95,13 +103,18 @@ public class LobbyPlayerSpawner : NetworkBehaviour
             return;
         }
         
-        // Проверяем, что подключение готово
         if (!conn.isReady)
         {
-            Debug.LogWarning($"[LobbyPlayerSpawner] Подключение {conn.connectionId} еще не готово. Ожидаем...");
-            Debug.Log($"[LobbyPlayerSpawner] Запускаем корутину ожидания готовности подключения");
-            // Попробуем еще раз через небольшую задержку
-            StartCoroutine(SpawnPlayerWhenReady(conn));
+            Debug.LogWarning($"[LobbyPlayerSpawner] Подключение {conn.connectionId} еще не готово. Ожидаем событие готовности перед спавном.");
+            
+            if (LobbyNetworkManager.Instance != null)
+            {
+                LobbyNetworkManager.Instance.RequestLobbyPlayerSpawn(conn);
+            }
+            else
+            {
+                StartCoroutine(SpawnPlayerWhenReady(conn));
+            }
             return;
         }
         
@@ -181,6 +194,13 @@ public class LobbyPlayerSpawner : NetworkBehaviour
             }
         }
         
+        if (!success)
+        {
+            Debug.LogError($"[LobbyPlayerSpawner] Не удалось привязать игрока к подключению {conn.connectionId}, уничтожаем инстанс.");
+            Destroy(player);
+            return;
+        }
+        
         // Проверяем состояние объекта после спавна
         Debug.Log($"[LobbyPlayerSpawner] Проверка объекта после спавна:");
         Debug.Log($"[LobbyPlayerSpawner] - GameObject активен: {player.activeSelf}");
@@ -228,6 +248,49 @@ public class LobbyPlayerSpawner : NetworkBehaviour
     }
 
     /// <summary>
+    /// Ожидает готовности подключения и спавнит игрока
+    /// </summary>
+    [Server]
+    IEnumerator SpawnPlayerWhenReady(NetworkConnectionToClient conn)
+    {
+        if (conn == null)
+        {
+            yield break;
+        }
+
+        int connectionId = conn.connectionId;
+        float timeout = 5f;
+        float elapsed = 0f;
+
+        Debug.Log($"[LobbyPlayerSpawner] SpawnPlayerWhenReady запущена для подключения {connectionId}");
+
+        while (conn != null && !conn.isReady && elapsed < timeout)
+        {
+            yield return new WaitForSeconds(0.1f);
+            elapsed += 0.1f;
+            if (elapsed % 1f < 0.05f)
+            {
+                Debug.Log($"[LobbyPlayerSpawner] Ожидание готовности подключения {connectionId}... ({elapsed:F1}/{timeout} сек)");
+            }
+        }
+
+        if (conn == null)
+        {
+            Debug.LogWarning($"[LobbyPlayerSpawner] Подключение {connectionId} исчезло во время ожидания готовности");
+            yield break;
+        }
+
+        if (!conn.isReady)
+        {
+            Debug.LogError($"[LobbyPlayerSpawner] Подключение {connectionId} не стало готовым в течение {timeout} секунд. Спавн отменен.");
+            yield break;
+        }
+
+        Debug.Log($"[LobbyPlayerSpawner] Подключение {connectionId} стало готовым через {elapsed:F1} секунд, повторяем попытку спавна");
+        SpawnPlayer(conn);
+    }
+
+    /// <summary>
     /// Сбрасывает состояние заспавненных подключений (используется при смене сцены)
     /// </summary>
     [Server]
@@ -250,37 +313,6 @@ public class LobbyPlayerSpawner : NetworkBehaviour
     }
     
     /// <summary>
-    /// Ожидает готовности подключения и спавнит игрока
-    /// </summary>
-    [Server]
-    IEnumerator SpawnPlayerWhenReady(NetworkConnectionToClient conn)
-    {
-        Debug.Log($"[LobbyPlayerSpawner] SpawnPlayerWhenReady запущена для подключения {conn.connectionId}");
-        float timeout = 5f;
-        float elapsed = 0f;
-        
-        while (!conn.isReady && elapsed < timeout)
-        {
-            yield return new WaitForSeconds(0.1f);
-            elapsed += 0.1f;
-            if (elapsed % 1f < 0.1f) // Логируем каждую секунду
-            {
-                Debug.Log($"[LobbyPlayerSpawner] Ожидание готовности подключения {conn.connectionId}... ({elapsed:F1}/{timeout} сек)");
-            }
-        }
-        
-        if (conn.isReady)
-        {
-            Debug.Log($"[LobbyPlayerSpawner] Подключение {conn.connectionId} готово после ожидания, спавним игрока");
-            SpawnPlayer(conn);
-        }
-        else
-        {
-            Debug.LogError($"[LobbyPlayerSpawner] Подключение {conn.connectionId} не готово после таймаута {timeout} секунд!");
-        }
-    }
-    
-    /// <summary>
     /// Проверяет объект игрока через некоторое время после спавна
     /// </summary>
     IEnumerator CheckPlayerAfterSpawn(GameObject player, int connectionId)
@@ -290,6 +322,16 @@ public class LobbyPlayerSpawner : NetworkBehaviour
         if (player == null)
         {
             Debug.LogError($"[LobbyPlayerSpawner] ⚠️ Игрок для подключения {connectionId} был уничтожен через 1 секунду после спавна!");
+            spawnedConnections.Remove(connectionId);
+
+            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == LobbyNetworkManager.Instance?.lobbySceneName)
+            {
+                if (NetworkServer.connections.TryGetValue(connectionId, out var conn) && conn != null)
+                {
+                    Debug.Log($"[LobbyPlayerSpawner] Пытаемся повторно заспавнить подключение {connectionId} после обнаружения уничтожения");
+                    LobbyNetworkManager.Instance.RequestLobbyPlayerSpawn(conn);
+                }
+            }
         }
         else
         {

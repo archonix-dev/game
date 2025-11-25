@@ -276,7 +276,9 @@ public class MobSpawnerManager : NetworkBehaviour
         if (identity == null)
             return;
 
-        if (mobOwners.TryGetValue(identity, out var ownerNetId))
+        uint ownerNetId = 0;
+
+        if (mobOwners.TryGetValue(identity, out ownerNetId))
         {
             if (playerStates.TryGetValue(ownerNetId, out var state))
             {
@@ -288,6 +290,11 @@ public class MobSpawnerManager : NetworkBehaviour
         if (handle.SourceZone != null && zonePopulations.TryGetValue(handle.SourceZone, out var zonePool))
         {
             zonePool.Remove(identity);
+        }
+
+        if (ownerNetId != 0 && playerStates.TryGetValue(ownerNetId, out var ownerState))
+        {
+            TrySpawnReplacement(ownerState);
         }
     }
 
@@ -346,19 +353,32 @@ public class MobSpawnerManager : NetworkBehaviour
     [Server]
     public void ServerAssignZone(uint netId, MobSpawnZone zone)
     {
-        if (playerStates.TryGetValue(netId, out var state))
+        if (!playerStates.TryGetValue(netId, out var state))
+            return;
+
+        if (state.currentZone == zone)
+            return;
+
+        if (state.currentZone != null)
         {
-            state.currentZone = zone;
+            DespawnPlayerMobs(state, state.currentZone);
         }
+
+        state.currentZone = zone;
+        FillPlayerQuota(state);
     }
 
     [Server]
     public void ServerClearZone(uint netId, MobSpawnZone zone)
     {
-        if (playerStates.TryGetValue(netId, out var state) && state.currentZone == zone)
-        {
-            state.currentZone = null;
-        }
+        if (!playerStates.TryGetValue(netId, out var state))
+            return;
+
+        if (state.currentZone != zone)
+            return;
+
+        DespawnPlayerMobs(state, zone);
+        state.currentZone = null;
     }
 
     #endregion
@@ -371,6 +391,76 @@ public class MobSpawnerManager : NetworkBehaviour
         }
 
         return fallbackSafeRadius;
+    }
+
+    [Server]
+    private void DespawnPlayerMobs(PlayerSpawnState state, MobSpawnZone zoneFilter = null)
+    {
+        if (state == null || state.spawnedMobs.Count == 0)
+            return;
+
+        state.spawnedMobs.RemoveWhere(identity => identity == null);
+
+        var toDespawn = new List<NetworkIdentity>();
+        foreach (var identity in state.spawnedMobs)
+        {
+            if (identity == null)
+                continue;
+
+            if (zoneFilter != null)
+            {
+                var handle = identity.GetComponent<SpawnedMobHandle>();
+                if (handle == null || handle.SourceZone != zoneFilter)
+                    continue;
+            }
+
+            toDespawn.Add(identity);
+        }
+
+        foreach (var identity in toDespawn)
+        {
+            if (identity != null && identity.gameObject != null)
+            {
+                NetworkServer.Destroy(identity.gameObject);
+            }
+        }
+    }
+
+    [Server]
+    private void TrySpawnReplacement(PlayerSpawnState state)
+    {
+        if (state == null || state.currentZone == null || !state.snapshot.IsValid)
+            return;
+
+        if (!state.currentZone.HasAvailablePrefabs)
+            return;
+
+        var zoneLimit = Mathf.Min(perPlayerLimit, state.currentZone.PerPlayerCap);
+        if (state.spawnedMobs.Count >= zoneLimit)
+            return;
+
+        if (GetTotalMobCount() >= globalMobLimit)
+            return;
+
+        if (TryBuildSpawnCommand(state, out var prefab, out var position, out var rotation))
+        {
+            SpawnMobForPlayer(state, prefab, position, rotation);
+        }
+    }
+
+    [Server]
+    private void FillPlayerQuota(PlayerSpawnState state)
+    {
+        if (state == null)
+            return;
+
+        for (int i = 0; i < spawnAttemptsPerTick; i++)
+        {
+            int beforeCount = state.spawnedMobs.Count;
+            TrySpawnReplacement(state);
+            if (state.spawnedMobs.Count == beforeCount)
+                break;
+        }
     }
 
     private void OnDrawGizmosSelected()

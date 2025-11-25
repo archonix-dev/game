@@ -82,6 +82,9 @@ public class ShieldMob : NetworkBehaviour
     [SerializeField] private Collider[] ragdollColliders;
     [SerializeField] private Rigidbody[] ragdollRigidbodies;
 
+    [Header("Stealth Settings")]
+    [SerializeField] private MobHideMode hideMode = MobHideMode.CanHide;
+
     private NavMeshAgent agent;
     private Transform currentTarget;
     private Vector3 spawnPosition;
@@ -210,6 +213,12 @@ public class ShieldMob : NetworkBehaviour
             return;
         }
 
+        if (IsTargetHiddenFromThisMob(currentTarget))
+        {
+            ResetToWander();
+            return;
+        }
+
         Vector3 destination = currentTarget.position;
         agent.SetDestination(destination);
         RotateTowards(destination);
@@ -261,6 +270,11 @@ public class ShieldMob : NetworkBehaviour
         {
             currentTarget = null;
         }
+
+        if (IsTargetHiddenFromThisMob(currentTarget))
+        {
+            currentTarget = null;
+        }
     }
 
     Transform FindClosestPlayerWithinRadius(float radius)
@@ -276,6 +290,8 @@ public class ShieldMob : NetworkBehaviour
 
             PlayerController controller = identity.GetComponent<PlayerController>();
             if (controller == null)
+                continue;
+            if (IsTargetHiddenFromThisMob(controller.transform))
                 continue;
 
             Transform candidate = controller.transform;
@@ -305,6 +321,9 @@ public class ShieldMob : NetworkBehaviour
                     continue;
 
                 Transform candidate = hit.transform;
+                PlayerController controller = candidate.GetComponent<PlayerController>();
+                if (controller != null && IsTargetHiddenFromThisMob(controller.transform))
+                    continue;
                 float distance = Vector3.Distance(transform.position, candidate.position);
                 if (distance <= closestDistance)
                 {
@@ -912,6 +931,15 @@ public class ShieldMob : NetworkBehaviour
                 body.detectCollisions = enabled;
             }
         }
+    }
+
+    bool IsTargetHiddenFromThisMob(Transform target)
+    {
+        if (hideMode == MobHideMode.NotHide || target == null)
+            return false;
+
+        PlayerController controller = target.GetComponent<PlayerController>();
+        return controller != null && controller.IsHiddenFromMobs;
     }
 
     #endregion

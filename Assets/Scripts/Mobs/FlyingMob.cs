@@ -71,6 +71,9 @@ public class FlyingMob : NetworkBehaviour
     [SerializeField] private bool mirrorFacingWhenAlerted = true;
 [Header("Model Settings")]
 [SerializeField] private bool invertModelForwardAxis = true;
+
+[Header("Stealth Settings")]
+[SerializeField] private MobHideMode hideMode = MobHideMode.CanHide;
     
     private Transform player;
     private Vector3 targetPosition;
@@ -821,35 +824,13 @@ public class FlyingMob : NetworkBehaviour
         
         while (elapsed < presentationDuration)
         {
-            // Проверяем валидность игрока
-            if (player == null || !player.gameObject.activeInHierarchy)
+            if (!EnsureValidChaseTarget())
             {
-                player = FindClosestPlayer();
-                if (player == null)
-                {
-                    BroadcastStopAttackAlertVisuals();
-                    SetAlertVisuals(false);
-                    currentState = MobState.Wandering;
-                    SetWanderPoint();
-                    yield break;
-                }
-            }
-            else
-            {
-                // Проверяем, что игрок все еще в сети
-                NetworkIdentity playerIdentity = player.GetComponent<NetworkIdentity>();
-                if (playerIdentity == null || !NetworkServer.spawned.ContainsKey(playerIdentity.netId))
-                {
-                    player = FindClosestPlayer();
-                    if (player == null)
-                    {
-                        BroadcastStopAttackAlertVisuals();
-                        SetAlertVisuals(false);
-                        currentState = MobState.Wandering;
-                        SetWanderPoint();
-                        yield break;
-                    }
-                }
+                BroadcastStopAttackAlertVisuals();
+                SetAlertVisuals(false);
+                currentState = MobState.Wandering;
+                SetWanderPoint();
+                yield break;
             }
 
             FacePlayer();
@@ -865,35 +846,13 @@ public class FlyingMob : NetworkBehaviour
         
         while (currentState == MobState.Chasing)
         {
-            // Проверяем валидность игрока
-            if (player == null || !player.gameObject.activeInHierarchy)
+            if (!EnsureValidChaseTarget())
             {
-                player = FindClosestPlayer();
-                if (player == null)
-                {
-                    BroadcastStopAttackAlertVisuals();
-                    SetAlertVisuals(false);
-                    currentState = MobState.Wandering;
-                    SetWanderPoint();
-                    break;
-                }
-            }
-            else
-            {
-                // Проверяем, что игрок все еще в сети
-                NetworkIdentity playerIdentity = player.GetComponent<NetworkIdentity>();
-                if (playerIdentity == null || !NetworkServer.spawned.ContainsKey(playerIdentity.netId))
-                {
-                    player = FindClosestPlayer();
-                    if (player == null)
-                    {
-                        BroadcastStopAttackAlertVisuals();
-                        SetAlertVisuals(false);
-                        currentState = MobState.Wandering;
-                        SetWanderPoint();
-                        break;
-                    }
-                }
+                BroadcastStopAttackAlertVisuals();
+                SetAlertVisuals(false);
+                currentState = MobState.Wandering;
+                SetWanderPoint();
+                break;
             }
             
             Vector3 direction = (player.position - transform.position);
@@ -1062,6 +1021,10 @@ public class FlyingMob : NetworkBehaviour
             
             PlayerController controller = identity.GetComponent<PlayerController>();
             if (controller == null) continue;
+            if (IsTargetHidden(controller.transform))
+                continue;
+            if (IsTargetHidden(controller.transform))
+                continue;
             
             // Проверяем, что игрок активен
             if (!controller.gameObject.activeInHierarchy)
@@ -1144,6 +1107,10 @@ public class FlyingMob : NetworkBehaviour
                 
                 PlayerController controller = taggedPlayer.GetComponent<PlayerController>();
                 if (controller == null) continue;
+                if (IsTargetHidden(controller.transform))
+                    continue;
+                if (IsTargetHidden(controller.transform))
+                    continue;
                 
                 float sqrDistance = (taggedPlayer.transform.position - transform.position).sqrMagnitude;
                 if (sqrDistance < closestDistance)
@@ -1232,6 +1199,45 @@ public class FlyingMob : NetworkBehaviour
         {
             Gizmos.DrawLine(apex, baseCenter + dir * baseRadius);
         }
+    }
+
+    bool RespectsHideZones => hideMode == MobHideMode.CanHide;
+
+    bool IsTargetHidden(Transform target)
+    {
+        if (!RespectsHideZones || target == null)
+            return false;
+
+        PlayerController controller = target.GetComponent<PlayerController>();
+        return controller != null && controller.IsHiddenFromMobs;
+    }
+
+    bool EnsureValidChaseTarget()
+    {
+        if (IsValidChaseTarget(player))
+            return true;
+
+        player = FindClosestPlayer();
+        return IsValidChaseTarget(player);
+    }
+
+    bool IsValidChaseTarget(Transform candidate)
+    {
+        if (candidate == null || !candidate.gameObject.activeInHierarchy)
+            return false;
+
+        if (IsTargetHidden(candidate))
+            return false;
+
+        NetworkIdentity identity = candidate.GetComponent<NetworkIdentity>();
+        if (identity == null || !NetworkServer.spawned.ContainsKey(identity.netId))
+            return false;
+
+        PlayerHealthStamina health = candidate.GetComponent<PlayerHealthStamina>();
+        if (health != null && health.GetCurrentHealth() <= 0f)
+            return false;
+
+        return true;
     }
 
     Quaternion GetLookRotation(Vector3 worldDirection, bool applyAlertMirror)

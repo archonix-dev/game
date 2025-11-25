@@ -4155,9 +4155,9 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
-  wanderRadius: 8
+  wanderRadius: 14
   wanderPauseDuration: 1.5
-  wanderSpeed: 2.2
+  wanderSpeed: 5
   chaseSpeed: 3.8
   detectionRadius: 12
   attackRadius: 2
@@ -4185,6 +4185,8 @@ MonoBehaviour:
   damagePerAttack: 5
   attackKnockbackForce: 6
   attackKnockbackUpwardFactor: 0.2
+  deathExplosionRadius: 5
+  maxExplosionShakeIntensity: 0.2
   statusText3D: {fileID: 6592840114433816312}
   typewriterInterval: 0.05
   statusMessageHold: 1.2
@@ -4202,6 +4204,7 @@ MonoBehaviour:
   ragdollRigidbodies:
   - {fileID: 8948986794861574900}
   - {fileID: 130003032447002612}
+  hideMode: 0
 --- !u!1 &7079262582946495706 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 3665026033538526746, guid: 219b25fa48e5a3e47b7654ae99ed2195, type: 3}

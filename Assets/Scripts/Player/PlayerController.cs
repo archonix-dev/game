@@ -165,6 +165,10 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private AudioClip damageAudioClip;
     [SerializeField] private float damageAudioVolume = 0.6f;
     
+    [Header("Stealth Settings")]
+    [Tooltip("Тег триггеров, внутри которых игрок считается скрытым от мобов")]
+    [SerializeField] private string hiddenZoneTag = "Hidden";
+    
     [Header("Animation Settings")]
     [Tooltip("Animator компонент для проигрывания анимаций")]
     [SerializeField] private Animator animator;
@@ -207,6 +211,8 @@ public class PlayerController : NetworkBehaviour
     private Vector3 lastLegPosition;
     private float smoothedLegSpeed = 0f;
     private bool legPositionInitialized = false;
+    private int hiddenZoneContacts = 0;
+    public bool IsHiddenFromMobs { get; private set; }
     
     public enum PlayerStance
     {
@@ -1983,6 +1989,42 @@ public class PlayerController : NetworkBehaviour
             loadingController.StartClientLoadingSequence();
         }
     }
+
+    #region Hidden Zones
+    private void OnTriggerEnter(Collider other)
+    {
+        HandleHiddenZoneTrigger(other, true);
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        HandleHiddenZoneTrigger(other, false);
+    }
+
+    private void HandleHiddenZoneTrigger(Collider other, bool entered)
+    {
+        if (!isActiveAndEnabled || other == null || string.IsNullOrEmpty(hiddenZoneTag))
+            return;
+
+        if (!other.CompareTag(hiddenZoneTag))
+            return;
+
+        if (entered)
+        {
+            hiddenZoneContacts++;
+        }
+        else
+        {
+            hiddenZoneContacts = Mathf.Max(0, hiddenZoneContacts - 1);
+        }
+
+        bool shouldBeHidden = hiddenZoneContacts > 0;
+        if (shouldBeHidden == IsHiddenFromMobs)
+            return;
+
+        IsHiddenFromMobs = shouldBeHidden;
+    }
+    #endregion
     
     void OnDrawGizmosSelected()
     {

@@ -54,6 +54,17 @@ public class ObjectGrabSystem : NetworkBehaviour
     [SerializeField] private float staminaCostPerThrowForce = 2f; // Стоимость стамины за единицу силы броска
     [SerializeField] private PlayerHealthStamina playerHealthStamina;
     
+    [Header("Camera Adjustments")]
+    [SerializeField] private float fovLerpSpeed = 4f;
+    [SerializeField] private float baseCameraFov = 60f;
+    [SerializeField] private float heavyObjectFov = 57f;
+    [SerializeField] private float heavyWeightThreshold = 30f;
+    
+    [Header("Mouse Sensitivity Damping")]
+    [SerializeField] private float sensitivityLerpSpeed = 5f;
+    private float currentSensitivityMultiplier = 1f;
+    private float targetSensitivityMultiplier = 1f;
+    
     // Синхронизированный захваченный объект (NetworkIdentity)
     [SyncVar(hook = nameof(OnGrabbedObjectChanged))]
     private uint grabbedObjectNetId = 0;
@@ -97,6 +108,18 @@ public class ObjectGrabSystem : NetworkBehaviour
         if (playerCamera == null)
         {
             playerCamera = Camera.main;
+        }
+        
+        if (playerCamera != null)
+        {
+            if (baseCameraFov <= 0f)
+            {
+                baseCameraFov = playerCamera.fieldOfView;
+            }
+            else
+            {
+                playerCamera.fieldOfView = baseCameraFov;
+            }
         }
         
         // Создаем точку удержания если не назначена
@@ -191,6 +214,12 @@ public class ObjectGrabSystem : NetworkBehaviour
         {
             HandleWeightAndSlipping();
         }
+    }
+
+    void LateUpdate()
+    {
+        HandleCameraFov();
+        HandleMouseSensitivityDamping();
     }
     
     void FixedUpdate()
@@ -619,6 +648,45 @@ public class ObjectGrabSystem : NetworkBehaviour
                 ReleaseObject();
             }
         }
+    }
+
+    void HandleCameraFov()
+    {
+        if (playerCamera == null)
+            return;
+
+        float targetFov = baseCameraFov;
+        bool holdingObject = currentGrabbedObject != null && grabbedRigidbody != null;
+
+        if (holdingObject)
+        {
+            float clampedWeight = Mathf.Clamp(currentWeight, 0f, Mathf.Max(heavyWeightThreshold, 0.01f));
+            float weightRatio = heavyWeightThreshold > 0f ? clampedWeight / heavyWeightThreshold : 0f;
+            targetFov = Mathf.Lerp(baseCameraFov, heavyObjectFov, weightRatio);
+        }
+
+        playerCamera.fieldOfView = Mathf.Lerp(playerCamera.fieldOfView, targetFov, fovLerpSpeed * Time.deltaTime);
+    }
+
+    void HandleMouseSensitivityDamping()
+    {
+        if (mouseLook == null)
+            return;
+
+        float target = 1f;
+        bool holdingObject = currentGrabbedObject != null && currentWeight > maxComfortableWeight;
+
+        if (holdingObject)
+        {
+            float overWeightRange = Mathf.Max(dropWeightThreshold - maxComfortableWeight, 0.01f);
+            float overweight = Mathf.Clamp(currentWeight - maxComfortableWeight, 0f, overWeightRange);
+            float normalized = overweight / overWeightRange;
+            target = 1f - normalized;
+        }
+
+        targetSensitivityMultiplier = target;
+        currentSensitivityMultiplier = Mathf.Lerp(currentSensitivityMultiplier, targetSensitivityMultiplier, sensitivityLerpSpeed * Time.deltaTime);
+        mouseLook.SetExternalSensitivityMultiplier(currentSensitivityMultiplier);
     }
     
     /// <summary>

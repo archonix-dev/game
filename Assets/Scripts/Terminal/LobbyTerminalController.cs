@@ -23,7 +23,12 @@ public class LobbyTerminalController : NetworkBehaviour
     [SerializeField] private AnimationCurve cameraMoveCurve;
     [SerializeField] private bool alignCameraForwardToCanvas = true;
     [SerializeField] private Transform cameraLookTargetOverride;
-    [SerializeField] private string interactionPrompt = "Открыть (E)";
+    [SerializeField] private string interactionPrompt = "Открыть [E]";
+    
+    [Header("Выделение терминала")]
+    [SerializeField] private Renderer[] highlightRenderers;
+    [SerializeField] private Material hoverMaterial;
+    [SerializeField] private Material idleMaterial;
     
     [Header("UI")]
     [SerializeField] private Canvas terminalCanvas;
@@ -52,6 +57,7 @@ public class LobbyTerminalController : NetworkBehaviour
     private BodyCamEffect localBodyCamEffect;
     private bool bodyCamEffectWasEnabled;
     private static int lastEscapeConsumedFrame = -1;
+    private bool isHighlighted;
     
     public static bool IsAnyTerminalOpen => activeTerminal != null;
     public static bool EscapeConsumedThisFrame => lastEscapeConsumedFrame == Time.frameCount;
@@ -77,6 +83,9 @@ public class LobbyTerminalController : NetworkBehaviour
             shopUI.Initialize(this);
             hasInitializedUI = true;
         }
+        
+        isHighlighted = true;
+        SetHoverHighlight(false);
     }
     
     void OnDestroy()
@@ -90,6 +99,11 @@ public class LobbyTerminalController : NetworkBehaviour
         {
             serverMainGameStartRequested = false;
         }
+    }
+    
+    void OnDisable()
+    {
+        SetHoverHighlight(false);
     }
     
     void Update()
@@ -109,17 +123,24 @@ public class LobbyTerminalController : NetworkBehaviour
     void HandleLookInteraction()
     {
         if (IsAnyTerminalOpen)
+        {
+            SetHoverHighlight(false);
             return;
+        }
         
         Camera cam = Camera.main;
         if (cam == null)
+        {
+            SetHoverHighlight(false);
             return;
+        }
         
         Ray ray = new Ray(cam.transform.position, cam.transform.forward);
         if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, interactionLayerMask))
         {
             if (IsPartOfTerminal(hit.transform))
             {
+                SetHoverHighlight(true);
                 interactionUI?.ShowInteraction(interactionPrompt);
                 
                 if (Input.GetKeyDown(KeyCode.E))
@@ -129,6 +150,8 @@ public class LobbyTerminalController : NetworkBehaviour
                 return;
             }
         }
+        
+        SetHoverHighlight(false);
         
         if (interactionUI != null)
         {
@@ -147,10 +170,40 @@ public class LobbyTerminalController : NetworkBehaviour
         return target.IsChildOf(transform);
     }
     
+    void SetHoverHighlight(bool enable)
+    {
+        if (highlightRenderers == null || highlightRenderers.Length == 0)
+            return;
+        
+        if (isHighlighted == enable)
+            return;
+        
+        Material targetMaterial = enable ? hoverMaterial : idleMaterial;
+        if (targetMaterial == null)
+            return;
+        
+        isHighlighted = enable;
+        
+        foreach (Renderer r in highlightRenderers)
+        {
+            if (r == null)
+                continue;
+            
+            var materials = r.sharedMaterials;
+            for (int i = 0; i < materials.Length; i++)
+            {
+                materials[i] = targetMaterial;
+            }
+            r.sharedMaterials = materials;
+        }
+    }
+    
     void TryOpenTerminal()
     {
         if (isLocalOpen || IsAnyTerminalOpen)
             return;
+        
+        SetHoverHighlight(false);
         
         localPlayer = NetworkClient.localPlayer != null ? NetworkClient.localPlayer.GetComponent<PlayerController>() : FindLocalPlayerFallback();
         if (localPlayer == null)
@@ -452,6 +505,8 @@ public class LobbyTerminalController : NetworkBehaviour
         localMouseLook = null;
         localCoinManager = null;
         lastKnownCoins = -1;
+        
+        SetHoverHighlight(false);
     }
     
     public int ResolveItemPrice(int index)

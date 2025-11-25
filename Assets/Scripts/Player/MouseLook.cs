@@ -13,6 +13,7 @@ public class MouseLook : NetworkBehaviour
     [SerializeField] private float maxXRotation = 90f;
     
     private float xRotation = 0f;
+    private float externalSensitivityMultiplier = 1f;
     private KeybindScript keybindScript;
     
     public override void OnStartClient()
@@ -88,8 +89,9 @@ public class MouseLook : NetworkBehaviour
     
     void HandleMouseLook()
     {
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
+        float effectiveSensitivity = mouseSensitivity * Mathf.Max(0f, externalSensitivityMultiplier);
+        float mouseX = Input.GetAxis("Mouse X") * effectiveSensitivity * Time.deltaTime;
+        float mouseY = Input.GetAxis("Mouse Y") * effectiveSensitivity * Time.deltaTime;
         
         if (invertY)
         {
@@ -125,6 +127,11 @@ public class MouseLook : NetworkBehaviour
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
+    }
+    
+    public void SetExternalSensitivityMultiplier(float multiplier)
+    {
+        externalSensitivityMultiplier = Mathf.Clamp(multiplier, 0f, 1f);
     }
 }
 

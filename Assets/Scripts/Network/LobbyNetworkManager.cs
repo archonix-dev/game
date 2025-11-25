@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections;
 using UnityEngine;
 using Mirror;
 using UnityEngine.SceneManagement;
@@ -36,6 +37,11 @@ public class LobbyNetworkManager : NetworkManager
     
     private readonly List<PendingPurchase> pendingPurchases = new List<PendingPurchase>();
     private bool mainSceneLoadInProgress;
+    
+    // Очередь спавна игроков на сцене Lobby (ожидаем, пока соединение станет ready)
+    private readonly Dictionary<int, Coroutine> lobbySpawnCoroutines = new Dictionary<int, Coroutine>();
+    private const float lobbySpawnReadyTimeout = 10f;
+    private Coroutine lobbyClientReadyCoroutine;
     
     public static LobbyNetworkManager Instance
     {
@@ -120,6 +126,7 @@ public class LobbyNetworkManager : NetworkManager
         Debug.Log("[LobbyNetworkManager] Сервер остановлен");
         pendingPurchases.Clear();
         mainSceneLoadInProgress = false;
+        ClearLobbySpawnQueue();
     }
     
     public override void OnClientConnect()
@@ -285,12 +292,20 @@ public class LobbyNetworkManager : NetworkManager
     {
         base.OnServerSceneChanged(sceneName);
         Debug.Log($"[LobbyNetworkManager] Сервер перешел на сцену: {sceneName}");
+        if (sceneName != lobbySceneName)
+        {
+            // Как только уходим со сцены Lobby, очищаем отложенные запросы на спавн
+            ClearLobbySpawnQueue();
+        }
         
         // Если перешли на сцену Lobby, регистрируем префабы и спавним игроков
         if (sceneName == lobbySceneName)
         {
             // Регистрируем префаб игрока (на случай, если он не был зарегистрирован ранее)
             RegisterSpawnablePrefabs();
+            
+            // Принудительно помечаем все подключения готовыми, чтобы спавнер не ждал isReady
+            ForceAllConnectionsReadyForLobby();
             
             // Регистрируем все разрушаемые объекты из сцены для синхронизации
             RegisterDestructibleObjects();
@@ -323,16 +338,7 @@ public class LobbyNetworkManager : NetworkManager
             Debug.Log($"[LobbyNetworkManager] Отключили autoCreatePlayer (было: {originalAutoCreatePlayer})");
             
             // Выполняем необходимые операции вручную, но НЕ вызываем NetworkClient.AddPlayer()
-            if (NetworkClient.connection != null && NetworkClient.connection.isAuthenticated)
-            {
-                if (!NetworkClient.ready)
-                {
-                    Debug.Log("[LobbyNetworkManager] Устанавливаем клиент в состояние Ready");
-                    NetworkClient.Ready();
-                }
-                // НЕ вызываем NetworkClient.AddPlayer() на сцене Lobby
-                // Игровой префаб будет заспавнен через LobbyPlayerSpawner
-            }
+            StartEnsureClientReadyForLobby();
             
             // НЕ вызываем base.OnClientSceneChanged() на сцене Lobby
             // Это предотвратит автоматический спавн LobbyPlayer
@@ -557,9 +563,18 @@ public class LobbyNetworkManager : NetworkManager
             if (conn != null)
             {
                 Debug.Log($"[LobbyNetworkManager] Обрабатываем подключение {conn.connectionId} (isReady: {conn.isReady})");
-                Debug.Log($"[LobbyNetworkManager] Вызываем spawner.SpawnPlayer для подключения {conn.connectionId}");
-                spawner.SpawnPlayer(conn);
-                spawnedCount++;
+                EnsureConnectionReadyForLobby(conn);
+                if (conn.isReady)
+                {
+                    Debug.Log($"[LobbyNetworkManager] Подключение {conn.connectionId} готово, спавним немедленно");
+                    spawner.SpawnPlayer(conn);
+                    spawnedCount++;
+                }
+                else
+                {
+                    Debug.LogWarning($"[LobbyNetworkManager] Подключение {conn.connectionId} еще не готово. Добавляем в очередь ожидания готовности.");
+                    RequestLobbyPlayerSpawn(conn);
+                }
             }
             else
             {
@@ -605,6 +620,155 @@ public class LobbyNetworkManager : NetworkManager
                 NetworkServer.AddPlayerForConnection(conn, player);
             }
         }
+    }
+
+    /// <summary>
+    /// Запрашивает спавн игрока на сцене Lobby как только соединение станет ready.
+    /// </summary>
+    public void RequestLobbyPlayerSpawn(NetworkConnectionToClient conn)
+    {
+        if (conn == null)
+            return;
+
+        LobbyPlayerSpawner spawner = LobbyPlayerSpawner.Instance;
+        if (spawner == null)
+        {
+            Debug.LogWarning("[LobbyNetworkManager] RequestLobbyPlayerSpawn: LobbyPlayerSpawner еще не доступен. Попробуем позже.");
+            return;
+        }
+
+        if (conn.isReady)
+        {
+            Debug.Log($"[LobbyNetworkManager] RequestLobbyPlayerSpawn: подключение {conn.connectionId} уже готово, спавним сразу.");
+            spawner.SpawnPlayer(conn);
+            return;
+        }
+
+        if (lobbySpawnCoroutines.ContainsKey(conn.connectionId))
+        {
+            Debug.Log($"[LobbyNetworkManager] RequestLobbyPlayerSpawn: подключение {conn.connectionId} уже ожидает готовности.");
+            return;
+        }
+
+        Debug.Log($"[LobbyNetworkManager] RequestLobbyPlayerSpawn: запускаем ожидание готовности для подключения {conn.connectionId}.");
+        lobbySpawnCoroutines[conn.connectionId] = StartCoroutine(WaitForLobbyReadyAndSpawn(conn));
+    }
+
+    IEnumerator WaitForLobbyReadyAndSpawn(NetworkConnectionToClient conn)
+    {
+        if (conn == null)
+            yield break;
+
+        int connectionId = conn.connectionId;
+        float elapsed = 0f;
+
+        while (conn != null && !conn.isReady && elapsed < lobbySpawnReadyTimeout)
+        {
+            EnsureConnectionReadyForLobby(conn);
+            yield return null;
+            elapsed += Time.deltaTime;
+        }
+
+        lobbySpawnCoroutines.Remove(connectionId);
+
+        if (conn == null)
+        {
+            Debug.LogWarning($"[LobbyNetworkManager] Подключение {connectionId} исчезло до готовности, спавн отменен.");
+            yield break;
+        }
+
+        if (!conn.isReady)
+        {
+            Debug.LogError($"[LobbyNetworkManager] Подключение {connectionId} не стало готовым за {lobbySpawnReadyTimeout} секунд, спавн отменен.");
+            yield break;
+        }
+
+        if (SceneManager.GetActiveScene().name != lobbySceneName)
+        {
+            Debug.LogWarning($"[LobbyNetworkManager] Сцена уже не Lobby при спавне подключения {connectionId}, пропускаем.");
+            yield break;
+        }
+
+        LobbyPlayerSpawner spawner = LobbyPlayerSpawner.Instance;
+        if (spawner == null)
+        {
+            Debug.LogError("[LobbyNetworkManager] LobbyPlayerSpawner не найден после ожидания готовности, спавн невозможен.");
+            yield break;
+        }
+
+        Debug.Log($"[LobbyNetworkManager] Подключение {connectionId} стало готовым спустя {elapsed:F1} сек, спавним игрока.");
+        spawner.SpawnPlayer(conn);
+    }
+
+    void ClearLobbySpawnQueue()
+    {
+        foreach (var coroutine in lobbySpawnCoroutines.Values)
+        {
+            if (coroutine != null)
+            {
+                StopCoroutine(coroutine);
+            }
+        }
+        lobbySpawnCoroutines.Clear();
+    }
+
+    void EnsureConnectionReadyForLobby(NetworkConnectionToClient conn)
+    {
+        if (conn == null || conn.isReady || !conn.isAuthenticated)
+            return;
+
+        if (conn is LocalConnectionToClient)
+        {
+            Debug.Log($"[LobbyNetworkManager] Помечаем локальное подключение {conn.connectionId} готовым на сцене Lobby");
+            NetworkServer.SetClientReady(conn);
+        }
+    }
+
+    void ForceAllConnectionsReadyForLobby()
+    {
+        foreach (var kvp in NetworkServer.connections)
+        {
+            var conn = kvp.Value;
+            if (conn == null)
+                continue;
+
+            EnsureConnectionReadyForLobby(conn);
+        }
+    }
+
+    void StartEnsureClientReadyForLobby()
+    {
+        if (lobbyClientReadyCoroutine != null)
+        {
+            StopCoroutine(lobbyClientReadyCoroutine);
+        }
+        lobbyClientReadyCoroutine = StartCoroutine(EnsureClientReadyForLobbyRoutine());
+    }
+
+    IEnumerator EnsureClientReadyForLobbyRoutine()
+    {
+        const float timeout = 15f;
+        float elapsed = 0f;
+
+        while (elapsed < timeout)
+        {
+            if (NetworkClient.connection != null && NetworkClient.connection.isAuthenticated)
+            {
+                if (!NetworkClient.ready)
+                {
+                    Debug.Log("[LobbyNetworkManager] Client authenticated on Lobby scene, calling NetworkClient.Ready()");
+                    NetworkClient.Ready();
+                }
+                lobbyClientReadyCoroutine = null;
+                yield break;
+            }
+
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        lobbyClientReadyCoroutine = null;
+        Debug.LogWarning("[LobbyNetworkManager] Не удалось дождаться аутентификации клиента для Ready на сцене Lobby (тайм-аут 15 сек)");
     }
 }
 

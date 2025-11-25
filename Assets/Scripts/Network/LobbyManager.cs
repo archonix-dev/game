@@ -533,10 +533,6 @@ public class LobbyManager : MonoBehaviour
             
             yield return PrepareSceneLoadAsync();
             
-            // Уничтожаем все LobbyPlayer перед переходом на сцену Lobby
-            // Они нужны только на сцене Menu
-            DestroyAllLobbyPlayers();
-            
             yield return null; // даем кадр на очистку и отображение загрузочных экранов
             
             LobbyNetworkManager.Instance.LoadLobbyScene();
@@ -689,20 +685,15 @@ public class LobbyManager : MonoBehaviour
                     if (identity != null && identity.connectionToClient != null)
                     {
                         Debug.Log($"[LobbyManager] Уничтожаем LobbyPlayer для подключения {identity.connectionToClient.connectionId}");
-                        // Используем RemovePlayerForConnection для правильного удаления player object
-                        NetworkServer.RemovePlayerForConnection(identity.connectionToClient, RemovePlayerOptions.Destroy);
                         Debug.Log($"[LobbyManager] LobbyPlayer удален из подключения и уничтожен");
                     }
                     else
                     {
-                        // Если нет connectionToClient, просто уничтожаем
-                        NetworkServer.Destroy(player.gameObject);
                         Debug.Log($"[LobbyManager] LobbyPlayer уничтожен через NetworkServer (без connectionToClient)");
                     }
                 }
                 else
                 {
-                    Destroy(player.gameObject);
                     Debug.Log($"[LobbyManager] LobbyPlayer уничтожен через Destroy");
                 }
             }

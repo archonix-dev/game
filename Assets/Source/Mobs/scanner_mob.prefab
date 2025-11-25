@@ -714,8 +714,8 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
-  wanderRadius: 10
-  wanderSpeed: 3
+  wanderRadius: 20
+  wanderSpeed: 5
   chaseSpeed: 6
   rotationSpeed: 5
   flyingHeight: 1.3
@@ -732,6 +732,7 @@ MonoBehaviour:
   explosionRadius: 3
   damageToPlayer: 5
   chaseDistance: 2
+  maxExplosionShakeIntensity: 0.3
   volumetricLight: {fileID: 2703980209750154372}
   normalColor: {r: 0, g: 0.71, b: 1, a: 1}
   scanningColor: {r: 1, g: 0, b: 0.05, a: 1}
@@ -761,6 +762,7 @@ MonoBehaviour:
   alarmVolume: 0.8
   mirrorFacingWhenAlerted: 1
   invertModelForwardAxis: 1
+  hideMode: 1
   explosionEffectLifetime: 3
 --- !u!114 &4566422800202836117
 MonoBehaviour:
