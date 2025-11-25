@@ -29,12 +29,12 @@ public class ModItemActive : MonoBehaviour
     [Tooltip("Цвет выбранного мода (опционально)")]
     public Color selectedColor = new Color(1f, 1f, 0.5f, 1f);
     
-    [Header("Warning Objects")]
-    [Tooltip("GameObject предупреждения о несовместимости (warning_use_mod)")]
-    public GameObject warningUseMod;
+    [Header("Outlines")]
+    [Tooltip("Outline предупреждения о частичной совместимости")]
+    public Outline warningOutline;
     
-    [Tooltip("GameObject блокировки мода (dont_use_mod)")]
-    public GameObject dontUseMod;
+    [Tooltip("Outline блокировки мода")]
+    public Outline blockOutline;
     
     private ModData modData;
     private ModConfiguration modConfiguration;
@@ -190,16 +190,8 @@ public class ModItemActive : MonoBehaviour
     /// </summary>
     private void UpdateCompatibilityWarnings()
     {
-        // Скрываем все предупреждения по умолчанию
-        if (warningUseMod != null)
-        {
-            warningUseMod.SetActive(false);
-        }
-        
-        if (dontUseMod != null)
-        {
-            dontUseMod.SetActive(false);
-        }
+        SetOutlineState(warningOutline, false);
+        SetOutlineState(blockOutline, false);
         
         // Обязательный мод "localhost" всегда совместим, предупреждения не показываем
         if (modConfiguration != null && modConfiguration.IsRequiredMod(modData))
@@ -211,17 +203,11 @@ public class ModItemActive : MonoBehaviour
         switch (modData.compatibility)
         {
             case VersionCompatibility.Warning:
-                if (warningUseMod != null)
-                {
-                    warningUseMod.SetActive(true);
-                }
+                SetOutlineState(warningOutline, true);
                 break;
                 
             case VersionCompatibility.Incompatible:
-                if (dontUseMod != null)
-                {
-                    dontUseMod.SetActive(true);
-                }
+                SetOutlineState(blockOutline, true);
                 break;
                 
             case VersionCompatibility.Compatible:
@@ -260,6 +246,14 @@ public class ModItemActive : MonoBehaviour
         if (selectButton != null)
         {
             selectButton.onClick.RemoveAllListeners();
+        }
+    }
+
+    private void SetOutlineState(Outline outline, bool state)
+    {
+        if (outline != null)
+        {
+            outline.enabled = state;
         }
     }
 }

@@ -19,12 +19,12 @@ public class ModItemInactive : MonoBehaviour
     [Tooltip("Кнопка для активации мода")]
     public Button activateButton;
     
-    [Header("Warning Objects")]
-    [Tooltip("GameObject предупреждения о несовместимости (warning_use_mod)")]
-    public GameObject warningUseMod;
+    [Header("Outlines")]
+    [Tooltip("Outline предупреждения о частичной совместимости")]
+    public Outline warningOutline;
     
-    [Tooltip("GameObject блокировки мода (dont_use_mod)")]
-    public GameObject dontUseMod;
+    [Tooltip("Outline блокировки мода")]
+    public Outline blockOutline;
     
     private ModData modData;
     private ModConfiguration modConfiguration;
@@ -99,32 +99,17 @@ public class ModItemInactive : MonoBehaviour
     /// </summary>
     private void UpdateCompatibilityWarnings()
     {
-        // Скрываем все предупреждения по умолчанию
-        if (warningUseMod != null)
-        {
-            warningUseMod.SetActive(false);
-        }
-        
-        if (dontUseMod != null)
-        {
-            dontUseMod.SetActive(false);
-        }
-        
-        // Показываем соответствующие предупреждения
+        SetOutlineState(warningOutline, false);
+        SetOutlineState(blockOutline, false);
+
         switch (modData.compatibility)
         {
             case VersionCompatibility.Warning:
-                if (warningUseMod != null)
-                {
-                    warningUseMod.SetActive(true);
-                }
+                SetOutlineState(warningOutline, true);
                 break;
                 
             case VersionCompatibility.Incompatible:
-                if (dontUseMod != null)
-                {
-                    dontUseMod.SetActive(true);
-                }
+                SetOutlineState(blockOutline, true);
                 break;
                 
             case VersionCompatibility.Compatible:
@@ -143,6 +128,14 @@ public class ModItemInactive : MonoBehaviour
         if (modData != null && modConfiguration != null)
         {
             modConfiguration.ActivateMod(modData);
+        }
+    }
+
+    private void SetOutlineState(Outline outline, bool state)
+    {
+        if (outline != null)
+        {
+            outline.enabled = state;
         }
     }
     

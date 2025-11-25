@@ -86,7 +86,28 @@ public class CorpseGrabSystem : NetworkBehaviour
         new Color32(0, 255, 0, 255),   // Зеленый
         new Color32(0, 0, 0, 255)      // Черный
     };
+    
+    [Header("Recoil Feedback Settings")]
+    [Tooltip("Левый объект UI для отображения отдачи")]
+    [SerializeField] private RectTransform recoilObjectLeft;
+    [Tooltip("Правый объект UI для отображения отдачи")]
+    [SerializeField] private RectTransform recoilObjectRight;
+    [Tooltip("Время движения объекта в сторону отдачи (сек)")]
+    [SerializeField] private float recoilOutDuration = 0.08f;
+    [Tooltip("Время возврата объекта после отдачи (сек)")]
+    [SerializeField] private float recoilReturnDuration = 0.12f;
+    [Tooltip("Начальное положение X левого объекта (до выстрела)")]
+    [SerializeField] private float recoilLeftStartX = -137.5f;
+    [Tooltip("Положение X левого объекта при отдаче")]
+    [SerializeField] private float recoilLeftEndX = -180f;
+    [Tooltip("Начальное положение X правого объекта (до выстрела)")]
+    [SerializeField] private float recoilRightStartX = 135.5f;
+    [Tooltip("Положение X правого объекта при отдаче")]
+    [SerializeField] private float recoilRightEndX = 178f;
+
     private readonly List<MonoBehaviour> damageReceiversBuffer = new List<MonoBehaviour>(8);
+    private Coroutine leftRecoilRoutine;
+    private Coroutine rightRecoilRoutine;
     
     void Start()
     {
@@ -114,6 +135,8 @@ public class CorpseGrabSystem : NetworkBehaviour
         
         // Создаем LineRenderer для визуализации удержания
         CreateGrabLineRenderer();
+
+        ResetRecoilUI();
     }
     
     void Update()
@@ -659,6 +682,97 @@ public class CorpseGrabSystem : NetworkBehaviour
         }
     }
 
+    void ResetRecoilUI()
+    {
+        if (!isOwned)
+            return;
+
+        if (leftRecoilRoutine != null)
+        {
+            StopCoroutine(leftRecoilRoutine);
+            leftRecoilRoutine = null;
+        }
+
+        if (rightRecoilRoutine != null)
+        {
+            StopCoroutine(rightRecoilRoutine);
+            rightRecoilRoutine = null;
+        }
+
+        if (recoilObjectLeft != null)
+        {
+            Vector2 leftPos = recoilObjectLeft.anchoredPosition;
+            leftPos.x = recoilLeftStartX;
+            recoilObjectLeft.anchoredPosition = leftPos;
+        }
+
+        if (recoilObjectRight != null)
+        {
+            Vector2 rightPos = recoilObjectRight.anchoredPosition;
+            rightPos.x = recoilRightStartX;
+            recoilObjectRight.anchoredPosition = rightPos;
+        }
+    }
+
+    void TriggerRecoilFeedback()
+    {
+        if (!isOwned)
+            return;
+
+        StartRecoilAnimation(recoilObjectLeft, ref leftRecoilRoutine, recoilLeftStartX, recoilLeftEndX);
+        StartRecoilAnimation(recoilObjectRight, ref rightRecoilRoutine, recoilRightStartX, recoilRightEndX);
+    }
+
+    void StartRecoilAnimation(RectTransform target, ref Coroutine routine, float startX, float endX)
+    {
+        if (target == null)
+            return;
+
+        if (routine != null)
+        {
+            StopCoroutine(routine);
+        }
+
+        routine = StartCoroutine(AnimateRecoil(target, startX, endX));
+    }
+
+    IEnumerator AnimateRecoil(RectTransform target, float startX, float endX)
+    {
+        SetRecoilPosition(target, startX);
+
+        float elapsed = 0f;
+        float durationOut = Mathf.Max(0.0001f, recoilOutDuration);
+        while (elapsed < durationOut)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / durationOut);
+            SetRecoilPosition(target, Mathf.Lerp(startX, endX, t));
+            yield return null;
+        }
+
+        elapsed = 0f;
+        float durationReturn = Mathf.Max(0.0001f, recoilReturnDuration);
+        while (elapsed < durationReturn)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / durationReturn);
+            SetRecoilPosition(target, Mathf.Lerp(endX, startX, t));
+            yield return null;
+        }
+
+        SetRecoilPosition(target, startX);
+    }
+
+    void SetRecoilPosition(RectTransform target, float posX)
+    {
+        if (target == null)
+            return;
+
+        Vector2 anchored = target.anchoredPosition;
+        anchored.x = posX;
+        target.anchoredPosition = anchored;
+    }
+
     void TryShoot()
     {
         if (Time.time < nextLocalShootTime || bulletPalette.Length == 0)
@@ -673,6 +787,7 @@ public class CorpseGrabSystem : NetworkBehaviour
         Color32 selectedColor = bulletPalette[UnityEngine.Random.Range(0, bulletPalette.Length)];
 
         nextLocalShootTime = Time.time + (fireRate > 0f ? 1f / fireRate : 0.333f);
+        TriggerRecoilFeedback();
         CmdShoot(origin, direction.normalized, selectedColor);
     }
 

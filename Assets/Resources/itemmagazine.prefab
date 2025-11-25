@@ -164,7 +164,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_FontData:
-    m_Font: {fileID: 12800000, guid: d2c237bb0e22d8f429954a8d99fc01d5, type: 3}
+    m_Font: {fileID: 12800000, guid: 968a06f553a083d4c9cbaf5d1a236038, type: 3}
     m_FontSize: 41
     m_FontStyle: 0
     m_BestFit: 1
@@ -189,6 +189,8 @@ GameObject:
   - component: {fileID: 5997677663712706290}
   - component: {fileID: 5349711816750862570}
   - component: {fileID: 1975393140424534121}
+  - component: {fileID: 1746234614832125105}
+  - component: {fileID: 7710820535845165784}
   m_Layer: 5
   m_Name: buy
   m_TagString: Untagged
@@ -237,7 +239,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0.46226418, b: 0.031637892, a: 1}
+  m_Color: {r: 0, g: 0, b: 0, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -298,6 +300,40 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &1746234614832125105
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5610468818488333989}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 895cf0e884cceb9448e5111ee54c3a35, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  normalImageColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
+  targetTexts:
+  - {fileID: 6132743359692456199}
+  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
+  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  targetOutline: {fileID: 7710820535845165784}
+--- !u!114 &7710820535845165784
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5610468818488333989}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_EffectColor: {r: 1, g: 1, b: 1, a: 1}
+  m_EffectDistance: {x: 5, y: -5}
+  m_UseGraphicAlpha: 1
 --- !u!1 &5899962030921296294
 GameObject:
   m_ObjectHideFlags: 0
@@ -592,7 +628,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_FontData:
-    m_Font: {fileID: 12800000, guid: d2c237bb0e22d8f429954a8d99fc01d5, type: 3}
+    m_Font: {fileID: 12800000, guid: 968a06f553a083d4c9cbaf5d1a236038, type: 3}
     m_FontSize: 180
     m_FontStyle: 0
     m_BestFit: 1
@@ -821,7 +857,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_FontData:
-    m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
+    m_Font: {fileID: 12800000, guid: 968a06f553a083d4c9cbaf5d1a236038, type: 3}
     m_FontSize: 40
     m_FontStyle: 0
     m_BestFit: 1

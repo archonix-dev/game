@@ -1,6 +1,7 @@
 using UnityEngine;
 using TMPro;
 using Mirror;
+using UnityEngine.UI;
 
 [RequireComponent(typeof(CharacterController))]
 public class PlayerController : NetworkBehaviour
@@ -157,7 +158,17 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private float crouchingCameraNear = 0.09f;
     [SerializeField] private float proneCameraNear = 0.01f;
     [SerializeField] private float cameraNearChangeSpeed = 10f;
-
+    
+    [Header("Crosshair Targeting Settings")]
+    [Tooltip("Image, показывающийся при наведении на любые объекты кроме игроков")]
+    [SerializeField] private Image defaultCrosshairImage;
+    [Tooltip("Image, показывающийся при наведении на игрока")]
+    [SerializeField] private Image playerCrosshairImage;
+    [Tooltip("Дистанция проверки наведения для смены Image")]
+    [SerializeField] private float crosshairRayDistance = 20f;
+    [Tooltip("Слои для Raycast наведения (по умолчанию все слои)")]
+    [SerializeField] private LayerMask crosshairLayerMask = ~0;
+    
     [Header("Damage Feedback Settings")]
     [SerializeField] private string hitAnimation = "hit";
     [SerializeField] private float hitAnimationDuration = 0.1f;
@@ -267,6 +278,7 @@ public class PlayerController : NetworkBehaviour
     private PlayerNameState currentNameState = PlayerNameState.Hidden;
     private float nameAnimationStartTime = -1f;
     private Collider playerCollider;
+    private bool lastCrosshairAimedAtPlayer = false;
     
     // Переменные для смерти
     // Синхронизированное состояние смерти
@@ -566,6 +578,8 @@ public class PlayerController : NetworkBehaviour
 			}
 		}
 
+        InitializeCrosshairUI();
+
         lastLegPosition = transform.position;
         smoothedLegSpeed = 0f;
         legPositionInitialized = true;
@@ -617,6 +631,8 @@ public class PlayerController : NetworkBehaviour
         
         // Обрабатываем анимации владельца (IdleLong и др.)
         HandleOwnerAnimations();
+
+        HandleCrosshairTargeting();
         
         // Обновляем текст с никнеймом и здоровьем
         UpdateNameTagText();
@@ -988,6 +1004,12 @@ public class PlayerController : NetworkBehaviour
 			if (legRenderers[i] == null) continue;
 			legRenderers[i].enabled = enabled;
         }
+    }
+
+    void InitializeCrosshairUI()
+    {
+        lastCrosshairAimedAtPlayer = true; // заставляем UpdateCrosshairImages обновить состояние
+        UpdateCrosshairImages(false);
     }
     
     void UpdateLegAnimationState()
@@ -1441,6 +1463,57 @@ public class PlayerController : NetworkBehaviour
         bool shouldShow = currentStance == PlayerStance.Standing;
         nameTagText.gameObject.SetActive(shouldShow);
     }
+
+    void HandleCrosshairTargeting()
+    {
+        if (!isOwned)
+        {
+            return;
+        }
+
+        Transform camTransform = playerCamera != null ? playerCamera : (cameraComponent != null ? cameraComponent.transform : null);
+        if (camTransform == null)
+        {
+            UpdateCrosshairImages(false);
+            return;
+        }
+
+        float rayDistance = crosshairRayDistance > 0f ? crosshairRayDistance : Mathf.Max(lookAtDistance, 1f);
+        int mask = crosshairLayerMask.value == 0 ? Physics.DefaultRaycastLayers : crosshairLayerMask.value;
+        bool aimingAtPlayer = false;
+
+        if (Physics.Raycast(camTransform.position, camTransform.forward, out RaycastHit hit, rayDistance, mask, QueryTriggerInteraction.Ignore))
+        {
+            PlayerController otherPlayer = hit.collider.GetComponentInParent<PlayerController>();
+            if (otherPlayer != null && otherPlayer != this)
+            {
+                aimingAtPlayer = true;
+            }
+        }
+
+        UpdateCrosshairImages(aimingAtPlayer);
+    }
+
+    void UpdateCrosshairImages(bool aimingAtPlayer)
+    {
+        if (lastCrosshairAimedAtPlayer == aimingAtPlayer)
+        {
+            return;
+        }
+
+        lastCrosshairAimedAtPlayer = aimingAtPlayer;
+
+        if (defaultCrosshairImage != null)
+        {
+            defaultCrosshairImage.enabled = !aimingAtPlayer;
+        }
+
+        if (playerCrosshairImage != null)
+        {
+            playerCrosshairImage.enabled = aimingAtPlayer;
+        }
+    }
+
     
     /// <summary>
     /// Обновляет текст 3D никнейма из NetworkPlayer
