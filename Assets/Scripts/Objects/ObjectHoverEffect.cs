@@ -2,12 +2,13 @@ using UnityEngine;
 
 public class ObjectHoverEffect : MonoBehaviour
 {
-    [Header("Textures")]
-    [Tooltip("Текстура для обычного состояния (когда мышь не наведена)")]
-    public Texture2D normalTexture;
+    [Header("Material")]
+    [Tooltip("Материал, на котором будет управляться эмиссия (опционально)")]
+    public Material sourceMaterial;
     
-    [Tooltip("Текстура для состояния наведения (когда мышь наведена)")]
-    public Texture2D hoverTexture;
+    [ColorUsage(true, true)]
+    [Tooltip("Цвет эмиссии, который будет применен при наведении")]
+    public Color hoverEmissionColor = Color.white;
     
     [Header("Settings")]
     [Tooltip("Индекс материала (если объект имеет несколько материалов)")]
@@ -16,7 +17,12 @@ public class ObjectHoverEffect : MonoBehaviour
     [Tooltip("Слой для Raycast (оставьте пустым для всех слоев)")]
     public LayerMask raycastLayer = -1;
     
-    private Material objectMaterial;
+    private static readonly int EmissionColorProperty = Shader.PropertyToID("_EmissionColor");
+    
+    private Material runtimeMaterial;
+    private Color initialEmissionColor = Color.black;
+    private bool emissionSupported = false;
+    
     private bool isHovered = false;
     private Renderer objectRenderer;
     private Collider objectCollider;
@@ -38,24 +44,7 @@ public class ObjectHoverEffect : MonoBehaviour
             Debug.LogWarning($"ObjectHoverEffect: Collider не найден на объекте {gameObject.name}. Добавьте Collider для работы эффекта наведения.");
         }
         
-        // Получаем материал
-        if (objectRenderer.materials != null && objectRenderer.materials.Length > 0)
-        {
-            if (materialIndex < objectRenderer.materials.Length)
-            {
-                objectMaterial = objectRenderer.materials[materialIndex];
-            }
-            else
-            {
-                objectMaterial = objectRenderer.material;
-            }
-            
-            // Устанавливаем начальную текстуру
-            if (normalTexture != null && objectMaterial != null)
-            {
-                SetTexture(normalTexture);
-            }
-        }
+        InitializeMaterial();
     }
     
     /// <summary>
@@ -66,52 +55,79 @@ public class ObjectHoverEffect : MonoBehaviour
         if (isHovered == hovered) return;
         
         isHovered = hovered;
-        
-        if (hovered && hoverTexture != null && objectMaterial != null)
-        {
-            SetTexture(hoverTexture);
-        }
-        else if (!hovered && normalTexture != null && objectMaterial != null)
-        {
-            SetTexture(normalTexture);
-        }
+        UpdateEmission();
     }
     
-    /// <summary>
-    /// Устанавливает текстуру в материал (поддерживает разные шейдеры)
-    /// </summary>
-    private void SetTexture(Texture2D texture)
+    private void InitializeMaterial()
     {
-        if (objectMaterial == null || texture == null) return;
+        if (objectRenderer == null) return;
         
-        // Пробуем разные имена свойств в зависимости от шейдера
-        if (objectMaterial.HasProperty("_BaseMap"))
+        // Создаем копию материала, чтобы не изменять оригинальный ассет
+        if (sourceMaterial != null)
         {
-            // URP/Lit шейдер
-            objectMaterial.SetTexture("_BaseMap", texture);
+            runtimeMaterial = Instantiate(sourceMaterial);
+            
+            if (objectRenderer.materials != null && objectRenderer.materials.Length > 0)
+            {
+                var materials = objectRenderer.materials;
+                var index = Mathf.Clamp(materialIndex, 0, materials.Length - 1);
+                materials[index] = runtimeMaterial;
+                objectRenderer.materials = materials;
+            }
+            else
+            {
+                objectRenderer.material = runtimeMaterial;
+            }
         }
-        else if (objectMaterial.HasProperty("_MainTex"))
+        else if (objectRenderer.materials != null && objectRenderer.materials.Length > 0)
         {
-            // Стандартный шейдер
-            objectMaterial.SetTexture("_MainTex", texture);
+            var materials = objectRenderer.materials;
+            var index = Mathf.Clamp(materialIndex, 0, materials.Length - 1);
+            runtimeMaterial = materials[index];
         }
-        else if (objectMaterial.HasProperty("_BaseColorMap"))
+        
+        if (runtimeMaterial == null)
         {
-            // HDRP шейдер
-            objectMaterial.SetTexture("_BaseColorMap", texture);
+            Debug.LogWarning($"ObjectHoverEffect: Материал не найден на объекте {gameObject.name}. Задайте материал в инспекторе или убедитесь, что Renderer содержит материалы.");
+            return;
+        }
+        
+        if (!runtimeMaterial.HasProperty(EmissionColorProperty))
+        {
+            Debug.LogWarning($"ObjectHoverEffect: Материал {runtimeMaterial.name} не поддерживает эмиссию. Добавьте свойство _EmissionColor.");
+            return;
+        }
+        
+        emissionSupported = true;
+        initialEmissionColor = runtimeMaterial.GetColor(EmissionColorProperty);
+        DisableEmission();
+    }
+    
+    private void UpdateEmission()
+    {
+        if (!emissionSupported || runtimeMaterial == null) return;
+        
+        if (isHovered)
+        {
+            runtimeMaterial.EnableKeyword("_EMISSION");
+            runtimeMaterial.SetColor(EmissionColorProperty, hoverEmissionColor);
         }
         else
         {
-            Debug.LogWarning($"ObjectHoverEffect: Не удалось найти свойство текстуры в материале объекта {gameObject.name}. Убедитесь, что используется поддерживаемый шейдер.");
+            DisableEmission();
         }
+    }
+    
+    private void DisableEmission()
+    {
+        if (!emissionSupported || runtimeMaterial == null) return;
+        
+        runtimeMaterial.SetColor(EmissionColorProperty, initialEmissionColor);
+        runtimeMaterial.DisableKeyword("_EMISSION");
     }
     
     void OnDestroy()
     {
-        // Восстанавливаем исходную текстуру при уничтожении
-        if (normalTexture != null && objectMaterial != null)
-        {
-            SetTexture(normalTexture);
-        }
+        DisableEmission();
     }
 }

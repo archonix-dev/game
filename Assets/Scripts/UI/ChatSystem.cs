@@ -67,6 +67,9 @@ public class ChatSystem : NetworkBehaviour
     private string currentCommandSuggestion = "";
     private int currentSuggestionIndex = -1;
     private List<string> currentSuggestions = new List<string>();
+    private bool IsTypingInChat => isChatOpen && chatInputField != null && chatInputField.isActiveAndEnabled && chatInputField.isFocused;
+    
+    private CorpseGrabSystem corpseGrabSystem;
     
     public override void OnStartClient()
     {
@@ -130,16 +133,7 @@ public class ChatSystem : NetworkBehaviour
         // Инициализация: чат закрыт
         SetChatState(false);
         
-        // Автоматический поиск компонентов, если не назначены
-        if (playerController == null)
-        {
-            playerController = FindObjectOfType<PlayerController>();
-        }
-        
-        if (mouseLook == null)
-        {
-            mouseLook = FindObjectOfType<MouseLook>();
-        }
+        EnsurePlayerReferences();
         
         if (audioSource == null)
         {
@@ -311,8 +305,8 @@ public class ChatSystem : NetworkBehaviour
         }
         else
         {
-            // Повторное нажатие горячих клавиш закрывает чат
-            if (Input.GetKeyDown(KeyCode.Slash) || Input.GetKeyDown(KeyCode.T))
+            // Пока игрок печатает, игнорируем попытки закрыть чат через горячие клавиши
+            if ((Input.GetKeyDown(KeyCode.Slash) || Input.GetKeyDown(KeyCode.T)) && !IsTypingInChat)
             {
                 SetChatState(false);
                 return;
@@ -351,6 +345,8 @@ public class ChatSystem : NetworkBehaviour
     /// </summary>
     public void SetChatState(bool open)
     {
+        EnsurePlayerReferences();
+        
         isChatOpen = open;
         
         // Показываем/скрываем UI чата
@@ -359,24 +355,10 @@ public class ChatSystem : NetworkBehaviour
             chatRoot.SetActive(open);
         }
         
-        // Отключаем/включаем движение игрока
-        if (playerController != null)
-        {
-            playerController.enabled = !open;
-        }
+        SetGameplayInputBlocked(open);
         
-        // Отключаем/включаем вращение камеры
-        if (mouseLook != null)
-        {
-            mouseLook.enabled = !open;
-        }
-        
-        // Управление курсором
         if (open)
         {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-            
             // Фокусируемся на поле ввода и активируем его
             // Используем корутину для задержки, чтобы убедиться, что UI готов
             if (chatInputField != null)
@@ -386,9 +368,6 @@ public class ChatSystem : NetworkBehaviour
         }
         else
         {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
-            
             // Очищаем поле ввода
             if (chatInputField != null)
             {
@@ -399,6 +378,79 @@ public class ChatSystem : NetworkBehaviour
             // Сбрасываем флаг Enter
             wasEnterPressed = false;
         }
+    }
+    
+    /// <summary>
+    /// Включает или отключает управление игроком и дополнительные системы, пока открыт чат
+    /// </summary>
+    private void SetGameplayInputBlocked(bool blocked)
+    {
+        EnsurePlayerReferences();
+        
+        if (playerController != null)
+        {
+            playerController.enabled = !blocked;
+        }
+        
+        if (mouseLook != null)
+        {
+            mouseLook.enabled = !blocked;
+        }
+        
+        if (corpseGrabSystem != null)
+        {
+            corpseGrabSystem.enabled = !blocked;
+        }
+        
+        Cursor.lockState = blocked ? CursorLockMode.None : CursorLockMode.Locked;
+        Cursor.visible = blocked;
+    }
+    
+    /// <summary>
+    /// Обновляет ссылки на компоненты игрока, если они еще не найдены
+    /// </summary>
+    private void EnsurePlayerReferences()
+    {
+        if (playerController == null)
+        {
+            playerController = FindOwnedComponent<PlayerController>();
+        }
+        
+        if (mouseLook == null)
+        {
+            mouseLook = FindOwnedComponent<MouseLook>();
+        }
+        
+        if (corpseGrabSystem == null)
+        {
+            corpseGrabSystem = FindOwnedComponent<CorpseGrabSystem>();
+        }
+    }
+    
+    private T FindOwnedComponent<T>() where T : NetworkBehaviour
+    {
+        T[] components = FindObjectsOfType<T>(true);
+        T fallback = null;
+        foreach (var component in components)
+        {
+            if (component == null) continue;
+            
+            if (component.netIdentity == null || component.netIdentity.netId == 0)
+            {
+                return component;
+            }
+            
+            if (component.isOwned)
+            {
+                return component;
+            }
+            
+            if (fallback == null)
+            {
+                fallback = component;
+            }
+        }
+        return fallback;
     }
     
     /// <summary>
