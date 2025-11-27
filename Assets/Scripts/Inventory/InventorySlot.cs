@@ -16,6 +16,9 @@ public class InventorySlot : MonoBehaviour
     [SerializeField] private Color normalColor = Color.white;
     [SerializeField] private Color selectedColor = Color.yellow;
     [SerializeField] private Color emptyColor = new Color(0.5f, 0.5f, 0.5f, 0.3f);
+    [SerializeField] private Vector3 unselectedScale = new Vector3(0.9f, 0.9f, 0.9f);
+    [SerializeField] private Vector3 selectedScale = new Vector3(1.2f, 1.2f, 1.2f);
+    [SerializeField] private Transform scaleTarget;
     
     private InventoryItem item;
     private bool isSelected = false;
@@ -34,8 +37,11 @@ public class InventorySlot : MonoBehaviour
             backgroundImage = GetComponent<Image>();
         if (selectedFrame == null)
             selectedFrame = transform.Find("SelectedFrame")?.GetComponent<Image>();
+        if (scaleTarget == null)
+            scaleTarget = transform;
         
         ClearSlot();
+        ApplyScale();
     }
     
     /// <summary>
@@ -116,6 +122,16 @@ public class InventorySlot : MonoBehaviour
         
         if (selectedFrame != null)
             selectedFrame.gameObject.SetActive(isSelected);
+        
+        ApplyScale();
+    }
+    
+    void ApplyScale()
+    {
+        if (scaleTarget != null)
+        {
+            scaleTarget.localScale = isSelected ? selectedScale : unselectedScale;
+        }
     }
     
     /// <summary>

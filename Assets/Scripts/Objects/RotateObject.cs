@@ -7,6 +7,6 @@ public class RotateObject : MonoBehaviour
     void Update()
     {
         // Вращение объекта по оси Y
-        transform.Rotate(0f, rotationSpeed * Time.deltaTime, 0f);
+        transform.Rotate(0f, 0f, rotationSpeed * Time.deltaTime);
     }
 }

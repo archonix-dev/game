@@ -37,6 +37,7 @@ public class LobbyNetworkManager : NetworkManager
     
     private readonly List<PendingPurchase> pendingPurchases = new List<PendingPurchase>();
     private bool mainSceneLoadInProgress;
+    private readonly Dictionary<int, int> cachedConnectionCoins = new Dictionary<int, int>();
     
     // Очередь спавна игроков на сцене Lobby (ожидаем, пока соединение станет ready)
     private readonly Dictionary<int, Coroutine> lobbySpawnCoroutines = new Dictionary<int, Coroutine>();
@@ -67,6 +68,7 @@ public class LobbyNetworkManager : NetworkManager
         Debug.Log("[LobbyNetworkManager] Сервер запущен");
         mainSceneLoadInProgress = false;
         pendingPurchases.Clear();
+        cachedConnectionCoins.Clear();
         
         // Регистрируем префабы для спавна (когда сервер запущен, LobbyPlayerSpawner уже должен быть на сцене)
         RegisterSpawnablePrefabs();
@@ -211,6 +213,25 @@ public class LobbyNetworkManager : NetworkManager
         }
         
         pendingPurchases.Clear();
+    }
+    
+    [Server]
+    public void CacheCoinsForConnection(int connectionId, int coins)
+    {
+        cachedConnectionCoins[connectionId] = Mathf.Max(0, coins);
+    }
+    
+    [Server]
+    public bool TryConsumeCachedCoins(int connectionId, out int coins)
+    {
+        if (cachedConnectionCoins.TryGetValue(connectionId, out coins))
+        {
+            cachedConnectionCoins.Remove(connectionId);
+            return true;
+        }
+        
+        coins = 0;
+        return false;
     }
     
     /// <summary>
@@ -393,6 +414,15 @@ public class LobbyNetworkManager : NetworkManager
         // На сцене Menu спавним LobbyPlayer как обычно
         Debug.Log("[LobbyNetworkManager] На сцене Menu, спавним LobbyPlayer");
         base.OnServerAddPlayer(conn);
+    }
+    
+    public override void OnServerDisconnect(NetworkConnectionToClient conn)
+    {
+        if (conn != null)
+        {
+            cachedConnectionCoins.Remove(conn.connectionId);
+        }
+        base.OnServerDisconnect(conn);
     }
     
     /// <summary>
@@ -603,6 +633,11 @@ public class LobbyNetworkManager : NetworkManager
             
             if (conn.identity != null)
             {
+                var coinManager = conn.identity.GetComponent<CoinManager>();
+                if (coinManager != null)
+                {
+                    CacheCoinsForConnection(conn.connectionId, coinManager.GetCoins());
+                }
                 NetworkServer.Destroy(conn.identity.gameObject);
             }
             

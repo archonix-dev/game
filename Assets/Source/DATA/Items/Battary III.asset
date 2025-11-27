@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemName: "\u0411\u0430\u0442\u0430\u0440\u0435\u0439\u043A\u0430 III"
   description: "\u0414\u0430\u0435\u0442 +50 \u0441\u0442\u0430\u043C\u0438\u043D\u044B"
-  icon: {fileID: 21300000, guid: f5b32eaa080ea4746951a65f43fa9d1f, type: 3}
+  icon: {fileID: -403359434, guid: 50b4062e81d46e14e9861a337cdd0838, type: 3}
   itemType: 3
   weight: 1
   isBreakable: 0

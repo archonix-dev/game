@@ -10,6 +10,9 @@ public class PlayerHealthStamina : NetworkBehaviour
     [Header("Stamina Settings")]
     [SerializeField] private float baseStamina = 20f;
     
+    [Header("Strength Settings")]
+    [SerializeField] private float baseStrength = 10f;
+    
     // Сетевые переменные для синхронизации Mirror
     [SyncVar(hook = nameof(OnMaxHealthChanged))]
     private float maxHealth = 40f;
@@ -22,22 +25,30 @@ public class PlayerHealthStamina : NetworkBehaviour
     
     [SyncVar(hook = nameof(OnStaminaChanged))]
     private float currentStamina = 20f;
+    
+    [SyncVar(hook = nameof(OnStrengthChanged))]
+    private float currentStrength = 10f;
     [SerializeField] private float staminaRegenRate = 10f;
     [SerializeField] private float staminaRegenDelay = 2f;
     
     [Header("UI References")]
     [SerializeField] private Transform healthPrefabParent;
     [SerializeField] private Transform staminaPrefabParent;
+    [SerializeField] private Transform strengthPrefabParent;
     [SerializeField] private GameObject healthPrefab;
     [SerializeField] private GameObject staminaPrefab;
+    [SerializeField] private GameObject strengthPrefab;
     [SerializeField] private Text healthText;
     [SerializeField] private Text staminaText;
+    [SerializeField] private Text strengthText;
     
     private float lastStaminaUseTime;
     private GameObject[] healthPrefabs;
     private GameObject[] staminaPrefabs;
+    private GameObject[] strengthPrefabs;
     private Image[] healthImages;
     private Image[] staminaImages;
+    private Image[] strengthImages;
     private PlayerController playerController;
 
     void Awake()
@@ -88,6 +99,7 @@ public class PlayerHealthStamina : NetworkBehaviour
             maxHealth = baseHealth;
             currentStamina = baseStamina;
             maxStamina = baseStamina;
+            currentStrength = baseStrength;
         }
     }
     
@@ -115,6 +127,17 @@ public class PlayerHealthStamina : NetworkBehaviour
         UpdateTextUI();
     }
     
+    void OnStrengthChanged(float oldValue, float newValue)
+    {
+        if (StrengthPrefabCountChanged())
+        {
+            RecreateStrengthUI();
+        }
+        
+        UpdateStrengthUI();
+        UpdateTextUI();
+    }
+    
     void OnMaxStaminaChanged(float oldValue, float newValue)
     {
         RecreateStaminaUI();
@@ -125,6 +148,7 @@ public class PlayerHealthStamina : NetworkBehaviour
     {
         CreateHealthUI();
         CreateStaminaUI();
+        CreateStrengthUI();
     }
     
     void CreateHealthUI()
@@ -159,10 +183,27 @@ public class PlayerHealthStamina : NetworkBehaviour
         }
     }
     
+    void CreateStrengthUI()
+    {
+        if (strengthPrefabParent != null && strengthPrefab != null)
+        {
+            int strengthPrefabCount = CalculateStrengthPrefabCount();
+            strengthPrefabs = new GameObject[strengthPrefabCount];
+            strengthImages = new Image[strengthPrefabCount];
+            
+            for (int i = 0; i < strengthPrefabCount; i++)
+            {
+                strengthPrefabs[i] = Instantiate(strengthPrefab, strengthPrefabParent);
+                strengthImages[i] = strengthPrefabs[i].GetComponent<Image>();
+            }
+        }
+    }
+    
     void UpdateUI()
     {
         UpdateHealthUI();
         UpdateStaminaUI();
+        UpdateStrengthUI();
         UpdateTextUI();
     }
     
@@ -248,6 +289,44 @@ public class PlayerHealthStamina : NetworkBehaviour
         if (staminaText != null)
         {
             staminaText.text = $"{Mathf.RoundToInt(currentStamina)}/{Mathf.RoundToInt(maxStamina)}";
+        }
+        
+        if (strengthText != null)
+        {
+            strengthText.text = Mathf.RoundToInt(currentStrength).ToString();
+        }
+    }
+    
+    void UpdateStrengthUI()
+    {
+        if (strengthPrefabs == null || strengthImages == null) return;
+        
+        int activeStrengthPrefabs = Mathf.CeilToInt(currentStrength / 10f);
+        
+        for (int i = 0; i < strengthPrefabs.Length; i++)
+        {
+            if (strengthPrefabs[i] != null && strengthImages[i] != null)
+            {
+                if (i < activeStrengthPrefabs - 1)
+                {
+                    strengthPrefabs[i].SetActive(true);
+                    Color color = strengthImages[i].color;
+                    color.a = 1f;
+                    strengthImages[i].color = color;
+                }
+                else if (i == activeStrengthPrefabs - 1)
+                {
+                    strengthPrefabs[i].SetActive(true);
+                    float alpha = CalculateAlphaForLastPrefab(currentStrength, Mathf.Max(currentStrength, baseStrength));
+                    Color color = strengthImages[i].color;
+                    color.a = alpha;
+                    strengthImages[i].color = color;
+                }
+                else
+                {
+                    strengthPrefabs[i].SetActive(false);
+                }
+            }
         }
     }
     
@@ -364,6 +443,26 @@ public class PlayerHealthStamina : NetworkBehaviour
         currentStamina = Mathf.Min(maxStamina, currentStamina + amount);
     }
     
+    /// <summary>
+    /// Увеличить силу (вызывается на клиенте, выполняется на сервере)
+    /// </summary>
+    [Command(requiresAuthority = false)]
+    public void AddStrength(float amount)
+    {
+        if (amount <= 0f) return;
+        
+        currentStrength = Mathf.Max(0f, currentStrength + amount);
+    }
+    
+    /// <summary>
+    /// Установить силу напрямую (используется предметами, дающими фиксированное значение)
+    /// </summary>
+    [Command(requiresAuthority = false)]
+    public void SetStrength(float value)
+    {
+        currentStrength = Mathf.Max(0f, value);
+    }
+    
     void RecreateHealthUI()
     {
         if (healthPrefabs != null)
@@ -400,9 +499,42 @@ public class PlayerHealthStamina : NetworkBehaviour
         CreateStaminaUI();
     }
     
+    void RecreateStrengthUI()
+    {
+        if (strengthPrefabs != null)
+        {
+            foreach (GameObject prefab in strengthPrefabs)
+            {
+                if (prefab != null)
+                {
+                    DestroyImmediate(prefab);
+                }
+            }
+        }
+        
+        strengthPrefabs = null;
+        strengthImages = null;
+        CreateStrengthUI();
+        UpdateStrengthUI();
+    }
+    
+    int CalculateStrengthPrefabCount()
+    {
+        float sourceValue = Mathf.Max(currentStrength, baseStrength);
+        return Mathf.Max(1, Mathf.CeilToInt(sourceValue / 10f));
+    }
+    
+    bool StrengthPrefabCountChanged()
+    {
+        int required = CalculateStrengthPrefabCount();
+        return strengthPrefabs == null || strengthPrefabs.Length != required;
+    }
+    
     
     public float GetCurrentHealth() => currentHealth;
     public float GetMaxHealth() => maxHealth;
     public float GetCurrentStamina() => currentStamina;
     public float GetMaxStamina() => maxStamina;
+    public float GetCurrentStrength() => currentStrength;
+    public float GetBaseStrength() => baseStrength;
 }

@@ -148,6 +148,16 @@ public class LobbyPlayerSpawner : NetworkBehaviour
         GameObject player = Instantiate(playerPrefab, spawnPosition, spawnRotation);
         Debug.Log($"[LobbyPlayerSpawner] Экземпляр создан: {player.name}");
         
+        var coinManager = player.GetComponent<CoinManager>();
+        if (coinManager != null && LobbyNetworkManager.Instance != null)
+        {
+            if (LobbyNetworkManager.Instance.TryConsumeCachedCoins(conn.connectionId, out int restoredCoins))
+            {
+                coinManager.SetCoinsServer(restoredCoins);
+                Debug.Log($"[LobbyPlayerSpawner] Восстановлено {restoredCoins} монет для подключения {conn.connectionId}");
+            }
+        }
+        
         // Проверяем NetworkIdentity на префабе
         NetworkIdentity playerIdentity = player.GetComponent<NetworkIdentity>();
         if (playerIdentity == null)

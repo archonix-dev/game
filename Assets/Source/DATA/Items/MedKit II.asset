@@ -15,7 +15,7 @@ MonoBehaviour:
   itemName: "\u041D\u0430\u0431\u043E\u0440 \u0443\u043B\u0443\u0447\u0448\u0435\u043D\u0438\u0439
     II"
   description: "\u0414\u0430\u0435\u0442 +30 \u0437\u0434\u043E\u0440\u043E\u0432\u044C\u044F"
-  icon: {fileID: 21300000, guid: f5b32eaa080ea4746951a65f43fa9d1f, type: 3}
+  icon: {fileID: -1158483088, guid: 50b4062e81d46e14e9861a337cdd0838, type: 3}
   itemType: 2
   weight: 1
   isBreakable: 0

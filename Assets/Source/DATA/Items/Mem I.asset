@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemName: "\u041E\u0417\u0423 DDR2"
   description: "\u0414\u0430\u0435\u0442 +10 \u0441\u0438\u043B\u044B"
-  icon: {fileID: 21300000, guid: 246bd00b8c9968f479793e8479942af4, type: 3}
+  icon: {fileID: 151933721, guid: 50b4062e81d46e14e9861a337cdd0838, type: 3}
   itemType: 4
   weight: 1
   isBreakable: 0

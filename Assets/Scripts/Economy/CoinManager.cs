@@ -142,6 +142,15 @@ public class CoinManager : NetworkBehaviour
     }
     
     /// <summary>
+    /// Немедленно устанавливает количество монет на сервере (используется менеджером лобби при смене сцен).
+    /// </summary>
+    [Server]
+    public void SetCoinsServer(int amount)
+    {
+        currentCoins = Mathf.Max(0, amount);
+    }
+    
+    /// <summary>
     /// Пытается списать монеты напрямую на сервере (без команды).
     /// Возвращает true при успехе.
     /// </summary>

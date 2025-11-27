@@ -537,35 +537,36 @@ public class LobbyTerminalController : NetworkBehaviour
         if (!NetworkServer.active)
             return;
         
-        if (shopItems == null || itemIndex < 0 || itemIndex >= shopItems.Length)
+        NetworkConnectionToClient requestingConnection = sender ?? NetworkServer.localConnection;
+        if (requestingConnection == null || requestingConnection.identity == null)
             return;
         
-        if (sender == null || sender.identity == null)
+        if (shopItems == null || itemIndex < 0 || itemIndex >= shopItems.Length)
             return;
         
         var definition = shopItems[itemIndex];
         if (definition.itemData == null)
         {
-            TargetPurchaseResult(sender, false, "Предмет недоступен", 0);
+            TargetPurchaseResult(requestingConnection, false, "Предмет недоступен", 0);
             return;
         }
         
         int price = ResolveItemPrice(itemIndex);
-        CoinManager coinManager = sender.identity.GetComponent<CoinManager>();
+        CoinManager coinManager = requestingConnection.identity.GetComponent<CoinManager>();
         if (coinManager == null)
         {
-            TargetPurchaseResult(sender, false, "Не удалось найти кошелек", 0);
+            TargetPurchaseResult(requestingConnection, false, "Не удалось найти кошелек", 0);
             return;
         }
         
         if (!coinManager.TrySpendCoinsServer(price))
         {
-            TargetPurchaseResult(sender, false, "Недостаточно бит", coinManager.GetCoins());
+            TargetPurchaseResult(requestingConnection, false, "Недостаточно бит", coinManager.GetCoins());
             return;
         }
         
-        LobbyNetworkManager.Instance?.RegisterPurchasedItem(sender, definition.itemData);
-        TargetPurchaseResult(sender, true, $"Куплено: {definition.itemData.itemName}", coinManager.GetCoins());
+        LobbyNetworkManager.Instance?.RegisterPurchasedItem(requestingConnection, definition.itemData);
+        TargetPurchaseResult(requestingConnection, true, $"Куплено: {definition.itemData.itemName}", coinManager.GetCoins());
     }
     
     [TargetRpc]
