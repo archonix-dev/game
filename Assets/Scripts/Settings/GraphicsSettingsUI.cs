@@ -133,10 +133,20 @@ public class GraphicsSettings
 	// Применение настроек экрана (разрешение и FPS)
 	public void ApplyDisplaySettings(System.Collections.Generic.List<Resolution> filteredResolutions)
 	{
-		if (filteredResolutions != null && filteredResolutions.Count > 0)
+        var usableResolutions = filteredResolutions;
+        if (usableResolutions == null || usableResolutions.Count == 0)
+        {
+            var all = Screen.resolutions;
+            if (all != null && all.Length > 0)
+            {
+                usableResolutions = new System.Collections.Generic.List<Resolution>(all);
+            }
+        }
+
+        if (usableResolutions != null && usableResolutions.Count > 0)
 		{
-			int clampedIndex = Mathf.Clamp(resolutionIndex, 0, filteredResolutions.Count - 1);
-			var res = filteredResolutions[clampedIndex];
+			int clampedIndex = Mathf.Clamp(resolutionIndex, 0, usableResolutions.Count - 1);
+			var res = usableResolutions[clampedIndex];
 			Screen.SetResolution(res.width, res.height, screenMode, 0);
 		}
 
@@ -253,6 +263,10 @@ public class GraphicsSettingsUI : MonoBehaviour
     public Button resetButton;
     public Button applyButton;
 
+    [Header("Behaviour")]
+    [Tooltip("Сохранять настройки автоматически при любом изменении")]
+    [SerializeField] private bool autoSaveOnChange = true;
+
 	[Header("Inputs")]
 	public InputField fpsInputField;
 
@@ -325,9 +339,9 @@ public class GraphicsSettingsUI : MonoBehaviour
         }
 
 		// Настройка Resolution Dropdown
+		BuildResolutionOptions(resolutionDropdown != null);
 		if (resolutionDropdown != null)
 		{
-			BuildResolutionOptions();
 			resolutionDropdown.onValueChanged.AddListener(OnResolutionChanged);
 		}
 
@@ -341,6 +355,8 @@ public class GraphicsSettingsUI : MonoBehaviour
 				"Полноэкранный",
 				"В окне без рамки"
 			});
+            // Показываем пункт "Полноэкранный" по умолчанию (индекс 1)
+            screenModeDropdown.SetValueWithoutNotify(1);
 			screenModeDropdown.onValueChanged.AddListener(OnScreenModeChanged);
 		}
 
@@ -466,7 +482,7 @@ public class GraphicsSettingsUI : MonoBehaviour
 		{
 			if (filteredResolutions == null || filteredResolutions.Count == 0)
 			{
-				BuildResolutionOptions();
+				BuildResolutionOptions(true);
 			}
 			resolutionDropdown.value = Mathf.Clamp(currentSettings.resolutionIndex, 0, Mathf.Max(0, resolutionDropdown.options.Count - 1));
 		}
@@ -481,7 +497,7 @@ public class GraphicsSettingsUI : MonoBehaviour
 				FullScreenMode.FullScreenWindow => 2,
 				_ => 0
 			};
-			screenModeDropdown.value = screenModeIndex;
+			screenModeDropdown.SetValueWithoutNotify(screenModeIndex);
 		}
 
         // Обновляем Toggles
@@ -523,7 +539,7 @@ public class GraphicsSettingsUI : MonoBehaviour
         }
     }
 
-	private void BuildResolutionOptions()
+	private void BuildResolutionOptions(bool updateDropdown)
 	{
 		filteredResolutions.Clear();
 		var all = Screen.resolutions;
@@ -568,8 +584,11 @@ public class GraphicsSettingsUI : MonoBehaviour
 #endif
 			options.Add($"{filteredResolutions[i].width}x{filteredResolutions[i].height} @{hz}Hz");
 		}
-		resolutionDropdown.ClearOptions();
-		resolutionDropdown.AddOptions(options);
+		if (updateDropdown && resolutionDropdown != null)
+		{
+			resolutionDropdown.ClearOptions();
+			resolutionDropdown.AddOptions(options);
+		}
 	}
 
     #region Event Handlers
@@ -588,6 +607,7 @@ public class GraphicsSettingsUI : MonoBehaviour
             };
             currentSettings.msaaQuality = msaaQuality;
             currentSettings.ApplyURPSettings();
+            SaveGraphicsSettingsIfNeeded();
         }
     }
 
@@ -597,6 +617,7 @@ public class GraphicsSettingsUI : MonoBehaviour
         {
             currentSettings.upscalingFilter = (UpscalingFilterSelection)value;
             currentSettings.ApplyURPSettings();
+            SaveGraphicsSettingsIfNeeded();
         }
     }
 
@@ -616,6 +637,7 @@ public class GraphicsSettingsUI : MonoBehaviour
             };
             currentSettings.mainLightShadowmapResolution = shadowResolution;
             currentSettings.ApplyURPSettings();
+            SaveGraphicsSettingsIfNeeded();
         }
     }
 
@@ -625,6 +647,7 @@ public class GraphicsSettingsUI : MonoBehaviour
         {
             currentSettings.globalTextureMipmapLimit = Mathf.Clamp(value, 0, 3);
             currentSettings.ApplyQualitySettings();
+            SaveGraphicsSettingsIfNeeded();
         }
     }
 
@@ -634,6 +657,7 @@ public class GraphicsSettingsUI : MonoBehaviour
         {
             currentSettings.mainLightShadowsSupported = value;
             currentSettings.ApplyURPSettings();
+            SaveGraphicsSettingsIfNeeded();
         }
     }
 
@@ -643,6 +667,7 @@ public class GraphicsSettingsUI : MonoBehaviour
         {
             currentSettings.supportsHDR = value;
             currentSettings.ApplyURPSettings();
+            SaveGraphicsSettingsIfNeeded();
         }
     }
 
@@ -652,6 +677,7 @@ public class GraphicsSettingsUI : MonoBehaviour
         {
             currentSettings.vsyncEnabled = value;
             currentSettings.ApplyQualitySettings();
+            SaveGraphicsSettingsIfNeeded();
         }
     }
 
@@ -662,6 +688,7 @@ public class GraphicsSettingsUI : MonoBehaviour
             currentSettings.postProcessDataEnabled = value;
             currentSettings.ApplyPostProcessSettings();
             UpdatePostProcessVolumeState();
+            SaveGraphicsSettingsIfNeeded();
         }
     }
 
@@ -671,6 +698,7 @@ public class GraphicsSettingsUI : MonoBehaviour
         {
             currentSettings.renderScale = Mathf.Clamp(value, 0.1f, 2f);
             currentSettings.ApplyURPSettings();
+            SaveGraphicsSettingsIfNeeded();
         }
         UpdateRenderScaleLabel();
     }
@@ -688,6 +716,7 @@ public class GraphicsSettingsUI : MonoBehaviour
 		{
 			currentSettings.resolutionIndex = Mathf.Clamp(value, 0, Mathf.Max(0, (filteredResolutions?.Count ?? 1) - 1));
 			currentSettings.ApplyDisplaySettings(filteredResolutions);
+            SaveGraphicsSettingsIfNeeded();
 		}
 	}
 
@@ -703,6 +732,7 @@ public class GraphicsSettingsUI : MonoBehaviour
 		currentSettings.targetFrameRate = parsed;
 		if (fpsInputField != null) fpsInputField.text = parsed.ToString();
 		currentSettings.ApplyDisplaySettings(filteredResolutions);
+        SaveGraphicsSettingsIfNeeded();
 	}
 
 	private void OnFpsUnderMonitorChanged(bool value)
@@ -711,6 +741,7 @@ public class GraphicsSettingsUI : MonoBehaviour
 		currentSettings.fpsMatchMonitor = value;
 		if (fpsInputField != null) fpsInputField.interactable = !value;
 		currentSettings.ApplyDisplaySettings(filteredResolutions);
+        SaveGraphicsSettingsIfNeeded();
 	}
 
 	private void OnScreenModeChanged(int value)
@@ -726,9 +757,12 @@ public class GraphicsSettingsUI : MonoBehaviour
 		};
 		currentSettings.screenMode = mode;
 		currentSettings.ApplyDisplaySettings(filteredResolutions);
-		// Немедленно сохраняем изменение режима экрана в PlayerPrefs
-		PlayerPrefs.SetInt("ScreenMode", (int)mode);
-		PlayerPrefs.Save();
+		// Сохраняем через SaveSettings для консистентности
+		// Принудительно сохраняем ScreenMode, так как это критичное изменение
+		if (currentSettings != null)
+		{
+			currentSettings.SaveSettings();
+		}
 	}
 
     private void OnResetButtonClicked()
@@ -748,6 +782,7 @@ public class GraphicsSettingsUI : MonoBehaviour
 
             ApplyAllSettings();
             UpdateUI();
+            SaveGraphicsSettingsIfNeeded();
         }
     }
 
@@ -759,4 +794,10 @@ public class GraphicsSettingsUI : MonoBehaviour
         }
     }
     #endregion
+
+    private void SaveGraphicsSettingsIfNeeded()
+    {
+        if (!autoSaveOnChange || currentSettings == null) return;
+        currentSettings.SaveSettings();
+    }
 }

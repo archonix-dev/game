@@ -1,71 +1,47 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using Mirror;
 
 /// <summary>
 /// Менеджер для управления системой монет каждого игрока отдельно
-/// Синхронизируется через сеть с помощью Mirror
+/// Сохраняется в PlayerPrefs и работает локально без зависимости от сервера
 /// </summary>
-public class CoinManager : NetworkBehaviour
+public class CoinManager : MonoBehaviour
 {
+    private const string PLAYER_PREFS_COINS_KEY = "PlayerCoins";
+    
     [Header("UI Настройки")]
     [SerializeField] private Text coinsText; // Для обычного UI Text
     
     [Header("Настройки")]
-    [SerializeField] private int startingCoins = 0;
+    [SerializeField] private int startingCoins = 300;
     
     [Header("Визуальная обратная связь")]
     [SerializeField] private bool animateOnChange = true;
     [SerializeField] private float animationDuration = 0.5f;
     
-    // Сетевая переменная для синхронизации количества монет
-    [SyncVar(hook = nameof(OnCoinsChanged))]
+    // Локальное количество монет
     private int currentCoins = 0;
     
-    // Для анимации (только на клиенте)
+    // Для анимации
     private int displayedCoins = 0;
     private float animationTimer = 0f;
     private int targetCoins = 0;
     
-    public override void OnStartServer()
+    void Start()
     {
-        base.OnStartServer();
-        
-        // Инициализируем монеты на сервере
-        if (isServer)
-        {
-            currentCoins = startingCoins;
-            Debug.Log($"[CoinManager] Инициализировано {currentCoins} монет для игрока {netId}");
-        }
-    }
-    
-    public override void OnStartClient()
-    {
-        base.OnStartClient();
-        
-        // Инициализируем UI на клиенте
+        // Загружаем монеты из PlayerPrefs при старте
+        //LoadCoins();
+        currentCoins = startingCoins;
         displayedCoins = currentCoins;
         targetCoins = currentCoins;
         UpdateUI();
     }
     
-    void Start()
-    {
-        // Если не в сети, инициализируем локально (для тестирования)
-        if (netIdentity == null || netIdentity.netId == 0)
-        {
-            currentCoins = startingCoins;
-            displayedCoins = currentCoins;
-            targetCoins = currentCoins;
-            UpdateUI();
-        }
-    }
-    
     void Update()
     {
-        // Анимация изменения монет (только для локального игрока)
-        if (isOwned && animateOnChange && displayedCoins != targetCoins)
+        // Анимация изменения монет
+        if (animateOnChange && displayedCoins != targetCoins)
         {
             animationTimer += Time.deltaTime;
             float progress = Mathf.Clamp01(animationTimer / animationDuration);
@@ -83,86 +59,101 @@ public class CoinManager : NetworkBehaviour
     }
     
     /// <summary>
-    /// Hook для синхронизации монет (вызывается при изменении SyncVar)
+    /// Загружает монеты из PlayerPrefs
     /// </summary>
-    void OnCoinsChanged(int oldValue, int newValue)
+    private void LoadCoins()
     {
-        // Обновляем UI только для локального игрока
-        if (isOwned)
+        if (PlayerPrefs.HasKey(PLAYER_PREFS_COINS_KEY))
         {
-            targetCoins = newValue;
-            
-            if (!animateOnChange)
-            {
-                displayedCoins = newValue;
-                UpdateUI();
-            }
-            else
-            {
-                animationTimer = 0f;
-            }
+            currentCoins = PlayerPrefs.GetInt(PLAYER_PREFS_COINS_KEY);
         }
+        else
+        {
+            currentCoins = startingCoins;
+            SaveCoins(); // Сохраняем стартовое значение
+        }
+        Debug.Log($"[CoinManager] Загружено {currentCoins} монет из PlayerPrefs");
     }
     
     /// <summary>
-    /// Добавить монеты (вызывается на клиенте, выполняется на сервере)
+    /// Сохраняет монеты в PlayerPrefs
     /// </summary>
-    [Command(requiresAuthority = false)]
+    private void SaveCoins()
+    {
+        PlayerPrefs.SetInt(PLAYER_PREFS_COINS_KEY, currentCoins);
+        PlayerPrefs.Save();
+        Debug.Log($"[CoinManager] Сохранено {currentCoins} монет в PlayerPrefs");
+    }
+    
+    /// <summary>
+    /// Обновляет количество монет и сохраняет
+    /// </summary>
+    private void SetCoinsInternal(int amount, bool save = true)
+    {
+        int oldValue = currentCoins;
+        currentCoins = Mathf.Max(0, amount);
+        targetCoins = currentCoins;
+        
+        if (!animateOnChange)
+        {
+            displayedCoins = currentCoins;
+            UpdateUI();
+        }
+        else
+        {
+            animationTimer = 0f;
+        }
+        
+        if (save)
+        {
+            SaveCoins();
+        }
+        
+        Debug.Log($"[CoinManager] Монеты изменены: {oldValue} -> {currentCoins}");
+    }
+    
+    /// <summary>
+    /// Добавить монеты (локально)
+    /// </summary>
     public void AddCoins(int amount)
     {
         if (amount <= 0) return;
         
-        currentCoins += amount;
-        Debug.Log($"[CoinManager] Добавлено {amount} монет. Всего: {currentCoins} (игрок {netId})");
+        SetCoinsInternal(currentCoins + amount);
     }
     
     /// <summary>
-    /// Потратить монеты (вызывается на клиенте, выполняется на сервере)
+    /// Потратить монеты (локально)
     /// </summary>
-    [Command(requiresAuthority = false)]
     public void SpendCoins(int amount)
     {
         if (amount <= 0) return;
         
         if (currentCoins >= amount)
         {
-            currentCoins -= amount;
-            Debug.Log($"[CoinManager] Потрачено {amount} монет. Осталось: {currentCoins} (игрок {netId})");
+            SetCoinsInternal(currentCoins - amount);
         }
     }
     
     /// <summary>
-    /// Установить количество монет (вызывается на клиенте, выполняется на сервере)
+    /// Установить количество монет (локально)
     /// </summary>
-    [Command(requiresAuthority = false)]
     public void SetCoins(int amount)
     {
-        currentCoins = Mathf.Max(0, amount);
-        Debug.Log($"[CoinManager] Установлено {currentCoins} монет (игрок {netId})");
+        SetCoinsInternal(amount);
     }
     
     /// <summary>
-    /// Немедленно устанавливает количество монет на сервере (используется менеджером лобби при смене сцен).
+    /// Пытается списать монеты. Возвращает true при успехе.
     /// </summary>
-    [Server]
-    public void SetCoinsServer(int amount)
-    {
-        currentCoins = Mathf.Max(0, amount);
-    }
-    
-    /// <summary>
-    /// Пытается списать монеты напрямую на сервере (без команды).
-    /// Возвращает true при успехе.
-    /// </summary>
-    [Server]
-    public bool TrySpendCoinsServer(int amount)
+    public bool TrySpendCoins(int amount)
     {
         if (amount <= 0)
             return true;
         
         if (currentCoins >= amount)
         {
-            currentCoins -= amount;
+            SetCoinsInternal(currentCoins - amount);
             return true;
         }
         
@@ -186,16 +177,10 @@ public class CoinManager : NetworkBehaviour
     }
     
     /// <summary>
-    /// Обновить UI текст (только для локального игрока)
+    /// Обновить UI текст
     /// </summary>
     private void UpdateUI()
     {
-        // Обновляем UI только для локального игрока
-        if (!isOwned && netIdentity != null && netIdentity.netId != 0)
-        {
-            return;
-        }
-        
         string coinText = CurrencyFormatter.FormatBits(displayedCoins);
         
         // Обновляем обычный Text
@@ -206,13 +191,11 @@ public class CoinManager : NetworkBehaviour
     }
     
     /// <summary>
-    /// Сбросить монеты до стартового значения (вызывается на клиенте, выполняется на сервере)
+    /// Сбросить монеты до стартового значения
     /// </summary>
-    [Command(requiresAuthority = false)]
     public void ResetCoins()
     {
-        currentCoins = startingCoins;
-        Debug.Log($"[CoinManager] Монеты сброшены до {startingCoins} (игрок {netId})");
+        SetCoinsInternal(startingCoins);
     }
     
     /// <summary>
@@ -237,11 +220,9 @@ public class CoinManager : NetworkBehaviour
     /// </summary>
     public static CoinManager GetLocalPlayerCoinManager()
     {
-        if (NetworkClient.localPlayer != null)
-        {
-            return NetworkClient.localPlayer.GetComponent<CoinManager>();
-        }
-        return null;
+        // Ищем CoinManager на любом объекте в сцене
+        CoinManager manager = FindObjectOfType<CoinManager>();
+        return manager;
     }
 }
 

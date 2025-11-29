@@ -633,11 +633,7 @@ public class LobbyNetworkManager : NetworkManager
             
             if (conn.identity != null)
             {
-                var coinManager = conn.identity.GetComponent<CoinManager>();
-                if (coinManager != null)
-                {
-                    CacheCoinsForConnection(conn.connectionId, coinManager.GetCoins());
-                }
+                // Монеты теперь сохраняются в PlayerPrefs и не требуют кеширования
                 NetworkServer.Destroy(conn.identity.gameObject);
             }
             

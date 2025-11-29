@@ -210,7 +210,12 @@ public class LobbyTerminalController : NetworkBehaviour
             return;
         
         localMouseLook = localPlayer.GetComponentInChildren<MouseLook>();
-        localCoinManager = localPlayer.GetComponent<CoinManager>();
+        // Получаем CoinManager локально (не зависит от NetworkBehaviour)
+        localCoinManager = CoinManager.GetLocalPlayerCoinManager();
+        if (localCoinManager == null)
+        {
+            localCoinManager = FindObjectOfType<CoinManager>();
+        }
         localCamera = Camera.main;
         
         if (localCamera == null || shopUI == null)
@@ -323,7 +328,11 @@ public class LobbyTerminalController : NetworkBehaviour
     void RefreshBalanceUI(bool force = false)
     {
         if (localCoinManager == null)
-            return;
+        {
+            localCoinManager = CoinManager.GetLocalPlayerCoinManager();
+            if (localCoinManager == null)
+                return;
+        }
         
         int coins = localCoinManager.GetCoins();
         if (coins != lastKnownCoins || force)
@@ -528,17 +537,63 @@ public class LobbyTerminalController : NetworkBehaviour
         if (!isLocalOpen)
             return;
         
-        CmdPurchaseItem(itemIndex);
+        PurchaseItemLocal(itemIndex);
     }
     
+    void PurchaseItemLocal(int itemIndex)
+    {
+        if (shopItems == null || itemIndex < 0 || itemIndex >= shopItems.Length)
+        {
+            ShowPurchaseResultLocal(false, "Предмет недоступен");
+            return;
+        }
+        
+        var definition = shopItems[itemIndex];
+        if (definition.itemData == null)
+        {
+            ShowPurchaseResultLocal(false, "Предмет недоступен");
+            return;
+        }
+        
+        if (localCoinManager == null)
+        {
+            localCoinManager = CoinManager.GetLocalPlayerCoinManager();
+            if (localCoinManager == null)
+            {
+                ShowPurchaseResultLocal(false, "Не удалось найти кошелек");
+                return;
+            }
+        }
+        
+        int price = ResolveItemPrice(itemIndex);
+        
+        if (!localCoinManager.TrySpendCoins(price))
+        {
+            ShowPurchaseResultLocal(false, "Недостаточно бит", localCoinManager.GetCoins());
+            return;
+        }
+        
+        // Регистрируем покупку для спавна на сцене Main (если нужно)
+        // Регистрация должна происходить на сервере, поэтому используем команду
+        if (LobbyNetworkManager.Instance != null)
+        {
+            CmdRegisterPurchase(itemIndex);
+        }
+        
+        ShowPurchaseResultLocal(true, $"Куплено: {definition.itemData.itemName}", localCoinManager.GetCoins());
+    }
+    
+    /// <summary>
+    /// Команда для регистрации покупки на сервере
+    /// </summary>
     [Command(requiresAuthority = false)]
-    void CmdPurchaseItem(int itemIndex, NetworkConnectionToClient sender = null)
+    void CmdRegisterPurchase(int itemIndex, NetworkConnectionToClient sender = null)
     {
         if (!NetworkServer.active)
             return;
         
         NetworkConnectionToClient requestingConnection = sender ?? NetworkServer.localConnection;
-        if (requestingConnection == null || requestingConnection.identity == null)
+        if (requestingConnection == null)
             return;
         
         if (shopItems == null || itemIndex < 0 || itemIndex >= shopItems.Length)
@@ -546,37 +601,28 @@ public class LobbyTerminalController : NetworkBehaviour
         
         var definition = shopItems[itemIndex];
         if (definition.itemData == null)
-        {
-            TargetPurchaseResult(requestingConnection, false, "Предмет недоступен", 0);
             return;
-        }
         
-        int price = ResolveItemPrice(itemIndex);
-        CoinManager coinManager = requestingConnection.identity.GetComponent<CoinManager>();
-        if (coinManager == null)
-        {
-            TargetPurchaseResult(requestingConnection, false, "Не удалось найти кошелек", 0);
-            return;
-        }
-        
-        if (!coinManager.TrySpendCoinsServer(price))
-        {
-            TargetPurchaseResult(requestingConnection, false, "Недостаточно бит", coinManager.GetCoins());
-            return;
-        }
-        
+        // Регистрируем покупку на сервере
         LobbyNetworkManager.Instance?.RegisterPurchasedItem(requestingConnection, definition.itemData);
-        TargetPurchaseResult(requestingConnection, true, $"Куплено: {definition.itemData.itemName}", coinManager.GetCoins());
     }
     
-    [TargetRpc]
-    void TargetPurchaseResult(NetworkConnection target, bool success, string message, int coinsLeft)
+    void ShowPurchaseResultLocal(bool success, string message, int coinsLeft = -1)
     {
         if (shopUI != null && isLocalOpen)
         {
             shopUI.ShowPurchaseResult(success, message);
-            shopUI.UpdateBalance(coinsLeft);
-            shopUI.UpdateItemAffordability(coinsLeft);
+            if (coinsLeft >= 0)
+            {
+                shopUI.UpdateBalance(coinsLeft);
+                shopUI.UpdateItemAffordability(coinsLeft);
+            }
+            else if (localCoinManager != null)
+            {
+                int coins = localCoinManager.GetCoins();
+                shopUI.UpdateBalance(coins);
+                shopUI.UpdateItemAffordability(coins);
+            }
         }
     }
     

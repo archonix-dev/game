@@ -129,6 +129,10 @@ public class AudioSettingsUI : MonoBehaviour
     [Tooltip("Кнопка для прослушивания микрофона")]
     public Button testMicrophoneButton;
 
+    [Header("Behaviour")]
+    [Tooltip("Автоматически сохранять настройки при изменении")]
+    [SerializeField] private bool autoSaveOnChange = true;
+
     [Header("Microphone Monitoring")]
     [Tooltip("Image для визуальной индикации прослушивания микрофона")]
     public UnityEngine.UI.Image microphoneIndicatorImage;
@@ -399,6 +403,7 @@ public class AudioSettingsUI : MonoBehaviour
             {
                 currentSettings.ApplySettings(audioMixer);
             }
+            SaveAudioSettingsIfNeeded();
         }
     }
 
@@ -411,6 +416,7 @@ public class AudioSettingsUI : MonoBehaviour
             {
                 currentSettings.ApplySettings(audioMixer);
             }
+            SaveAudioSettingsIfNeeded();
         }
     }
 
@@ -423,6 +429,7 @@ public class AudioSettingsUI : MonoBehaviour
             {
                 currentSettings.ApplySettings(audioMixer);
             }
+            SaveAudioSettingsIfNeeded();
         }
     }
 
@@ -435,6 +442,7 @@ public class AudioSettingsUI : MonoBehaviour
             {
                 currentSettings.ApplySettings(audioMixer);
             }
+            SaveAudioSettingsIfNeeded();
         }
     }
 
@@ -447,6 +455,7 @@ public class AudioSettingsUI : MonoBehaviour
             {
                 currentSettings.ApplySettings(audioMixer);
             }
+            SaveAudioSettingsIfNeeded();
         }
     }
     
@@ -459,6 +468,7 @@ public class AudioSettingsUI : MonoBehaviour
             {
                 currentSettings.ApplySettings(audioMixer);
             }
+            SaveAudioSettingsIfNeeded();
         }
     }
 
@@ -474,6 +484,7 @@ public class AudioSettingsUI : MonoBehaviour
             {
                 ApplyMicrophoneSensitivity();
             }
+            SaveAudioSettingsIfNeeded();
         }
     }
 
@@ -506,6 +517,7 @@ public class AudioSettingsUI : MonoBehaviour
                 currentSettings.microphoneDevice = null;
             }
         }
+        SaveAudioSettingsIfNeeded();
     }
 
     private void OnResetButtonClicked()
@@ -524,6 +536,7 @@ public class AudioSettingsUI : MonoBehaviour
 
             ApplyAllSettings();
             UpdateUI();
+            SaveAudioSettingsIfNeeded();
         }
     }
 
@@ -843,4 +856,10 @@ public class AudioSettingsUI : MonoBehaviour
         return db <= -80f ? 0f : Mathf.Pow(10f, db / 20f);
     }
     #endregion
+
+    private void SaveAudioSettingsIfNeeded()
+    {
+        if (!autoSaveOnChange || currentSettings == null) return;
+        currentSettings.SaveSettings();
+    }
 }
