@@ -668,7 +668,6 @@ public class DestructibleObject : MonoBehaviour
     public void SetPlayerLookingAt(bool looking)
     {
         isPlayerLookingAt = looking;
-        UpdateOutlineMaterial();
     }
     
     /// <summary>
