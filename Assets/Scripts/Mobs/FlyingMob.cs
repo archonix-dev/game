@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 using Mirror;
 using TMPro;
 using VLB; // Добавляем namespace для VolumetricLightBeam
@@ -31,12 +32,22 @@ public class FlyingMob : NetworkBehaviour
     [SerializeField] private int damageToPlayer = 5;
     [SerializeField] private float chaseDistance = 2f;
     [SerializeField] private float maxExplosionShakeIntensity = 0.3f;
+
+    [Header("Destructible Damage Settings")]
+    [Tooltip("Сила удара, передаваемая разрушаемым объектам внутри радиуса взрыва")]
+    [SerializeField] private float destructibleImpactForce = 50f;
+    [Tooltip("Слои, которые содержат разрушаемые объекты (обычно слой Grabbable / объекты с DestructibleObject)")]
+    [SerializeField] private LayerMask destructibleMask = ~0;
     
     [Header("Volumetric Light Settings")]
     [SerializeField] private VolumetricLightBeam volumetricLight;
     [SerializeField] private Color normalColor = new Color(0f, 0.71f, 1f); // 00B6FF
     [SerializeField] private Color scanningColor = new Color(1f, 0f, 0.05f); // FF000E
     [SerializeField] private float colorTransitionSpeed = 2f;
+
+    [Header("Emission Colors")]
+    [SerializeField] private Color idleEmissionColor = new Color(0f, 0.71f, 1f);
+    [SerializeField] private Color scanningEmissionColor = new Color(1f, 0f, 0.05f);
     
     [Header("Audio Settings")]
     [SerializeField] private AudioSource idleAudioSource;
@@ -69,11 +80,28 @@ public class FlyingMob : NetworkBehaviour
     [SerializeField] private AudioClip alarmClip;
     [SerializeField] private float alarmVolume = 0.8f;
     [SerializeField] private bool mirrorFacingWhenAlerted = true;
-[Header("Model Settings")]
-[SerializeField] private bool invertModelForwardAxis = true;
+    
+    [Header("Model Settings")]
+    [SerializeField] private bool invertModelForwardAxis = true;
+    
+    [Header("Stealth Settings")]
+    [SerializeField] private MobHideMode hideMode = MobHideMode.CanHide;
+    
+    [Header("Ground Settings")]
+    [Tooltip("Слои, которые считаются землей для расчета высоты и зоны сканирования")]
+    [SerializeField] private LayerMask groundMask = ~0;
+    [Tooltip("Максимальная дистанция луча вниз для поиска земли")]
+    [SerializeField] private float maxGroundCheckDistance = 200f;
 
-[Header("Stealth Settings")]
-[SerializeField] private MobHideMode hideMode = MobHideMode.CanHide;
+    [Header("Collision Settings")]
+    [Tooltip("Слои, с которыми летающий моб должен сталкиваться (стены, объекты и т.п.)")]
+    [SerializeField] private LayerMask obstacleMask = ~0;
+    [Tooltip("Радиус сферы для проверки коллизий при перемещении")]
+    [SerializeField] private float collisionRadius = 0.5f;
+
+    [Header("Avoidance Settings")]
+    [SerializeField, Range(1, 12)] private int avoidanceProbeSteps = 5;
+    [SerializeField, Range(5f, 45f)] private float avoidanceAngleStep = 15f;
     
     private Transform player;
     private Vector3 targetPosition;
@@ -93,6 +121,8 @@ public class FlyingMob : NetworkBehaviour
     [SyncVar(hook = nameof(OnTargetColorChanged))] private Color syncedTargetColor;
     private float currentEmissionIntensity = 0f;
     private float targetEmissionIntensity = 0f;
+    private Color currentEmissionColor;
+    private Color targetEmissionColor;
     private bool alertVisualOverride = false;
     private Material mobMaterial;
     private Renderer mobRenderer;
@@ -101,6 +131,13 @@ public class FlyingMob : NetworkBehaviour
     private float currentScanRotation = 0f;
     private const float maxScanRotation = 90f;
     [SerializeField] private float explosionEffectLifetime = 3f;
+    
+    // Базовый угол конуса сканирования (по текущим spotDetectionRadius/spotHeight)
+    private float baseScanHalfAngleRad;
+
+    // Зона спавна, в пределах которой моб должен оставаться
+    private MobSpawnZone sourceZone;
+    private SpawnedMobHandle spawnedHandle;
     
     private enum MobState
     {
@@ -116,6 +153,13 @@ public class FlyingMob : NetworkBehaviour
         {
             player = FindClosestPlayer();
             SetTargetVisual(normalColor, 0f);
+            
+            // Получаем зону спавна, чтобы не выходить за её пределы
+            spawnedHandle = GetComponent<SpawnedMobHandle>();
+            if (spawnedHandle != null)
+            {
+                sourceZone = spawnedHandle.SourceZone;
+            }
         }
         
         mobRenderer = GetComponentInChildren<Renderer>();
@@ -164,6 +208,8 @@ public class FlyingMob : NetworkBehaviour
         targetColor = normalColor;
         targetEmissionIntensity = 0f;
         currentEmissionIntensity = 0f;
+        RefreshTargetEmissionColor();
+        currentEmissionColor = targetEmissionColor;
         UpdateVolumetricLightColor();
         UpdateMobMaterialColor();
         
@@ -188,6 +234,9 @@ public class FlyingMob : NetworkBehaviour
             StartCoroutine(StateMachine());
         }
         
+        // Предварительно запоминаем базовый угол конуса по текущим значениям
+        InitializeBaseScanAngle();
+        
         // Запускаем фоновый звук
         PlayIdleSound();
     }
@@ -200,6 +249,8 @@ public class FlyingMob : NetworkBehaviour
         currentColor = initialColor;
         targetEmissionIntensity = syncedTargetEmissionIntensity;
         currentEmissionIntensity = targetEmissionIntensity;
+        RefreshTargetEmissionColor();
+        currentEmissionColor = targetEmissionColor;
         UpdateVolumetricLightColor();
         UpdateMobMaterialColor();
     }
@@ -338,6 +389,9 @@ public class FlyingMob : NetworkBehaviour
             }
         }
         
+        // Обновляем динамическую зону сканирования и параметры volumetric light
+        UpdateDynamicScanGeometry();
+        
         HandleColorTransitions();
     }
     
@@ -357,9 +411,15 @@ public class FlyingMob : NetworkBehaviour
         // Плавный переход цвета и эмиссии
         currentColor = Color.Lerp(currentColor, targetColor, colorTransitionSpeed * Time.deltaTime);
         currentEmissionIntensity = Mathf.Lerp(currentEmissionIntensity, targetEmissionIntensity, colorTransitionSpeed * Time.deltaTime);
+        currentEmissionColor = Color.Lerp(currentEmissionColor, targetEmissionColor, colorTransitionSpeed * Time.deltaTime);
         
         UpdateVolumetricLightColor();
         UpdateMobMaterialColor();
+    }
+
+    void RefreshTargetEmissionColor()
+    {
+        targetEmissionColor = isScanning ? scanningEmissionColor : idleEmissionColor;
     }
     
     void HandleScanningRotation()
@@ -405,7 +465,7 @@ public class FlyingMob : NetworkBehaviour
         
         if (mobMaterial.HasProperty(emissionColorProperty))
         {
-            Color emissionColor = currentColor * Mathf.LinearToGammaSpace(currentEmissionIntensity);
+            Color emissionColor = currentEmissionColor * Mathf.LinearToGammaSpace(currentEmissionIntensity);
             mobMaterial.SetColor(emissionColorProperty, emissionColor);
         }
         
@@ -602,6 +662,7 @@ public class FlyingMob : NetworkBehaviour
             return;
         
         isScanning = value;
+        RefreshTargetEmissionColor();
         
         if (!alertVisualOverride)
         {
@@ -622,6 +683,8 @@ public class FlyingMob : NetworkBehaviour
     {
         if (isServer)
             return;
+        
+        RefreshTargetEmissionColor();
         
         if (newValue)
         {
@@ -711,8 +774,8 @@ public class FlyingMob : NetworkBehaviour
             // Выбираем скорость в зависимости от состояния
             float currentSpeed = currentState == MobState.Chasing ? chaseSpeed : wanderSpeed;
             
-            // Двигаемся к цели
-            transform.position += direction * currentSpeed * Time.deltaTime;
+            // Двигаемся к цели с учетом коллизий и границ зоны
+            MoveWithCollision(direction, currentSpeed);
             
             // Плавный поворот к цели (только по горизонтали)
             if (direction != Vector3.zero && currentState != MobState.Scanning)
@@ -730,6 +793,108 @@ public class FlyingMob : NetworkBehaviour
             // Достигли точки блуждания - выбираем новую
             SetWanderPoint();
         }
+    }
+
+    /// <summary>
+    /// Перемещение с учетом коллизий и границ зоны спавна.
+    /// </summary>
+    void MoveWithCollision(Vector3 direction, float speed)
+    {
+        if (!isServer)
+            return;
+
+        if (direction.sqrMagnitude < 0.0001f || speed <= 0f)
+            return;
+
+        direction.Normalize();
+        float distance = speed * Time.deltaTime;
+        if (distance <= 0f)
+            return;
+
+        Vector3 origin = transform.position;
+        Vector3 moveDir = direction;
+
+        // Маска препятствий: если пользователь не указал, используем маску по умолчанию
+        int mask = obstacleMask.value == 0 ? Physics.DefaultRaycastLayers : obstacleMask.value;
+
+        float movedDistance = distance;
+
+        // Проверка на столкновение по ходу движения
+        bool collided = Physics.SphereCast(origin, collisionRadius, moveDir, out RaycastHit hit, distance, mask, QueryTriggerInteraction.Ignore);
+        if (collided)
+        {
+            // Пытаемся найти обходное направление
+            if (TryFindAvoidanceDirection(moveDir, distance, mask, out Vector3 avoidanceDir))
+            {
+                moveDir = avoidanceDir;
+                collided = Physics.SphereCast(origin, collisionRadius, moveDir, out hit, distance, mask, QueryTriggerInteraction.Ignore);
+            }
+
+            if (collided)
+            {
+                // Двигаемся до столкновения с небольшим запасом
+                movedDistance = Mathf.Max(0f, hit.distance - 0.01f);
+            }
+        }
+
+        Vector3 newPosition = origin + moveDir * movedDistance;
+
+        // Не выходим за пределы зоны спавна (если она есть)
+        if (sourceZone != null && !sourceZone.ContainsPoint(newPosition))
+        {
+            // Подбираем ближайшую допустимую позицию вдоль направления движения (простое двоичное деление)
+            Vector3 candidate = origin;
+            float tMin = 0f;
+            float tMax = 1f;
+            for (int i = 0; i < 4; i++)
+            {
+                float tMid = (tMin + tMax) * 0.5f;
+                Vector3 midPos = origin + moveDir * (movedDistance * tMid);
+                if (sourceZone.ContainsPoint(midPos))
+                {
+                    candidate = midPos;
+                    tMin = tMid;
+                }
+                else
+                {
+                    tMax = tMid;
+                }
+            }
+
+            newPosition = candidate;
+        }
+
+        transform.position = newPosition;
+    }
+
+    bool TryFindAvoidanceDirection(Vector3 direction, float distance, int mask, out Vector3 avoidanceDirection)
+    {
+        avoidanceDirection = Vector3.zero;
+        if (direction.sqrMagnitude < 0.0001f)
+            return false;
+
+        Vector3 origin = transform.position;
+        float clampedAngleStep = Mathf.Max(1f, avoidanceAngleStep);
+        for (int step = 1; step <= avoidanceProbeSteps; step++)
+        {
+            float angle = clampedAngleStep * step;
+
+            Vector3 leftDir = Quaternion.AngleAxis(-angle, Vector3.up) * direction;
+            if (!Physics.SphereCast(origin, collisionRadius, leftDir, out _, distance, mask, QueryTriggerInteraction.Ignore))
+            {
+                avoidanceDirection = leftDir.normalized;
+                return true;
+            }
+
+            Vector3 rightDir = Quaternion.AngleAxis(angle, Vector3.up) * direction;
+            if (!Physics.SphereCast(origin, collisionRadius, rightDir, out _, distance, mask, QueryTriggerInteraction.Ignore))
+            {
+                avoidanceDirection = rightDir.normalized;
+                return true;
+            }
+        }
+
+        return false;
     }
     
     [Server]
@@ -866,8 +1031,9 @@ public class FlyingMob : NetworkBehaviour
             direction.Normalize();
             targetPosition = player.position;
             targetPosition.y = transform.position.y;
-            
-            transform.position += direction * diveSpeed * Time.deltaTime;
+
+            // Двигаемся к игроку с учетом коллизий и границ зоны
+            MoveWithCollision(direction, diveSpeed);
             
             Vector3 horizontalDirection = new Vector3(direction.x, 0f, direction.z);
             if (horizontalDirection.sqrMagnitude > 0.01f)
@@ -919,6 +1085,9 @@ public class FlyingMob : NetworkBehaviour
                 playerRb.AddForce(explosionDirection * explosionForce, ForceMode.Impulse);
             }
         }
+
+        // Наносим урон разрушаемым объектам (Grabbable / DestructibleObject) в радиусе взрыва
+        DamageDestructiblesInRadius();
         
         // Уничтожаем моба
         if (NetworkServer.active)
@@ -983,6 +1152,42 @@ public class FlyingMob : NetworkBehaviour
         HandleExplosionEffects();
     }
 
+    /// <summary>
+    /// Наносит урон всем разрушаемым объектам в радиусе взрыва.
+    /// </summary>
+    [Server]
+    void DamageDestructiblesInRadius()
+    {
+        float radius = Mathf.Max(0.1f, explosionRadius);
+        int mask = destructibleMask.value == 0 ? Physics.DefaultRaycastLayers : destructibleMask.value;
+
+        Collider[] hits = Physics.OverlapSphere(transform.position, radius, mask, QueryTriggerInteraction.Collide);
+        if (hits == null || hits.Length == 0)
+            return;
+
+        HashSet<DestructibleObject> processed = new HashSet<DestructibleObject>();
+
+        foreach (Collider col in hits)
+        {
+            if (col == null)
+                continue;
+
+            DestructibleObject destructible = col.GetComponentInParent<DestructibleObject>();
+            if (destructible == null)
+                continue;
+
+            if (!processed.Add(destructible))
+                continue;
+
+            Transform dTransform = destructible.transform;
+            Vector3 toObject = (dTransform.position - transform.position);
+            Vector3 hitDir = toObject.sqrMagnitude > 0.0001f ? toObject.normalized : Vector3.up;
+
+            // Передаем sourceObject = null, чтобы не сработал фильтр по тегу Item/Grabbable
+            destructible.TakeHit(destructibleImpactForce, dTransform.position, hitDir, null);
+        }
+    }
+
     void PlayExplosionSound()
     {
         // Звук проигрывается только на клиентах для правильной пространственной обработки
@@ -1001,7 +1206,16 @@ public class FlyingMob : NetworkBehaviour
     void SetWanderPoint()
     {
         if (!isServer) return;
-        
+
+        // Если известна зона спавна — выбираем случайную точку внутри неё
+        if (sourceZone != null && sourceZone.TryGetRandomPointInside(out Vector3 zonePoint))
+        {
+            zonePoint.y = startPosition.y + flyingHeight;
+            targetPosition = zonePoint;
+            return;
+        }
+
+        // Fallback: блуждание в круге вокруг стартовой позиции
         Vector2 randomCircle = Random.insideUnitCircle * wanderRadius;
         targetPosition = startPosition + new Vector3(randomCircle.x, flyingHeight, randomCircle.y);
     }
@@ -1199,6 +1413,72 @@ public class FlyingMob : NetworkBehaviour
         {
             Gizmos.DrawLine(apex, baseCenter + dir * baseRadius);
         }
+    }
+
+    void InitializeBaseScanAngle()
+    {
+        // Базовый половинный угол конуса, исходя из текущих настроек сканирования
+        float h = Mathf.Max(0.01f, spotHeight);
+        float r = Mathf.Max(0.01f, spotDetectionRadius);
+        baseScanHalfAngleRad = Mathf.Atan(r / h);
+    }
+    
+    void UpdateDynamicScanGeometry()
+    {
+        // Рассчитываем реальную высоту моба над землей
+        float heightToGround = ComputeHeightToGround();
+        if (heightToGround <= 0.01f)
+            return;
+        
+        // Динамическая высота конуса сканирования
+        float dynamicHeight = heightToGround;
+        spotHeight = dynamicHeight;
+        
+        // Поддерживаем тот же базовый угол конуса, меняя радиус под текущую высоту
+        if (baseScanHalfAngleRad <= 0f)
+        {
+            InitializeBaseScanAngle();
+        }
+        float dynamicRadius = Mathf.Tan(baseScanHalfAngleRad) * dynamicHeight;
+        spotDetectionRadius = dynamicRadius;
+        
+        // Обновляем параметры volumetric light, чтобы он соответствовал зоне сканирования
+        if (volumetricLight != null)
+        {
+            // Используем собственные значения, а не из Light-компонента
+            volumetricLight.spotAngleFromLight = false;
+            volumetricLight.fallOffEndFromLight = false;
+            
+            // Угол луча = полный угол конуса
+            volumetricLight.spotAngle = Mathf.Clamp(
+                Mathf.Rad2Deg * baseScanHalfAngleRad * 2f,
+                Consts.Beam.SpotAngleMin,
+                Consts.Beam.SpotAngleMax
+            );
+            
+            // Длина луча = высота конуса до земли
+            volumetricLight.fallOffEnd = Mathf.Max(dynamicHeight, Consts.Beam.FallOffDistancesMinThreshold);
+            
+            // Применяем изменения к геометрии/материалу луча
+            volumetricLight.UpdateAfterManualPropertyChange();
+        }
+    }
+    
+    float ComputeHeightToGround()
+    {
+        Vector3 origin = transform.position;
+        RaycastHit hit;
+        float maxDist = Mathf.Max(1f, maxGroundCheckDistance);
+        int mask = groundMask.value == 0 ? Physics.DefaultRaycastLayers : groundMask.value;
+        
+        if (Physics.Raycast(origin, Vector3.down, out hit, maxDist, mask, QueryTriggerInteraction.Ignore))
+        {
+            float h = origin.y - hit.point.y;
+            return Mathf.Max(0.1f, h);
+        }
+        
+        // Если землю не нашли, используем текущее spotHeight как fallback
+        return Mathf.Max(spotHeight, 0.1f);
     }
 
     bool RespectsHideZones => hideMode == MobHideMode.CanHide;

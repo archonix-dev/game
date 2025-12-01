@@ -34,7 +34,6 @@ public class ObjectGrabSystem : NetworkBehaviour
     [SerializeField] private MouseLook mouseLook;
     
     [Header("Visual Feedback")]
-    [SerializeField] private Color highlightColor = Color.yellow;
     [SerializeField] private float highlightIntensity = 1.5f;
     
     [Header("Grab Line Settings")]
@@ -82,11 +81,6 @@ public class ObjectGrabSystem : NetworkBehaviour
     // Для сохранения точки захвата
     private Vector3 grabLocalOffset; // Локальное смещение от центра объекта до точки захвата
     private RaycastHit currentHit; // Сохраняем информацию о рейкасте
-    
-    // Для визуального выделения
-    private Material highlightedMaterial;
-    private Color originalEmissionColor;
-    private bool wasEmissionEnabled;
     
     // Для визуализации удержания
     private LineRenderer grabLineRenderer;
@@ -700,40 +694,15 @@ public class ObjectGrabSystem : NetworkBehaviour
     
     void HighlightObject(DestructibleObject grabbable)
     {
-        Renderer renderer = grabbable.GetComponent<Renderer>();
-        if (renderer != null && renderer.material != null)
-        {
-            highlightedMaterial = renderer.material;
-            
-            // Сохраняем оригинальные настройки emission
-            wasEmissionEnabled = highlightedMaterial.IsKeywordEnabled("_EMISSION");
-            if (wasEmissionEnabled)
-            {
-                originalEmissionColor = highlightedMaterial.GetColor("_EmissionColor");
-            }
-            
-            // Включаем emission для подсветки
-            highlightedMaterial.EnableKeyword("_EMISSION");
-            highlightedMaterial.SetColor("_EmissionColor", highlightColor * highlightIntensity);
-        }
+        // Визуальное выделение через материал отключено умышленно,
+        // чтобы не конфликтовать с другими системами (например, LookAtMaterialSwitcher).
+        // Логика SetPlayerLookingAt(true) по-прежнему сообщает объекту, что на него смотрят.
     }
     
     void RemoveHighlight(DestructibleObject grabbable)
     {
-        if (highlightedMaterial != null)
-        {
-            if (wasEmissionEnabled)
-            {
-                highlightedMaterial.SetColor("_EmissionColor", originalEmissionColor);
-            }
-            else
-            {
-                highlightedMaterial.DisableKeyword("_EMISSION");
-                highlightedMaterial.SetColor("_EmissionColor", Color.black);
-            }
-            
-            highlightedMaterial = null;
-        }
+        // Восстановление материала больше не требуется,
+        // так как HighlightObject больше не меняет материал.
     }
     
     void OnDrawGizmos()

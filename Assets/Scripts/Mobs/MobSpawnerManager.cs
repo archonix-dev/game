@@ -62,10 +62,15 @@ public class MobSpawnerManager : NetworkBehaviour
     [SerializeField, Min(1)] private int globalMobLimit = 120;
     [SerializeField, Min(1)] private int perPlayerLimit = 8;
 
+    [Header("Replacement Settings")]
+    [SerializeField] private Vector2 replacementSpawnDelay = new Vector2(0.5f, 1.5f);
+    [SerializeField, Range(0f, 179f)] private float minRearSpawnAngle = 100f;
+
     private readonly Dictionary<uint, PlayerSpawnState> playerStates = new Dictionary<uint, PlayerSpawnState>();
     private readonly Dictionary<MobSpawnZone, HashSet<NetworkIdentity>> zonePopulations = new Dictionary<MobSpawnZone, HashSet<NetworkIdentity>>();
     private readonly Dictionary<NetworkIdentity, uint> mobOwners = new Dictionary<NetworkIdentity, uint>();
     private Coroutine spawnRoutine;
+    private readonly Dictionary<uint, Coroutine> pendingRespawnCoroutines = new Dictionary<uint, Coroutine>();
 
     public IReadOnlyDictionary<uint, PlayerSpawnState> DebugPlayerStates => playerStates;
 
@@ -98,6 +103,14 @@ public class MobSpawnerManager : NetworkBehaviour
             StopCoroutine(spawnRoutine);
             spawnRoutine = null;
         }
+        foreach (var pending in pendingRespawnCoroutines.Values)
+        {
+            if (pending != null)
+            {
+                StopCoroutine(pending);
+            }
+        }
+        pendingRespawnCoroutines.Clear();
         playerStates.Clear();
         zonePopulations.Clear();
         mobOwners.Clear();
@@ -171,10 +184,10 @@ public class MobSpawnerManager : NetworkBehaviour
 
         var snapshot = state.snapshot;
         var playerSafeRadius = ResolveSafeRadius(state);
-        var maxDistance = snapshot.farClipPlane + beyondFarClipOffset + additionalDistanceSpread;
-        var minDistance = Mathf.Max(snapshot.farClipPlane + beyondFarClipOffset, playerSafeRadius);
         var cosThreshold = Mathf.Cos(Mathf.Deg2Rad * ((snapshot.fieldOfView * 0.5f) + fovPaddingDegrees));
         var cameraForward = snapshot.forward == Vector3.zero ? Vector3.forward : snapshot.forward.normalized;
+        bool enforceRearSpawn = minRearSpawnAngle > 0f;
+        float rearSpawnCosThreshold = enforceRearSpawn ? Mathf.Cos(Mathf.Deg2Rad * minRearSpawnAngle) : 1f;
 
         for (int attempt = 0; attempt < 20; attempt++)
         {
@@ -193,10 +206,8 @@ public class MobSpawnerManager : NetworkBehaviour
             Vector3 toCandidate = checkPoint - snapshot.position;
             float distance = toCandidate.magnitude;
 
+            // Не спавним слишком близко к игроку
             if (distance < playerSafeRadius)
-                continue;
-
-            if (distance < minDistance || distance > maxDistance)
                 continue;
 
             Vector3 dir = toCandidate.sqrMagnitude > 0.0001f ? toCandidate.normalized : -cameraForward;
@@ -207,7 +218,12 @@ public class MobSpawnerManager : NetworkBehaviour
                 dir = dir.normalized;
             }
 
+            // Не спавним в пределах текущего поля зрения камеры (по FOV),
+            // чтобы моб появлялся "за кадром", но при этом ОСТАВАЛСЯ в пределах зоны.
             if (Vector3.Dot(cameraForward, dir) > cosThreshold)
+                continue;
+
+            if (enforceRearSpawn && Vector3.Dot(cameraForward, dir) > rearSpawnCosThreshold)
                 continue;
 
             prefab = zone.GetRandomPrefab();
@@ -292,9 +308,9 @@ public class MobSpawnerManager : NetworkBehaviour
             zonePool.Remove(identity);
         }
 
-        if (ownerNetId != 0 && playerStates.TryGetValue(ownerNetId, out var ownerState))
+        if (ownerNetId != 0 && playerStates.TryGetValue(ownerNetId, out var ownerState) && ownerState.currentZone != null)
         {
-            TrySpawnReplacement(ownerState);
+            ScheduleReplacement(ownerNetId, ownerState);
         }
     }
 
@@ -338,6 +354,15 @@ public class MobSpawnerManager : NetworkBehaviour
                 }
             }
             playerStates.Remove(netId);
+        }
+
+        if (pendingRespawnCoroutines.TryGetValue(netId, out var pending))
+        {
+            if (pending != null)
+            {
+                StopCoroutine(pending);
+            }
+            pendingRespawnCoroutines.Remove(netId);
         }
     }
 
@@ -446,6 +471,46 @@ public class MobSpawnerManager : NetworkBehaviour
         {
             SpawnMobForPlayer(state, prefab, position, rotation);
         }
+    }
+
+    void ScheduleReplacement(uint ownerNetId, PlayerSpawnState state)
+    {
+        if (state == null || state.currentZone == null)
+            return;
+
+        if (pendingRespawnCoroutines.TryGetValue(ownerNetId, out var pending) && pending != null)
+        {
+            StopCoroutine(pending);
+            pendingRespawnCoroutines.Remove(ownerNetId);
+        }
+
+        var coroutine = StartCoroutine(RespawnAfterDelay(ownerNetId));
+        pendingRespawnCoroutines[ownerNetId] = coroutine;
+    }
+
+    IEnumerator RespawnAfterDelay(uint ownerNetId)
+    {
+        float minDelay = Mathf.Min(replacementSpawnDelay.x, replacementSpawnDelay.y);
+        float maxDelay = Mathf.Max(replacementSpawnDelay.x, replacementSpawnDelay.y);
+        float delay = Mathf.Max(0f, Random.Range(minDelay, maxDelay));
+
+        if (delay > 0f)
+        {
+            yield return new WaitForSeconds(delay);
+        }
+
+        pendingRespawnCoroutines.Remove(ownerNetId);
+
+        if (!NetworkServer.active)
+            yield break;
+
+        if (!playerStates.TryGetValue(ownerNetId, out var state))
+            yield break;
+
+        if (state.currentZone == null)
+            yield break;
+
+        TrySpawnReplacement(state);
     }
 
     [Server]

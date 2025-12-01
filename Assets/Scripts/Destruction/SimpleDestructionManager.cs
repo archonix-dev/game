@@ -255,6 +255,8 @@ public class SimpleDestructionManager : MonoBehaviour
         // Используем вычисленный размер осколка (одинаковый для всех)
         fragment.transform.localScale = scale * fragmentSize;
         
+        Color targetColor = fragmentColor == default ? GetRandomFragmentColor() : fragmentColor;
+        
         // Добавляем визуальное представление
         if (usePrimitiveFragments)
         {
@@ -268,10 +270,12 @@ public class SimpleDestructionManager : MonoBehaviour
             // Удаляем коллайдер примитива (добавим свой)
             Destroy(primitive.GetComponent<Collider>());
             
-            // Создаем материал с указанным цветом для URP
-            Material colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            colorMaterial.color = GetRandomFragmentColor();
-            primitive.GetComponent<Renderer>().material = colorMaterial;
+            // Создаем материал с указанным цветом
+            Material colorMaterial = CreateColorMaterial(targetColor);
+            if (colorMaterial != null)
+            {
+                primitive.GetComponent<Renderer>().material = colorMaterial;
+            }
         }
         else
         {
@@ -280,10 +284,12 @@ public class SimpleDestructionManager : MonoBehaviour
             MeshRenderer mr = fragment.AddComponent<MeshRenderer>();
             mf.sharedMesh = originalMesh;
             
-            // Создаем материал с указанным цветом для URP
-            Material colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            colorMaterial.color = GetRandomFragmentColor();
-            mr.material = colorMaterial;
+            // Создаем материал с указанным цветом
+            Material colorMaterial = CreateColorMaterial(targetColor);
+            if (colorMaterial != null)
+            {
+                mr.material = colorMaterial;
+            }
         }
         
         // Добавляем коллайдер (упрощенный для производительности)
@@ -475,6 +481,8 @@ public class SimpleDestructionManager : MonoBehaviour
         float calculatedFragmentSize = CalculateFragmentSize(objectScale, fragmentCount);
         float fragmentSize = calculatedFragmentSize * Mathf.Min(objectBounds.size.x, objectBounds.size.y, objectBounds.size.z);
 
+        Color targetColor = fragmentColor == default ? GetRandomFragmentColor() : fragmentColor;
+        
         // Создаем простые примитивные осколки
         for (int i = 0; i < fragmentCount; i++)
         {
@@ -494,10 +502,12 @@ public class SimpleDestructionManager : MonoBehaviour
             // Одинаковый размер для всех осколков
             fragment.transform.localScale = Vector3.one * fragmentSize;
 
-            // Создаем материал с указанным цветом для URP
-            Material colorMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            colorMaterial.color = GetRandomFragmentColor();
-            fragment.GetComponent<Renderer>().material = colorMaterial;
+            // Создаем материал с указанным цветом
+            Material colorMaterial = CreateColorMaterial(targetColor);
+            if (colorMaterial != null)
+            {
+                fragment.GetComponent<Renderer>().material = colorMaterial;
+            }
 
             // Физика
             Rigidbody rb = fragment.AddComponent<Rigidbody>();
@@ -630,6 +640,38 @@ public class SimpleDestructionManager : MonoBehaviour
         this.rotationForce = Mathf.Clamp(rotationForce, 0f, 20f);
     }
 
+    private Material CreateColorMaterial(Color color)
+    {
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (shader == null)
+        {
+            shader = Shader.Find("Standard");
+        }
+        
+        if (shader == null)
+        {
+            return null;
+        }
+        
+        Material material = new Material(shader);
+        material.color = color;
+        
+        if (material.HasProperty("_BaseColor"))
+        {
+            material.SetColor("_BaseColor", color);
+        }
+        if (material.HasProperty("_Color"))
+        {
+            material.SetColor("_Color", color);
+        }
+        if (material.HasProperty("_EmissionColor"))
+        {
+            material.SetColor("_EmissionColor", Color.black);
+        }
+        
+        return material;
+    }
+    
     private Color GetRandomFragmentColor()
     {
         return Random.value < 0.5f ? Color.green : Color.black;

@@ -53,16 +53,28 @@ public class DestructibleObject : MonoBehaviour
     [Tooltip("Цвет фрагментов при разрушении")]
     [SerializeField] private Color fragmentColor = Color.white;
     
-    [Header("Материалы outline")]
-    [SerializeField] private Material outlineMaterial;
-    [SerializeField] private Material normalMaterial;
+    [Header("Визуальные изменения при уроне")]
+    [Tooltip("Меши для каждого полученного удара. Кол-во = hitsToDestroy")]
+    [SerializeField] private Mesh[] damagedMeshes;
+    [Tooltip("Точки спавна частиц для каждого состояния повреждения (по порядку damagedMeshes)")]
+    [SerializeField] private Transform[] damageStageHitPoints;
+    [Tooltip("Система частиц, появляющаяся в точке удара")]
+    [SerializeField] private ParticleSystem hitParticleSystemPrefab;
+    [Tooltip("Цвет, в который перекрашиваем частицы при ударе")]
+    [SerializeField] private Color hitParticleColor = Color.white;
     
     private int currentHits = 0;
     private Rigidbody rb;
     private AudioSource audioSource;
+    [Header("Смена меша при уроне")]
+    [Tooltip("Произвольный объект с MeshFilter, который будет менять меш при уроне")]
+    [SerializeField] private MeshFilter targetMeshFilter;
+    [Tooltip("Рендерер, для которого нужно отключать отображение при разрушении (если отличается от MeshFilter)")]
+    [SerializeField] private Renderer targetRenderer;
+    
     private MeshFilter meshFilter;
     private Renderer objectRenderer;
-    private Material[] originalMaterials;
+    private Mesh defaultMesh;
     
     // Для предотвращения множественных ударов в один кадр
     private float lastHitTime = 0f;
@@ -88,36 +100,10 @@ public class DestructibleObject : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         audioSource = GetComponent<AudioSource>();
-        meshFilter = GetComponent<MeshFilter>();
-        objectRenderer = GetComponent<Renderer>();
+        meshFilter = targetMeshFilter != null ? targetMeshFilter : GetComponent<MeshFilter>();
+        objectRenderer = targetRenderer != null ? targetRenderer : GetComponent<Renderer>();
         
-        if (objectRenderer != null)
-        {
-            // Используем безопасный способ получения материалов
-            // чтобы избежать ошибок с несовместимыми шейдерами
-            try
-            {
-                originalMaterials = objectRenderer.materials;
-            }
-            catch (System.Exception e)
-            {
-                // Если возникает ошибка из-за несовместимости шейдеров,
-                // используем sharedMaterials как альтернативу
-                Debug.LogWarning($"[DestructibleObject] Ошибка получения материалов для {gameObject.name}: {e.Message}. Используются sharedMaterials.");
-                originalMaterials = objectRenderer.sharedMaterials;
-                
-                // Создаем копии материалов для безопасной работы
-                Material[] materialCopies = new Material[originalMaterials.Length];
-                for (int i = 0; i < originalMaterials.Length; i++)
-                {
-                    if (originalMaterials[i] != null)
-                    {
-                        materialCopies[i] = new Material(originalMaterials[i]);
-                    }
-                }
-                originalMaterials = materialCopies;
-            }
-        }
+        CacheDefaultMesh();
         
         // Настраиваем Rigidbody на основе веса
         if (rb != null)
@@ -249,19 +235,13 @@ public class DestructibleObject : MonoBehaviour
         }
         
         // Локальная обработка (для одиночной игры или объектов без NetworkIdentity)
-        currentHits++;
+        int hits = IncrementHitCount();
         
-        // Визуальные эффекты
-        PlayHitEffect(impactPoint);
-        
-        // Звук удара
-        if (objectData.HitSound != null && audioSource != null)
-        {
-            audioSource.PlayOneShot(objectData.HitSound);
-        }
+        // Визуальные эффекты и звук
+        PlayHitFeedback(impactPoint, impactDirection);
         
         // Проверка на разрушение
-        if (currentHits >= objectData.HitsToDestroy)
+        if (hits >= objectData.HitsToDestroy)
         {
             DestroyObject(impactPoint, impactDirection, impactForce);
         }
@@ -478,6 +458,8 @@ public class DestructibleObject : MonoBehaviour
     {
         int fragmentCount = Random.Range(5, 10);
         
+        Material fragmentMaterial = CreateFragmentMaterial();
+        
         for (int i = 0; i < fragmentCount; i++)
         {
             GameObject fragment = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -491,10 +473,13 @@ public class DestructibleObject : MonoBehaviour
             fragment.transform.rotation = Random.rotation;
             
             // Копируем материал
-            if (objectRenderer != null)
+            if (fragmentMaterial != null)
             {
                 Renderer fragmentRenderer = fragment.GetComponent<Renderer>();
-                fragmentRenderer.material = objectRenderer.material;
+                if (fragmentRenderer != null)
+                {
+                    fragmentRenderer.sharedMaterial = fragmentMaterial;
+                }
             }
             
             // Добавляем физику
@@ -660,6 +645,8 @@ public class DestructibleObject : MonoBehaviour
     public void ResetHits()
     {
         currentHits = 0;
+        
+        RestoreDefaultMesh();
     }
     
     /// <summary>
@@ -937,49 +924,125 @@ public class DestructibleObject : MonoBehaviour
         return CurrencyFormatter.FormatBits(coins);
     }
     
-    void UpdateOutlineMaterial()
+    void ApplyDamageMeshState()
     {
-        if (objectRenderer == null || originalMaterials == null) return;
-        
-        try
+        if (meshFilter == null || damagedMeshes == null || damagedMeshes.Length == 0)
         {
-            Material[] materials = new Material[originalMaterials.Length];
-            originalMaterials.CopyTo(materials, 0);
-            
-            if (isPlayerLookingAt && outlineMaterial != null)
-            {
-                if (materials.Length > 1)
-                {
-                    materials[1] = outlineMaterial;
-                }
-                else
-                {
-                    materials = new Material[] { materials[0], outlineMaterial };
-                }
-            }
-            else if (normalMaterial != null)
-            {
-                if (materials.Length > 1)
-                {
-                    materials[1] = normalMaterial;
-                }
-                else
-                {
-                    materials = new Material[] { materials[0], normalMaterial };
-                }
-            }
-            else
-            {
-                materials = originalMaterials;
-            }
-            
-            objectRenderer.materials = materials;
+            return;
         }
-        catch (System.Exception e)
+        
+        int meshIndex = Mathf.Clamp(currentHits, 0, damagedMeshes.Length - 1);
+        Mesh targetMesh = damagedMeshes[meshIndex];
+        if (targetMesh != null)
         {
-            // Игнорируем ошибки с несовместимостью шейдеров
-            // Это может происходить когда материалы используют разные shader keyword spaces
-            Debug.LogWarning($"[DestructibleObject] Ошибка обновления outline материала для {gameObject.name}: {e.Message}");
+            meshFilter.sharedMesh = targetMesh;
+        }
+    }
+    
+    /// <summary>
+    /// Синхронизирует количество ударов и применяет соответствующий меш
+    /// </summary>
+    public void SyncHitState(int hits)
+    {
+        currentHits = Mathf.Max(0, hits);
+        ApplyDamageMeshState();
+    }
+    
+    /// <summary>
+    /// Увеличивает количество ударов и обновляет визуальный этап повреждения
+    /// </summary>
+    public int IncrementHitCount()
+    {
+        currentHits++;
+        ApplyDamageMeshState();
+        return currentHits;
+    }
+    
+    /// <summary>
+    /// Проигрывает визуальные и звуковые эффекты удара
+    /// </summary>
+    public void PlayHitFeedback(Vector3 impactPoint, Vector3 impactDirection)
+    {
+        Vector3 particlePosition = impactPoint;
+        Vector3 particleNormal = impactDirection;
+        
+        Transform stageSpawnPoint = GetCurrentDamageStageSpawnPoint();
+        if (stageSpawnPoint != null)
+        {
+            particlePosition = stageSpawnPoint.position;
+            particleNormal = stageSpawnPoint.forward;
+        }
+        
+        PlayHitEffect(particlePosition);
+        SpawnHitParticles(particlePosition, particleNormal);
+        
+        if (objectData != null && objectData.HitSound != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(objectData.HitSound);
+        }
+    }
+    
+    void SpawnHitParticles(Vector3 position, Vector3 normal)
+    {
+        if (hitParticleSystemPrefab == null)
+        {
+            return;
+        }
+        
+        Quaternion rotation = normal != Vector3.zero ? Quaternion.LookRotation(normal) : Quaternion.identity;
+        ParticleSystem particles = Instantiate(hitParticleSystemPrefab, position, rotation);
+        
+        var main = particles.main;
+        main.startColor = new ParticleSystem.MinMaxGradient(hitParticleColor);
+        
+        float lifetime = main.loop ? 5f : main.duration + main.startLifetime.constantMax;
+        Destroy(particles.gameObject, lifetime);
+    }
+    
+    Transform GetCurrentDamageStageSpawnPoint()
+    {
+        if (damageStageHitPoints == null || damageStageHitPoints.Length == 0)
+        {
+            return null;
+        }
+        
+        int meshIndex = Mathf.Clamp(Mathf.Max(currentHits - 1, 0), 0, damageStageHitPoints.Length - 1);
+        return damageStageHitPoints[meshIndex];
+    }
+    
+    void OnValidate()
+    {
+        if (targetMeshFilter == null)
+        {
+            targetMeshFilter = GetComponent<MeshFilter>();
+        }
+        if (targetRenderer == null)
+        {
+            targetRenderer = GetComponent<Renderer>();
+        }
+        if (meshFilter == null || meshFilter != targetMeshFilter)
+        {
+            meshFilter = targetMeshFilter;
+            if (meshFilter != null)
+            {
+                defaultMesh = meshFilter.sharedMesh;
+            }
+        }
+        if (objectRenderer == null || objectRenderer != targetRenderer)
+        {
+            objectRenderer = targetRenderer;
+        }
+        
+        CacheDefaultMesh();
+        
+        if (objectData != null && damagedMeshes != null && damagedMeshes.Length > 0 && damagedMeshes.Length != objectData.HitsToDestroy)
+        {
+            Debug.LogWarning($"[DestructibleObject] Для корректной работы добавьте {objectData.HitsToDestroy} мешей, сейчас {damagedMeshes.Length}", this);
+        }
+        
+        if (damageStageHitPoints != null && damagedMeshes != null && damageStageHitPoints.Length > 0 && damageStageHitPoints.Length != damagedMeshes.Length)
+        {
+            Debug.LogWarning($"[DestructibleObject] Количество точек спавна частиц ({damageStageHitPoints.Length}) должно совпадать с количеством мешей ({damagedMeshes.Length})", this);
         }
     }
     
@@ -1011,6 +1074,56 @@ public class DestructibleObject : MonoBehaviour
         }
         UnityEditor.Handles.Label(transform.position + Vector3.up * 0.5f, info);
         #endif
+    }
+    
+    Material CreateFragmentMaterial()
+    {
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (shader == null)
+        {
+            shader = Shader.Find("Standard");
+        }
+        
+        if (shader == null)
+        {
+            return null;
+        }
+        
+        Material material = new Material(shader);
+        material.color = fragmentColor;
+        if (material.HasProperty("_BaseColor"))
+        {
+            material.SetColor("_BaseColor", fragmentColor);
+        }
+        if (material.HasProperty("_Color"))
+        {
+            material.SetColor("_Color", fragmentColor);
+        }
+        return material;
+    }
+    
+    void CacheDefaultMesh()
+    {
+        meshFilter = targetMeshFilter != null ? targetMeshFilter : GetComponent<MeshFilter>();
+        if (meshFilter == null) return;
+        
+        if (damagedMeshes != null && damagedMeshes.Length > 0 && damagedMeshes[0] != null)
+        {
+            defaultMesh = damagedMeshes[0];
+            meshFilter.sharedMesh = defaultMesh;
+        }
+        else if (meshFilter.sharedMesh != null)
+        {
+            defaultMesh = meshFilter.sharedMesh;
+        }
+    }
+    
+    void RestoreDefaultMesh()
+    {
+        if (meshFilter != null && defaultMesh != null)
+        {
+            meshFilter.sharedMesh = defaultMesh;
+        }
     }
 }
 

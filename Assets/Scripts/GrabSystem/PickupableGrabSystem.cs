@@ -26,7 +26,6 @@ public class PickupableGrabSystem : NetworkBehaviour
     [SerializeField] private float dropWeightThreshold = 50f;
     
     [Header("Visual Feedback")]
-    [SerializeField] private Color highlightColor = Color.yellow;
     [SerializeField] private float highlightIntensity = 1.5f;
     
     [Header("Grab Line Settings")]
@@ -551,7 +550,7 @@ public class PickupableGrabSystem : NetworkBehaviour
             
             // Включаем emission для подсветки
             highlightedMaterial.EnableKeyword("_EMISSION");
-            highlightedMaterial.SetColor("_EmissionColor", highlightColor * highlightIntensity);
+            highlightedMaterial.SetColor("_EmissionColor", Color.yellow * highlightIntensity);
         }
     }
     

@@ -30,7 +30,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _OutlineGlow: 0
-    - _OutlineIntensity: 1
+    - _OutlineIntensity: 100
     - _OutlineTextureScale: 1
     - _OutlineWidth: 0.0036
     m_Colors:

@@ -52,6 +52,10 @@ public class CameraMovementController : MonoBehaviour
     [Tooltip("Массив кнопок, при нажатии на которые выполняется логика ESC (возврат камеры, закрытие лобби и т.д.)")]
     public Button[] escapeButtons;
     
+    [Header("Credits")]
+    [Tooltip("Контроллер титров (CreditsController) для запуска титров при клике на последний объект")]
+    public CreditsController creditsController;
+    
     private bool isMoving = false;
     private CameraMouseFollow mouseFollowScript;
     private ObjectHoverManager hoverManager;
@@ -145,11 +149,19 @@ public class CameraMovementController : MonoBehaviour
                     OpenCanvasForObject(pair);
                     StartCoroutine(MoveCameraToTarget(pair.targetPoint));
                     
-                    // Если это второй объект (индекс 1), создаем лобби
+                    // Получаем индекс пары
                     int pairIndex = GetPairIndex(pair);
+                    
+                    // Если это второй объект (индекс 1), создаем лобби
                     if (pairIndex == 1)
                     {
                         CreateLobbyForObject(pair);
+                    }
+                    
+                    // Если это последний объект, запускаем титры
+                    if (IsLastObject(pairIndex))
+                    {
+                        StartCredits();
                     }
                 }
             }
@@ -527,6 +539,34 @@ public class CameraMovementController : MonoBehaviour
         else
         {
             Debug.LogWarning("[CameraMovementController] LobbyManager не найден! Убедитесь, что LobbyManager присутствует на сцене.");
+        }
+    }
+    
+    /// <summary>
+    /// Проверяет, является ли объект последним в массиве objectTargets
+    /// </summary>
+    private bool IsLastObject(int index)
+    {
+        if (objectTargets == null || objectTargets.Length == 0)
+            return false;
+        
+        // Последний элемент имеет индекс (Length - 1)
+        return index == objectTargets.Length - 1;
+    }
+    
+    /// <summary>
+    /// Запускает титры игры
+    /// </summary>
+    private void StartCredits()
+    {
+        if (creditsController != null)
+        {
+            creditsController.ShowCredits();
+            Debug.Log("[CameraMovementController] Запуск титров...");
+        }
+        else
+        {
+            Debug.LogWarning("[CameraMovementController] CreditsController не назначен! Назначьте CreditsController в инспекторе для запуска титров.");
         }
     }
     

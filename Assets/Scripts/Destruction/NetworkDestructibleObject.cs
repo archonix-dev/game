@@ -54,26 +54,16 @@ public class NetworkDestructibleObject : NetworkBehaviour
         
         if (destructibleObject != null && destructibleObject.objectData != null)
         {
-            // Получаем текущее количество ударов напрямую из DestructibleObject
-            // Используем рефлексию для доступа к приватному полю currentHits
-            var currentHitsField = typeof(DestructibleObject).GetField("currentHits", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            int hits = destructibleObject.IncrementHitCount();
+            currentHits = hits; // Синхронизируем с клиентами
             
-            if (currentHitsField != null)
+            // Визуальные эффекты и звуки синхронизируются через RPC для всех клиентов
+            RpcPlayHitEffects(impactPoint, impactDirection);
+            
+            // Проверка на разрушение
+            if (hits >= destructibleObject.objectData.HitsToDestroy)
             {
-                int hits = (int)currentHitsField.GetValue(destructibleObject);
-                hits++;
-                currentHitsField.SetValue(destructibleObject, hits);
-                currentHits = hits; // Синхронизируем с клиентами
-                
-                // Визуальные эффекты и звуки синхронизируются через RPC для всех клиентов
-                RpcPlayHitEffects(impactPoint);
-                
-                // Проверка на разрушение
-                if (hits >= destructibleObject.objectData.HitsToDestroy)
-                {
-                    ServerDestroyObject(impactPoint, impactDirection, impactForce);
-                }
+                ServerDestroyObject(impactPoint, impactDirection, impactForce);
             }
         }
     }
@@ -141,8 +131,10 @@ public class NetworkDestructibleObject : NetworkBehaviour
     /// </summary>
     void OnCurrentHitsChanged(int oldValue, int newValue)
     {
-        // Можно добавить визуальную обратную связь на клиенте
-        // Например, показывать трещины или эффекты
+        if (destructibleObject != null)
+        {
+            destructibleObject.SyncHitState(newValue);
+        }
     }
     
     /// <summary>
@@ -183,29 +175,11 @@ public class NetworkDestructibleObject : NetworkBehaviour
     /// RPC для синхронизации визуальных эффектов и звуков удара на всех клиентах
     /// </summary>
     [ClientRpc]
-    void RpcPlayHitEffects(Vector3 impactPoint)
+    void RpcPlayHitEffects(Vector3 impactPoint, Vector3 impactDirection)
     {
         if (destructibleObject != null)
         {
-            // Визуальные эффекты
-            var playHitEffectMethod = typeof(DestructibleObject).GetMethod("PlayHitEffect", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (playHitEffectMethod != null)
-            {
-                playHitEffectMethod.Invoke(destructibleObject, new object[] { impactPoint });
-            }
-            
-            // Звук удара
-            var audioSourceField = typeof(DestructibleObject).GetField("audioSource", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (audioSourceField != null)
-            {
-                AudioSource audioSource = audioSourceField.GetValue(destructibleObject) as AudioSource;
-                if (audioSource != null && destructibleObject.objectData != null && destructibleObject.objectData.HitSound != null)
-                {
-                    audioSource.PlayOneShot(destructibleObject.objectData.HitSound);
-                }
-            }
+            destructibleObject.PlayHitFeedback(impactPoint, impactDirection);
         }
     }
 }

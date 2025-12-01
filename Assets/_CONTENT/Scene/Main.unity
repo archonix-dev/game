@@ -361,12 +361,12 @@ GameObject:
   - component: {fileID: 12250567}
   - component: {fileID: 12250566}
   - component: {fileID: 12250565}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (11)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &12250564
 Transform:
@@ -428,6 +428,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -1279,6 +1280,14 @@ PrefabInstance:
       propertyPath: m_IsActive
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 4721413632779829957, guid: a069b5dcfe3b6094183df55c9f02b1e3, type: 3}
+      propertyPath: m_Materials.Array.size
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 4721413632779829957, guid: a069b5dcfe3b6094183df55c9f02b1e3, type: 3}
+      propertyPath: 'm_Materials.Array.data[1]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
     - target: {fileID: 5916691951363847178, guid: a069b5dcfe3b6094183df55c9f02b1e3, type: 3}
       propertyPath: sceneId
       value: 1977946314
@@ -1458,12 +1467,12 @@ GameObject:
   - component: {fileID: 70599651}
   - component: {fileID: 70599650}
   - component: {fileID: 70599649}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (41)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &70599648
 Transform:
@@ -1525,6 +1534,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -1652,12 +1662,12 @@ GameObject:
   - component: {fileID: 82712745}
   - component: {fileID: 82712744}
   - component: {fileID: 82712743}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (17)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &82712742
 Transform:
@@ -1719,6 +1729,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -1759,7 +1770,8 @@ GameObject:
   - component: {fileID: 88990566}
   - component: {fileID: 88990568}
   - component: {fileID: 88990567}
-  m_Layer: 0
+  - component: {fileID: 88990569}
+  m_Layer: 14
   m_Name: Lamp (3)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1805,6 +1817,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 9f3772a45f4a43c47adb383ee309b4c3, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -1833,6 +1846,28 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 88990565}
+  m_Mesh: {fileID: -2432090755550338912, guid: 6e506946591dd2644bc891f7f0b31ab9, type: 3}
+--- !u!64 &88990569
+MeshCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 88990565}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 5
+  m_Convex: 1
+  m_CookingOptions: 30
   m_Mesh: {fileID: -2432090755550338912, guid: 6e506946591dd2644bc891f7f0b31ab9, type: 3}
 --- !u!1 &102989066
 GameObject:
@@ -2249,12 +2284,12 @@ GameObject:
   - component: {fileID: 128543700}
   - component: {fileID: 128543699}
   - component: {fileID: 128543698}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (43)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &128543697
 Transform:
@@ -2316,6 +2351,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -2555,12 +2591,12 @@ GameObject:
   - component: {fileID: 195024544}
   - component: {fileID: 195024543}
   - component: {fileID: 195024542}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (38)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &195024541
 Transform:
@@ -2622,6 +2658,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -2709,12 +2746,12 @@ GameObject:
   - component: {fileID: 201609134}
   - component: {fileID: 201609133}
   - component: {fileID: 201609132}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (9)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &201609131
 Transform:
@@ -2776,6 +2813,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -2817,12 +2855,12 @@ GameObject:
   - component: {fileID: 205701248}
   - component: {fileID: 205701247}
   - component: {fileID: 205701246}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (34)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &205701245
 Transform:
@@ -2884,6 +2922,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -3102,6 +3141,10 @@ PrefabInstance:
       propertyPath: m_StaticEditorFlags
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 2276831429894094985, guid: fede8cacfcacfad4aaeda3bbca538a72, type: 3}
+      propertyPath: objectWeight
+      value: 10
+      objectReference: {fileID: 0}
     - target: {fileID: 3154548203033020714, guid: fede8cacfcacfad4aaeda3bbca538a72, type: 3}
       propertyPath: m_StaticEditorFlags
       value: 0
@@ -3166,12 +3209,12 @@ GameObject:
   - component: {fileID: 240039627}
   - component: {fileID: 240039626}
   - component: {fileID: 240039625}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (47)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &240039624
 Transform:
@@ -3233,6 +3276,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -3274,12 +3318,12 @@ GameObject:
   - component: {fileID: 253655568}
   - component: {fileID: 253655567}
   - component: {fileID: 253655566}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (26)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &253655565
 Transform:
@@ -3341,6 +3385,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -3471,12 +3516,12 @@ GameObject:
   - component: {fileID: 273105274}
   - component: {fileID: 273105273}
   - component: {fileID: 273105272}
-  m_Layer: 3
+  m_Layer: 14
   m_Name: Box (4)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &273105271
 Transform:
@@ -3539,6 +3584,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 5b6db2b7629a5f34aaf8a4dfd7374c17, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -3580,12 +3626,12 @@ GameObject:
   - component: {fileID: 274928768}
   - component: {fileID: 274928767}
   - component: {fileID: 274928766}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (20)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &274928765
 Transform:
@@ -3647,6 +3693,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -3777,12 +3824,12 @@ GameObject:
   - component: {fileID: 294981975}
   - component: {fileID: 294981974}
   - component: {fileID: 294981973}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (54)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &294981972
 Transform:
@@ -3844,6 +3891,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -3885,12 +3933,12 @@ GameObject:
   - component: {fileID: 296808392}
   - component: {fileID: 296808391}
   - component: {fileID: 296808390}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (51)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &296808389
 Transform:
@@ -3952,6 +4000,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -3993,12 +4042,12 @@ GameObject:
   - component: {fileID: 305531884}
   - component: {fileID: 305531883}
   - component: {fileID: 305531882}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (18)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &305531881
 Transform:
@@ -4060,6 +4109,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -4101,12 +4151,12 @@ GameObject:
   - component: {fileID: 311233760}
   - component: {fileID: 311233759}
   - component: {fileID: 311233758}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (32)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &311233757
 Transform:
@@ -4168,6 +4218,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -11385,12 +11436,12 @@ GameObject:
   - component: {fileID: 335076462}
   - component: {fileID: 335076461}
   - component: {fileID: 335076460}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (15)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &335076459
 Transform:
@@ -11452,6 +11503,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -12395,12 +12447,12 @@ GameObject:
   - component: {fileID: 432008776}
   - component: {fileID: 432008775}
   - component: {fileID: 432008774}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (39)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &432008773
 Transform:
@@ -12462,6 +12514,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -12592,12 +12645,12 @@ GameObject:
   - component: {fileID: 448813171}
   - component: {fileID: 448813170}
   - component: {fileID: 448813169}
-  m_Layer: 3
+  m_Layer: 14
   m_Name: Box (3)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &448813168
 Transform:
@@ -12660,6 +12713,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 5b6db2b7629a5f34aaf8a4dfd7374c17, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -13010,7 +13064,7 @@ GameObject:
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &504943399
 Transform:
@@ -13073,6 +13127,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 5b6db2b7629a5f34aaf8a4dfd7374c17, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -13483,12 +13538,12 @@ GameObject:
   - component: {fileID: 583483796}
   - component: {fileID: 583483795}
   - component: {fileID: 583483794}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (33)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &583483793
 Transform:
@@ -13550,6 +13605,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -13591,12 +13647,12 @@ GameObject:
   - component: {fileID: 586524143}
   - component: {fileID: 586524142}
   - component: {fileID: 586524141}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (59)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &586524140
 Transform:
@@ -13658,6 +13714,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -14489,12 +14546,12 @@ GameObject:
   - component: {fileID: 673385259}
   - component: {fileID: 673385258}
   - component: {fileID: 673385257}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (40)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &673385256
 Transform:
@@ -14556,6 +14613,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -14814,7 +14872,8 @@ GameObject:
   - component: {fileID: 679165452}
   - component: {fileID: 679165454}
   - component: {fileID: 679165453}
-  m_Layer: 0
+  - component: {fileID: 679165455}
+  m_Layer: 14
   m_Name: Lamp (4)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -14860,6 +14919,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 9f3772a45f4a43c47adb383ee309b4c3, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -14888,6 +14948,28 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 679165451}
+  m_Mesh: {fileID: -2432090755550338912, guid: 6e506946591dd2644bc891f7f0b31ab9, type: 3}
+--- !u!64 &679165455
+MeshCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 679165451}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 5
+  m_Convex: 1
+  m_CookingOptions: 30
   m_Mesh: {fileID: -2432090755550338912, guid: 6e506946591dd2644bc891f7f0b31ab9, type: 3}
 --- !u!1 &687516805
 GameObject:
@@ -15056,12 +15138,12 @@ GameObject:
   - component: {fileID: 722503764}
   - component: {fileID: 722503763}
   - component: {fileID: 722503762}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (19)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &722503761
 Transform:
@@ -15123,6 +15205,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -15362,12 +15445,12 @@ GameObject:
   - component: {fileID: 754594787}
   - component: {fileID: 754594786}
   - component: {fileID: 754594785}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (30)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &754594784
 Transform:
@@ -15429,6 +15512,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -15470,12 +15554,12 @@ GameObject:
   - component: {fileID: 755050611}
   - component: {fileID: 755050610}
   - component: {fileID: 755050609}
-  m_Layer: 3
+  m_Layer: 14
   m_Name: Box (5)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &755050608
 Transform:
@@ -15538,6 +15622,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 5b6db2b7629a5f34aaf8a4dfd7374c17, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -15866,12 +15951,12 @@ GameObject:
   - component: {fileID: 762707054}
   - component: {fileID: 762707053}
   - component: {fileID: 762707052}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (48)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &762707051
 Transform:
@@ -15933,6 +16018,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -15974,12 +16060,12 @@ GameObject:
   - component: {fileID: 776107842}
   - component: {fileID: 776107841}
   - component: {fileID: 776107840}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (10)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &776107839
 Transform:
@@ -16041,6 +16127,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -16283,12 +16370,12 @@ GameObject:
   - component: {fileID: 828479839}
   - component: {fileID: 828479838}
   - component: {fileID: 828479837}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (23)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &828479836
 Transform:
@@ -16350,6 +16437,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -16391,12 +16479,12 @@ GameObject:
   - component: {fileID: 833875130}
   - component: {fileID: 833875129}
   - component: {fileID: 833875128}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (14)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &833875127
 Transform:
@@ -16458,6 +16546,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -16499,12 +16588,12 @@ GameObject:
   - component: {fileID: 838945364}
   - component: {fileID: 838945363}
   - component: {fileID: 838945362}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (49)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &838945361
 Transform:
@@ -16566,6 +16655,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -16798,12 +16888,12 @@ GameObject:
   - component: {fileID: 875113493}
   - component: {fileID: 875113492}
   - component: {fileID: 875113491}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (29)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &875113490
 Transform:
@@ -16865,6 +16955,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -17306,12 +17397,12 @@ GameObject:
   - component: {fileID: 908153931}
   - component: {fileID: 908153930}
   - component: {fileID: 908153929}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (31)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &908153928
 Transform:
@@ -17373,6 +17464,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -17689,12 +17781,12 @@ GameObject:
   - component: {fileID: 969441864}
   - component: {fileID: 969441863}
   - component: {fileID: 969441862}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (45)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &969441861
 Transform:
@@ -17756,6 +17848,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -17827,7 +17920,8 @@ GameObject:
   - component: {fileID: 998425395}
   - component: {fileID: 998425397}
   - component: {fileID: 998425396}
-  m_Layer: 0
+  - component: {fileID: 998425398}
+  m_Layer: 14
   m_Name: Lamp (7)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -17873,6 +17967,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 9f3772a45f4a43c47adb383ee309b4c3, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -17901,6 +17996,28 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 998425394}
+  m_Mesh: {fileID: -2432090755550338912, guid: 6e506946591dd2644bc891f7f0b31ab9, type: 3}
+--- !u!64 &998425398
+MeshCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 998425394}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 5
+  m_Convex: 1
+  m_CookingOptions: 30
   m_Mesh: {fileID: -2432090755550338912, guid: 6e506946591dd2644bc891f7f0b31ab9, type: 3}
 --- !u!1 &1004045088
 GameObject:
@@ -17944,7 +18061,8 @@ GameObject:
   - component: {fileID: 1004273742}
   - component: {fileID: 1004273744}
   - component: {fileID: 1004273743}
-  m_Layer: 0
+  - component: {fileID: 1004273745}
+  m_Layer: 14
   m_Name: Lamp (6)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -17990,6 +18108,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 9f3772a45f4a43c47adb383ee309b4c3, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -18018,6 +18137,28 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1004273741}
+  m_Mesh: {fileID: -2432090755550338912, guid: 6e506946591dd2644bc891f7f0b31ab9, type: 3}
+--- !u!64 &1004273745
+MeshCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1004273741}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 5
+  m_Convex: 1
+  m_CookingOptions: 30
   m_Mesh: {fileID: -2432090755550338912, guid: 6e506946591dd2644bc891f7f0b31ab9, type: 3}
 --- !u!1001 &1009878778
 PrefabInstance:
@@ -18120,12 +18261,12 @@ GameObject:
   - component: {fileID: 1015386534}
   - component: {fileID: 1015386533}
   - component: {fileID: 1015386532}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (16)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1015386531
 Transform:
@@ -18187,6 +18328,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -18228,6 +18370,7 @@ GameObject:
   - component: {fileID: 1048561192}
   - component: {fileID: 1048561191}
   - component: {fileID: 1048561194}
+  - component: {fileID: 1048561195}
   m_Layer: 3
   m_Name: BP
   m_TagString: Untagged
@@ -18387,6 +18530,38 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: -2432090755550338912, guid: 60e9964976895d14bae561bfc7b96f6d, type: 3}
+--- !u!114 &1048561195
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1048561190}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a5ac11cc976e418e8d13136b07e1f52, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_SerializedVersion: 0
+  m_AgentTypeID: 0
+  m_CollectObjects: 1
+  m_Size: {x: 33.34, y: 15, z: 32.14}
+  m_Center: {x: 0, y: 5.7, z: -2.3}
+  m_LayerMask:
+    serializedVersion: 2
+    m_Bits: 8
+  m_UseGeometry: 0
+  m_DefaultArea: 0
+  m_GenerateLinks: 0
+  m_IgnoreNavMeshAgent: 1
+  m_IgnoreNavMeshObstacle: 1
+  m_OverrideTileSize: 0
+  m_TileSize: 256
+  m_OverrideVoxelSize: 0
+  m_VoxelSize: 0.16666667
+  m_MinRegionArea: 2
+  m_NavMeshData: {fileID: 23800000, guid: 5f25c436882bb5941849ccfe3b509012, type: 2}
+  m_BuildHeightMesh: 0
 --- !u!1 &1049634251
 GameObject:
   m_ObjectHideFlags: 0
@@ -18399,12 +18574,12 @@ GameObject:
   - component: {fileID: 1049634255}
   - component: {fileID: 1049634254}
   - component: {fileID: 1049634253}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (6)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1049634252
 Transform:
@@ -18466,6 +18641,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -18538,12 +18714,12 @@ GameObject:
   - component: {fileID: 1054986476}
   - component: {fileID: 1054986475}
   - component: {fileID: 1054986474}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (5)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1054986473
 Transform:
@@ -18605,6 +18781,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -18664,8 +18841,7 @@ Transform:
   m_LocalPosition: {x: 589.36847, y: 1.51, z: 206.381}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1850335470}
+  m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1080008376
@@ -18715,6 +18891,8 @@ MonoBehaviour:
   spawnHeightOffset: 0.3
   globalMobLimit: 120
   perPlayerLimit: 24
+  replacementSpawnDelay: {x: 0.5, y: 1.5}
+  minRearSpawnAngle: 100
 --- !u!1 &1082737070
 GameObject:
   m_ObjectHideFlags: 0
@@ -18732,7 +18910,7 @@ GameObject:
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1082737071
 Transform:
@@ -18795,6 +18973,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 5b6db2b7629a5f34aaf8a4dfd7374c17, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -18925,12 +19104,12 @@ GameObject:
   - component: {fileID: 1119940652}
   - component: {fileID: 1119940651}
   - component: {fileID: 1119940650}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (61)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1119940649
 Transform:
@@ -18992,6 +19171,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -19261,7 +19441,8 @@ GameObject:
   - component: {fileID: 1143905029}
   - component: {fileID: 1143905031}
   - component: {fileID: 1143905030}
-  m_Layer: 0
+  - component: {fileID: 1143905032}
+  m_Layer: 14
   m_Name: Lamp (5)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -19307,6 +19488,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 9f3772a45f4a43c47adb383ee309b4c3, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -19335,6 +19517,28 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1143905028}
+  m_Mesh: {fileID: -2432090755550338912, guid: 6e506946591dd2644bc891f7f0b31ab9, type: 3}
+--- !u!64 &1143905032
+MeshCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1143905028}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 5
+  m_Convex: 1
+  m_CookingOptions: 30
   m_Mesh: {fileID: -2432090755550338912, guid: 6e506946591dd2644bc891f7f0b31ab9, type: 3}
 --- !u!1001 &1157247916
 PrefabInstance:
@@ -19888,12 +20092,12 @@ GameObject:
   - component: {fileID: 1164763417}
   - component: {fileID: 1164763416}
   - component: {fileID: 1164763415}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (13)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1164763414
 Transform:
@@ -19955,6 +20159,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -20116,12 +20321,12 @@ GameObject:
   - component: {fileID: 1174159540}
   - component: {fileID: 1174159539}
   - component: {fileID: 1174159538}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1174159537
 Transform:
@@ -20183,6 +20388,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -20224,12 +20430,12 @@ GameObject:
   - component: {fileID: 1187937823}
   - component: {fileID: 1187937822}
   - component: {fileID: 1187937821}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (62)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1187937820
 Transform:
@@ -20291,6 +20497,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -20776,12 +20983,12 @@ GameObject:
   - component: {fileID: 1305697125}
   - component: {fileID: 1305697124}
   - component: {fileID: 1305697123}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (22)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1305697122
 Transform:
@@ -20843,6 +21050,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -21171,12 +21379,12 @@ GameObject:
   - component: {fileID: 1320697256}
   - component: {fileID: 1320697255}
   - component: {fileID: 1320697254}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (28)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1320697253
 Transform:
@@ -21238,6 +21446,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -21577,12 +21786,12 @@ GameObject:
   - component: {fileID: 1344615423}
   - component: {fileID: 1344615422}
   - component: {fileID: 1344615421}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (57)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1344615420
 Transform:
@@ -21644,6 +21853,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -22084,12 +22294,12 @@ GameObject:
   - component: {fileID: 1414028882}
   - component: {fileID: 1414028881}
   - component: {fileID: 1414028880}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (7)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1414028879
 Transform:
@@ -22151,6 +22361,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -22301,12 +22512,12 @@ GameObject:
   - component: {fileID: 1442078879}
   - component: {fileID: 1442078878}
   - component: {fileID: 1442078877}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (12)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1442078876
 Transform:
@@ -22368,6 +22579,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -22556,12 +22768,12 @@ GameObject:
   - component: {fileID: 1488143683}
   - component: {fileID: 1488143682}
   - component: {fileID: 1488143681}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (37)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1488143680
 Transform:
@@ -22623,6 +22835,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -22664,12 +22877,12 @@ GameObject:
   - component: {fileID: 1491610640}
   - component: {fileID: 1491610639}
   - component: {fileID: 1491610638}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (55)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1491610637
 Transform:
@@ -22731,6 +22944,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -22970,12 +23184,12 @@ GameObject:
   - component: {fileID: 1515046387}
   - component: {fileID: 1515046386}
   - component: {fileID: 1515046385}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (65)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1515046384
 Transform:
@@ -23037,6 +23251,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -23148,12 +23363,12 @@ GameObject:
   - component: {fileID: 1523115374}
   - component: {fileID: 1523115373}
   - component: {fileID: 1523115372}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1523115371
 Transform:
@@ -23215,6 +23430,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -23475,7 +23691,8 @@ GameObject:
   - component: {fileID: 1581798890}
   - component: {fileID: 1581798892}
   - component: {fileID: 1581798891}
-  m_Layer: 0
+  - component: {fileID: 1581798893}
+  m_Layer: 14
   m_Name: Lamp
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -23521,6 +23738,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 9f3772a45f4a43c47adb383ee309b4c3, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -23549,6 +23767,28 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1581798889}
+  m_Mesh: {fileID: -2432090755550338912, guid: 6e506946591dd2644bc891f7f0b31ab9, type: 3}
+--- !u!64 &1581798893
+MeshCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1581798889}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 5
+  m_Convex: 1
+  m_CookingOptions: 30
   m_Mesh: {fileID: -2432090755550338912, guid: 6e506946591dd2644bc891f7f0b31ab9, type: 3}
 --- !u!1 &1589807622
 GameObject:
@@ -23846,12 +24086,12 @@ GameObject:
   - component: {fileID: 1679299100}
   - component: {fileID: 1679299099}
   - component: {fileID: 1679299098}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (35)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1679299097
 Transform:
@@ -23913,6 +24153,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -23954,12 +24195,12 @@ GameObject:
   - component: {fileID: 1699298697}
   - component: {fileID: 1699298696}
   - component: {fileID: 1699298695}
-  m_Layer: 3
+  m_Layer: 14
   m_Name: Box (9)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1699298694
 Transform:
@@ -24022,6 +24263,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 5b6db2b7629a5f34aaf8a4dfd7374c17, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -24231,12 +24473,12 @@ GameObject:
   - component: {fileID: 1742116145}
   - component: {fileID: 1742116144}
   - component: {fileID: 1742116143}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (2)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1742116142
 Transform:
@@ -24298,6 +24540,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -24407,12 +24650,12 @@ GameObject:
   - component: {fileID: 1759881301}
   - component: {fileID: 1759881300}
   - component: {fileID: 1759881299}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (36)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1759881298
 Transform:
@@ -24474,6 +24717,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -24720,12 +24964,12 @@ GameObject:
   - component: {fileID: 1802341595}
   - component: {fileID: 1802341594}
   - component: {fileID: 1802341593}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (21)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1802341592
 Transform:
@@ -24787,6 +25031,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -25046,12 +25291,12 @@ GameObject:
   - component: {fileID: 1820388530}
   - component: {fileID: 1820388529}
   - component: {fileID: 1820388528}
-  m_Layer: 3
+  m_Layer: 14
   m_Name: Box (8)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1820388527
 Transform:
@@ -25114,6 +25359,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 5b6db2b7629a5f34aaf8a4dfd7374c17, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -25647,11 +25893,11 @@ Transform:
   m_GameObject: {fileID: 1850335469}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -8.4825, y: 8.8828, z: -15.9709}
-  m_LocalScale: {x: 33.000973, y: 18.414175, z: 31.21793}
+  m_LocalPosition: {x: 580.8495, y: 4.5065, z: 192.1483}
+  m_LocalScale: {x: 32.809803, y: 7.1543055, z: 25.7364}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 1080008375}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1850335471
 MonoBehaviour:
@@ -25697,7 +25943,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneId: 1
   mobPrefabs:
-  - {fileID: 6639211694942793617, guid: 3bcb03274e3eeb74d9e969b4330d55a7, type: 3}
   - {fileID: 6837124140594114082, guid: 00ae39dcd85de22458a9814588cdde4c, type: 3}
   perPlayerCap: 4
   zoneCap: 32
@@ -26074,12 +26319,12 @@ GameObject:
   - component: {fileID: 1890469628}
   - component: {fileID: 1890469627}
   - component: {fileID: 1890469626}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (4)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1890469625
 Transform:
@@ -26141,6 +26386,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -26485,12 +26731,12 @@ GameObject:
   - component: {fileID: 1909334537}
   - component: {fileID: 1909334536}
   - component: {fileID: 1909334535}
-  m_Layer: 3
+  m_Layer: 14
   m_Name: Box (2)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1909334534
 Transform:
@@ -26553,6 +26799,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 5b6db2b7629a5f34aaf8a4dfd7374c17, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -26683,12 +26930,12 @@ GameObject:
   - component: {fileID: 1912517714}
   - component: {fileID: 1912517713}
   - component: {fileID: 1912517712}
-  m_Layer: 3
+  m_Layer: 14
   m_Name: Box (10)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1912517711
 Transform:
@@ -26751,6 +26998,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 5b6db2b7629a5f34aaf8a4dfd7374c17, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -26792,12 +27040,12 @@ GameObject:
   - component: {fileID: 1913113436}
   - component: {fileID: 1913113435}
   - component: {fileID: 1913113434}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (27)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1913113433
 Transform:
@@ -26859,6 +27107,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -26931,12 +27180,12 @@ GameObject:
   - component: {fileID: 1923778142}
   - component: {fileID: 1923778141}
   - component: {fileID: 1923778140}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (25)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1923778139
 Transform:
@@ -26998,6 +27247,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -27570,12 +27820,12 @@ GameObject:
   - component: {fileID: 1944434000}
   - component: {fileID: 1944433999}
   - component: {fileID: 1944433998}
-  m_Layer: 3
+  m_Layer: 14
   m_Name: Box (11)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1944433997
 Transform:
@@ -27638,6 +27888,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 5b6db2b7629a5f34aaf8a4dfd7374c17, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -27679,12 +27930,12 @@ GameObject:
   - component: {fileID: 1970186608}
   - component: {fileID: 1970186607}
   - component: {fileID: 1970186606}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (52)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1970186605
 Transform:
@@ -27746,6 +27997,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -27994,12 +28246,12 @@ GameObject:
   - component: {fileID: 1989556006}
   - component: {fileID: 1989556005}
   - component: {fileID: 1989556004}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (60)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &1989556003
 Transform:
@@ -28061,6 +28313,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -28102,12 +28355,12 @@ GameObject:
   - component: {fileID: 2001430144}
   - component: {fileID: 2001430143}
   - component: {fileID: 2001430142}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (63)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &2001430141
 Transform:
@@ -28169,6 +28422,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -28326,12 +28580,12 @@ GameObject:
   - component: {fileID: 2012912907}
   - component: {fileID: 2012912906}
   - component: {fileID: 2012912905}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (56)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &2012912904
 Transform:
@@ -28393,6 +28647,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -28478,12 +28733,12 @@ GameObject:
   - component: {fileID: 2015256173}
   - component: {fileID: 2015256172}
   - component: {fileID: 2015256171}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (64)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &2015256170
 Transform:
@@ -28545,6 +28800,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -28675,12 +28931,12 @@ GameObject:
   - component: {fileID: 2031232031}
   - component: {fileID: 2031232030}
   - component: {fileID: 2031232029}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (42)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &2031232028
 Transform:
@@ -28742,6 +28998,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -28826,12 +29083,12 @@ GameObject:
   - component: {fileID: 2049618682}
   - component: {fileID: 2049618681}
   - component: {fileID: 2049618680}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (50)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &2049618679
 Transform:
@@ -28893,6 +29150,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -28934,12 +29192,12 @@ GameObject:
   - component: {fileID: 2055345677}
   - component: {fileID: 2055345676}
   - component: {fileID: 2055345675}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (8)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &2055345674
 Transform:
@@ -29001,6 +29259,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -29114,12 +29373,12 @@ GameObject:
   - component: {fileID: 2064693928}
   - component: {fileID: 2064693927}
   - component: {fileID: 2064693926}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (46)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &2064693925
 Transform:
@@ -29181,6 +29440,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -29483,12 +29743,12 @@ GameObject:
   - component: {fileID: 2087834259}
   - component: {fileID: 2087834258}
   - component: {fileID: 2087834257}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (58)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &2087834256
 Transform:
@@ -29550,6 +29810,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -29700,12 +29961,12 @@ GameObject:
   - component: {fileID: 2091520528}
   - component: {fileID: 2091520527}
   - component: {fileID: 2091520526}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (44)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &2091520525
 Transform:
@@ -29767,6 +30028,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -30006,12 +30268,12 @@ GameObject:
   - component: {fileID: 2108068436}
   - component: {fileID: 2108068435}
   - component: {fileID: 2108068434}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (53)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &2108068433
 Transform:
@@ -30073,6 +30335,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -30114,12 +30377,12 @@ GameObject:
   - component: {fileID: 2112929978}
   - component: {fileID: 2112929977}
   - component: {fileID: 2112929976}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (24)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &2112929975
 Transform:
@@ -30181,6 +30444,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -30595,12 +30859,12 @@ GameObject:
   - component: {fileID: 2138941946}
   - component: {fileID: 2138941945}
   - component: {fileID: 2138941944}
-  m_Layer: 0
+  m_Layer: 14
   m_Name: forestbird (3)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 2147483647
+  m_StaticEditorFlags: 0
   m_IsActive: 1
 --- !u!4 &2138941943
 Transform:
@@ -30662,6 +30926,7 @@ MeshRenderer:
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: 947d5e5897afe984a83b0694b761dadf, type: 2}
+  - {fileID: 2100000, guid: 18737e3c2171e5047be3da90d094f95f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -30701,6 +30966,7 @@ SceneRoots:
   - {fileID: 2063228322}
   - {fileID: 1358079775}
   - {fileID: 1080008375}
+  - {fileID: 1850335470}
   - {fileID: 660366673}
   - {fileID: 319966681}
   - {fileID: 1048561193}
