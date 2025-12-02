@@ -7,11 +7,21 @@ using Steamworks;
 public class SteamInitializer : MonoBehaviour
 {
     private static bool steamInitialized = false;
+    private static bool steamInitError = false;
+    private static string steamErrorMessage = null;
+
+    public static bool IsSteamInitialized => steamInitialized;
+    public static bool HasSteamError => steamInitError;
+    public static string SteamErrorMessage => steamErrorMessage;
     
     void Awake()
     {
         // Сохраняем объект между сценами, чтобы Steam не выключался
         DontDestroyOnLoad(gameObject);
+        
+        // Сбрасываем флаги ошибки перед новой попыткой
+        steamInitError = false;
+        steamErrorMessage = null;
         
         if (steamInitialized)
         {
@@ -25,18 +35,24 @@ public class SteamInitializer : MonoBehaviour
             if (SteamAPI.Init())
             {
                 steamInitialized = true;
+                steamInitError = false;
+                steamErrorMessage = null;
                 Debug.Log("[SteamInitializer] Steam успешно инициализирован");
                 Debug.Log($"[SteamInitializer] Steam ID: {SteamUser.GetSteamID()}");
                 Debug.Log($"[SteamInitializer] Имя пользователя: {SteamFriends.GetPersonaName()}");
             }
             else
             {
-                Debug.LogError("[SteamInitializer] Не удалось инициализировать Steam. Убедитесь, что Steam запущен.");
+                steamInitError = true;
+                steamErrorMessage = "Не удалось инициализировать Steam. Убедитесь, что Steam запущен.";
+                Debug.LogError($"[SteamInitializer] {steamErrorMessage}");
             }
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"[SteamInitializer] Ошибка инициализации Steam: {e.Message}");
+            steamInitError = true;
+            steamErrorMessage = $"Ошибка инициализации Steam: {e.Message}";
+            Debug.LogError($"[SteamInitializer] {steamErrorMessage}");
         }
     }
     
@@ -62,6 +78,8 @@ public class SteamInitializer : MonoBehaviour
         {
             SteamAPI.Shutdown();
             steamInitialized = false;
+            steamInitError = false;
+            steamErrorMessage = null;
         }
     }
 }
