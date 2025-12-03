@@ -176,6 +176,10 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private AudioClip damageAudioClip;
     [SerializeField] private float damageAudioVolume = 0.6f;
     
+    [Header("Footstep Settings")]
+    [Tooltip("FootstepController для проигрывания звуков шагов")]
+    [SerializeField] private FootstepController footstepController;
+    
     [Header("Stealth Settings")]
     [Tooltip("Тег триггеров, внутри которых игрок считается скрытым от мобов")]
     [SerializeField] private string hiddenZoneTag = "Hidden";
@@ -306,6 +310,14 @@ public class PlayerController : NetworkBehaviour
     public bool IsProne()
     {
         return currentStance == PlayerStance.Prone;
+    }
+    
+    /// <summary>
+    /// Возвращает true, если игрок мертв
+    /// </summary>
+    public bool IsDead()
+    {
+        return isDead;
     }
     
     /// <summary>
@@ -471,6 +483,16 @@ public class PlayerController : NetworkBehaviour
         if (pickupableGrabSystem == null)
         {
             pickupableGrabSystem = GetComponent<PickupableGrabSystem>();
+        }
+        
+        // Находим FootstepController если не назначен
+        if (footstepController == null)
+        {
+            footstepController = GetComponent<FootstepController>();
+            if (footstepController == null)
+            {
+                footstepController = GetComponentInChildren<FootstepController>();
+            }
         }
         
         // Инициализируем AudioSource для звука смерти если не назначен
@@ -1062,6 +1084,9 @@ public class PlayerController : NetworkBehaviour
         // Ноги видны только когда мы стоим (или когда включены)
 		if (legAnchors == null || legAnchors.Length == 0 || legFootTargets == null || legFootTargets.Length == 0) return;
         
+        // Определяем, движется ли игрок
+        bool isMoving = movementFactor > 0.1f && isGrounded;
+        
         // Небольшая анимация даже без движения
         movementFactor = Mathf.Clamp01(movementFactor);
 		float freq = Mathf.Lerp(1.0f, waveFrequency, movementFactor);
@@ -1072,6 +1097,16 @@ public class PlayerController : NetworkBehaviour
         legAnimTime += Time.deltaTime * freq;
         
 		int legCount = Mathf.Min(legAnchors.Length, legFootTargets.Length);
+		
+		// Инициализируем FootstepController если нужно
+		if (footstepController != null && isOwned && isMoving)
+		{
+			if (footstepController.legCount == 0)
+			{
+				footstepController.InitializeLegTracking(legCount);
+			}
+		}
+		
 		for (int i = 0; i < legCount; i++)
         {
 			Transform anchorTransform = legAnchors[i];
@@ -1092,6 +1127,12 @@ public class PlayerController : NetworkBehaviour
             
             // Фаза шага для конкретной ноги
             float phase = legAnimTime + i * Mathf.PI * 0.5f;
+            
+            // Проверяем касание земли для проигрывания звука шага (только для локального игрока)
+            if (footstepController != null && isOwned && isMoving)
+            {
+                footstepController.CheckLegPhase(i, phase, isMoving);
+            }
             
             // Направление движения
             Vector3 forward = transform.forward;
@@ -1951,6 +1992,12 @@ public class PlayerController : NetworkBehaviour
         // Спавним труп на месте игрока
         SpawnCorpse();
         
+        // Проверяем, все ли игроки мертвы перед удалением (на сервере)
+        if (isServer)
+        {
+            CheckAllPlayersDeadAfterDeath();
+        }
+        
         // Удаляем игрока (деспавним NetworkIdentity)
         if (isServer)
         {
@@ -1965,6 +2012,43 @@ public class PlayerController : NetworkBehaviour
         isDeathAnimationPlaying = false;
         deathAnimationStartTime = -1f;
         deathParticleShown = false;
+    }
+    
+    /// <summary>
+    /// Проверяет, все ли игроки мертвы после смерти текущего игрока (вызывается на сервере)
+    /// Использует проверку через CorpseItem объекты в LobbyNetworkManager
+    /// </summary>
+    void CheckAllPlayersDeadAfterDeath()
+    {
+        if (!isServer) return;
+        
+        Debug.Log("[PlayerController] Игрок умер, проверяем всех игроков через LobbyNetworkManager...");
+        
+        // Уведомляем LobbyNetworkManager для проверки через CorpseItem объекты
+        // Проверка будет выполнена с небольшой задержкой, чтобы труп успел заспавниться
+        if (LobbyNetworkManager.Instance != null)
+        {
+            // Запускаем корутину для проверки с задержкой, чтобы труп успел заспавниться
+            LobbyNetworkManager.Instance.StartCoroutine(CheckAllPlayersDeadDelayed());
+        }
+        else
+        {
+            Debug.LogWarning("[PlayerController] LobbyNetworkManager не найден! Не можем проверить всех игроков.");
+        }
+    }
+    
+    /// <summary>
+    /// Корутина для проверки всех игроков с задержкой (чтобы труп успел заспавниться)
+    /// </summary>
+    System.Collections.IEnumerator CheckAllPlayersDeadDelayed()
+    {
+        // Ждем немного, чтобы труп успел заспавниться
+        yield return new WaitForSeconds(0.2f);
+        
+        if (LobbyNetworkManager.Instance != null)
+        {
+            LobbyNetworkManager.Instance.CheckAllPlayersDead();
+        }
     }
     
     

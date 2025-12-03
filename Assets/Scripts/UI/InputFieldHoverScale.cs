@@ -1,10 +1,9 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
-using System.Collections.Generic;
 
 /// <summary>
-/// Меняет цвета Image, текста и Outline у InputField при наведении.
+/// Скрипт для плавного изменения Scale Image при наведении мыши и клике
 /// </summary>
 public class InputFieldHoverScale : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
@@ -13,16 +12,7 @@ public class InputFieldHoverScale : MonoBehaviour, IPointerEnterHandler, IPointe
     public Color normalImageColor = Color.black;
 
     [Tooltip("Цвет Image при наведении")]
-    public Color hoverImageColor = new Color32(0, 255, 39, 255);
-
-    [Tooltip("Элементы текста, которым будем менять цвет (Text, Placeholder и т.п.)")]
-    public List<Graphic> targetTexts = new List<Graphic>();
-
-    [Tooltip("Цвет текста в обычном состоянии")]
-    public Color normalTextColor = Color.white;
-
-    [Tooltip("Цвет текста при наведении")]
-    public Color hoverTextColor = Color.black;
+    public Color hoverImageColor = new Color32(62, 169, 78, 255);
 
     [Header("Обводка")]
     [Tooltip("Outline, который выключаем/включаем при наведении")]
@@ -46,7 +36,6 @@ public class InputFieldHoverScale : MonoBehaviour, IPointerEnterHandler, IPointe
             targetImage.color = normalImageColor;
         }
 
-        SetTextColors(normalTextColor);
         SetOutlineState(false);
     }
 
@@ -69,20 +58,7 @@ public class InputFieldHoverScale : MonoBehaviour, IPointerEnterHandler, IPointe
             targetImage.color = isHover ? hoverImageColor : normalImageColor;
         }
 
-        SetTextColors(isHover ? hoverTextColor : normalTextColor);
         SetOutlineState(isHover);
-    }
-
-    private void SetTextColors(Color color)
-    {
-        if (targetTexts == null) return;
-        for (int i = 0; i < targetTexts.Count; i++)
-        {
-            if (targetTexts[i] != null)
-            {
-                targetTexts[i].color = color;
-            }
-        }
     }
 
     private void SetOutlineState(bool state)

@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections;
+using Mirror;
 
 public class SettingsMenuController : MonoBehaviour
 {
@@ -39,6 +40,7 @@ public class SettingsMenuController : MonoBehaviour
 	public GameObject hideWhenMenuOpenA;
 	[Tooltip("Дополнительный объект, который скрывается при открытом меню и показывается при закрытом")]
 	public GameObject hideWhenMenuOpenB;
+    public GameObject hideWhenMenuOpenC;
 	
 	// Авто-привязываемый LineRenderer из VoiceWaveVisualizer
 	private LineRenderer voiceWaveLine;
@@ -52,6 +54,9 @@ public class SettingsMenuController : MonoBehaviour
     [Tooltip("Кнопка для закрытия меню (продолжить)")]
     public Button continueButton;
     
+    [Tooltip("Кнопка для выхода из лобби")]
+    public Button leaveLobbyButton;
+    
     private bool isMenuOpen = false;
 	private Coroutine cameraMoveRoutine;
 	private bool bodyCamEffectWasEnabledBeforeMenu = false;
@@ -64,6 +69,12 @@ public class SettingsMenuController : MonoBehaviour
         if (continueButton != null)
         {
             continueButton.onClick.AddListener(OnContinueButtonClicked);
+        }
+        
+        // Подписываемся на событие нажатия кнопки "Выйти из лобби"
+        if (leaveLobbyButton != null)
+        {
+            leaveLobbyButton.onClick.AddListener(OnLeaveLobbyButtonClicked);
         }
 		
 		// Если камера не назначена — попытаемся найти камеру у игрока
@@ -165,6 +176,7 @@ public class SettingsMenuController : MonoBehaviour
         if (menuRoot != null)
         {
             menuRoot.SetActive(open);
+            hideWhenMenuOpenC.SetActive(open);
         }
         
         if (playerController != null)
@@ -227,12 +239,99 @@ public class SettingsMenuController : MonoBehaviour
         SetMenuState(false);
     }
     
+    /// <summary>
+    /// Вызывается при нажатии на кнопку "Выйти из лобби"
+    /// </summary>
+    private void OnLeaveLobbyButtonClicked()
+    {
+        LeaveLobby();
+    }
+    
+    /// <summary>
+    /// Покидает текущее лобби
+    /// </summary>
+    private void LeaveLobby()
+    {
+        if (LobbyManager.Instance == null)
+        {
+            Debug.LogWarning("[SettingsMenuController] LobbyManager не найден!");
+            return;
+        }
+        
+        bool isLobbyOwner = LobbyManager.Instance.IsLobbyOwner;
+        
+        if (isLobbyOwner)
+        {
+            // Если мы создатель лобби - удаляем его (все игроки будут отключены)
+            Debug.Log("[SettingsMenuController] Выход из лобби как создатель - удаление лобби");
+            
+            // Останавливаем сервер/хост, что отключит всех клиентов
+            if (NetworkServer.active && LobbyNetworkManager.Instance != null)
+            {
+                LobbyNetworkManager.Instance.StopHost();
+            }
+            
+            // Покидаем Steam лобби
+            LobbyManager.Instance.LeaveLobby();
+        }
+        else
+        {
+            // Если мы не создатель - просто покидаем лобби
+            Debug.Log("[SettingsMenuController] Выход из лобби как клиент");
+            LobbyManager.Instance.LeaveLobby();
+        }
+        
+        // Закрываем меню
+        SetMenuState(false);
+        
+        // Загружаем сцену Menu
+        StartCoroutine(LoadMenuScene());
+    }
+    
+    /// <summary>
+    /// Загружает сцену Menu
+    /// </summary>
+    private IEnumerator LoadMenuScene()
+    {
+        // Ждем немного, чтобы сетевые операции завершились
+        yield return new WaitForSeconds(0.2f);
+        
+        // Полностью останавливаем сеть
+        var networkManager = Mirror.NetworkManager.singleton;
+        if (networkManager != null)
+        {
+            if (NetworkServer.active)
+            {
+                networkManager.StopHost();
+            }
+            else if (NetworkClient.active)
+            {
+                networkManager.StopClient();
+            }
+        }
+        
+        // Ждем еще немного для полного отключения
+        yield return new WaitForSeconds(0.3f);
+        
+        // Устанавливаем флаг для открытия второго объекта при загрузке Menu (только если все игроки были в лобби)
+        // Это будет обработано в CameraMovementController при загрузке сцены
+        CameraMovementController.SetShouldOpenSecondObjectOnMenuLoad();
+        
+        // Загружаем сцену Menu
+        UnityEngine.SceneManagement.SceneManager.LoadScene("Menu");
+    }
+    
     void OnDestroy()
     {
-        // Отписываемся от события при уничтожении объекта
+        // Отписываемся от событий при уничтожении объекта
         if (continueButton != null)
         {
             continueButton.onClick.RemoveListener(OnContinueButtonClicked);
+        }
+        
+        if (leaveLobbyButton != null)
+        {
+            leaveLobbyButton.onClick.RemoveListener(OnLeaveLobbyButtonClicked);
         }
     }
 	

@@ -44,6 +44,11 @@ public class LobbyNetworkManager : NetworkManager
     private const float lobbySpawnReadyTimeout = 10f;
     private Coroutine lobbyClientReadyCoroutine;
     
+    // Проверка всех мертвых игроков
+    private bool isCheckingAllPlayersDead = false;
+    private float lastAllPlayersDeadCheckTime = 0f;
+    private const float allPlayersDeadCheckInterval = 0.5f; // Проверяем каждые 0.5 секунды
+    
     public static LobbyNetworkManager Instance
     {
         get
@@ -69,6 +74,7 @@ public class LobbyNetworkManager : NetworkManager
         mainSceneLoadInProgress = false;
         pendingPurchases.Clear();
         cachedConnectionCoins.Clear();
+        isCheckingAllPlayersDead = false;
         
         // Регистрируем префабы для спавна (когда сервер запущен, LobbyPlayerSpawner уже должен быть на сцене)
         RegisterSpawnablePrefabs();
@@ -800,6 +806,193 @@ public class LobbyNetworkManager : NetworkManager
 
         lobbyClientReadyCoroutine = null;
         Debug.LogWarning("[LobbyNetworkManager] Не удалось дождаться аутентификации клиента для Ready на сцене Lobby (тайм-аут 15 сек)");
+    }
+    
+    void Update()
+    {
+        // Проверяем всех мертвых игроков на сценах Main и Lobby (только на сервере)
+        if (NetworkServer.active)
+        {
+            string currentScene = SceneManager.GetActiveScene().name;
+            // Проверяем на сценах Main и Lobby
+            if (currentScene == mainSceneName || currentScene == lobbySceneName)
+            {
+                // Проверяем периодически
+                if (Time.time - lastAllPlayersDeadCheckTime >= allPlayersDeadCheckInterval)
+                {
+                    lastAllPlayersDeadCheckTime = Time.time;
+                    CheckAllPlayersDead();
+                }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Проверяет, все ли игроки мертвы, и переходит в меню если да
+    /// Проверка основана на количестве объектов с CorpseItem (трупов игроков)
+    /// </summary>
+    public void CheckAllPlayersDead()
+    {
+        if (!NetworkServer.active) return;
+        if (isCheckingAllPlayersDead) return; // Предотвращаем повторные проверки
+        
+        string currentScene = SceneManager.GetActiveScene().name;
+        // Проверяем на сценах Main и Lobby
+        if (currentScene != mainSceneName && currentScene != lobbySceneName) return;
+        
+        // Получаем количество игроков в лобби
+        int totalPlayersInLobby = GetTotalPlayersInLobby();
+        if (totalPlayersInLobby == 0)
+        {
+            Debug.LogWarning("[LobbyNetworkManager] Не удалось определить количество игроков в лобби");
+            return;
+        }
+        
+        // Находим все объекты с CorpseItem на сцене
+        CorpseItem[] allCorpses = FindObjectsOfType<CorpseItem>();
+        int corpseCount = allCorpses != null ? allCorpses.Length : 0;
+        
+        Debug.Log($"[LobbyNetworkManager] Проверка всех игроков: игроков в лобби {totalPlayersInLobby}, трупов на сцене {corpseCount}");
+        
+        // Если количество трупов равно количеству игроков в лобби, все игроки мертвы
+        if (corpseCount >= totalPlayersInLobby && totalPlayersInLobby > 0)
+        {
+            Debug.Log($"[LobbyNetworkManager] Все игроки мертвы! (трупов: {corpseCount}, игроков в лобби: {totalPlayersInLobby}) Возвращаемся в меню...");
+            isCheckingAllPlayersDead = true;
+            ReturnToMenuAfterAllPlayersDead();
+        }
+    }
+    
+    /// <summary>
+    /// Получает общее количество игроков в текущем лобби
+    /// </summary>
+    int GetTotalPlayersInLobby()
+    {
+        // Сначала пробуем получить через NetworkManager
+        var networkManager = Mirror.NetworkManager.singleton;
+        if (networkManager != null && networkManager.isNetworkActive)
+        {
+            int numPlayers = networkManager.numPlayers;
+            if (numPlayers > 0)
+            {
+                return numPlayers;
+            }
+        }
+        
+        // Если numPlayers равен 0, используем количество подключений
+        if (NetworkServer.active && NetworkServer.connections.Count > 0)
+        {
+            return NetworkServer.connections.Count;
+        }
+        
+        // Пробуем получить через Steam
+        if (LobbyManager.Instance != null)
+        {
+            var steamLobbyManager = FindObjectOfType<SteamLobbyManager>();
+            if (steamLobbyManager != null)
+            {
+                int steamPlayerCount = steamLobbyManager.GetLobbyPlayerCount();
+                if (steamPlayerCount > 0)
+                {
+                    return steamPlayerCount;
+                }
+            }
+        }
+        
+        // Если ничего не помогло, возвращаем количество PlayerController на сцене
+        var allPlayers = FindObjectsOfType<PlayerController>();
+        return allPlayers != null ? allPlayers.Length : 0;
+    }
+    
+    /// <summary>
+    /// Вызывается когда все игроки мертвы (из PlayerController)
+    /// </summary>
+    public void OnAllPlayersDead()
+    {
+        if (!NetworkServer.active) return;
+        if (isCheckingAllPlayersDead) return; // Предотвращаем повторные вызовы
+        
+        Debug.Log("[LobbyNetworkManager] Получено уведомление о смерти всех игроков! Возвращаемся в меню...");
+        isCheckingAllPlayersDead = true;
+        
+        // Устанавливаем флаг для открытия второго объекта при загрузке Menu
+        CameraMovementController.SetShouldOpenSecondObjectOnMenuLoad();
+        
+        // Запускаем корутину для возврата в меню
+        StartCoroutine(ReturnToMenuAfterDeathCoroutine());
+    }
+    
+    /// <summary>
+    /// Возвращает всех игроков в меню после смерти всех игроков (внутренний метод)
+    /// </summary>
+    void ReturnToMenuAfterAllPlayersDead()
+    {
+        if (!NetworkServer.active) return;
+        // Флаг isCheckingAllPlayersDead уже установлен в CheckAllPlayersDead(), поэтому не проверяем его здесь
+        
+        Debug.Log("[LobbyNetworkManager] Все игроки мертвы! Возвращаемся в меню...");
+        
+        // Устанавливаем флаг для открытия второго объекта при загрузке Menu
+        CameraMovementController.SetShouldOpenSecondObjectOnMenuLoad();
+        
+        // Запускаем корутину для возврата в меню
+        StartCoroutine(ReturnToMenuAfterDeathCoroutine());
+    }
+    
+    /// <summary>
+    /// Корутина для возврата в меню после смерти всех игроков
+    /// </summary>
+    IEnumerator ReturnToMenuAfterDeathCoroutine()
+    {
+        Debug.Log("[LobbyNetworkManager] Начинаем процесс возврата в меню...");
+        
+        // Устанавливаем флаг для открытия второго объекта при загрузке Menu (если еще не установлен)
+        CameraMovementController.SetShouldOpenSecondObjectOnMenuLoad();
+        
+        // Сохраняем имя сцены перед остановкой сети
+        string targetScene = menuSceneName;
+        
+        // Покидаем лобби через LobbyManager
+        if (LobbyManager.Instance != null)
+        {
+            Debug.Log("[LobbyNetworkManager] Покидаем лобби...");
+            LobbyManager.Instance.LeaveLobby();
+        }
+        
+        // Ждем немного для завершения операций
+        yield return new WaitForSeconds(0.1f);
+        
+        Debug.Log($"[LobbyNetworkManager] Загружаем сцену Menu ({targetScene})...");
+        
+        // Загружаем сцену Menu ДО остановки хоста, чтобы корутина не прервалась
+        // Используем LoadSceneAsync для асинхронной загрузки
+        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(targetScene);
+        
+        // Ждем завершения загрузки сцены
+        while (!asyncLoad.isDone)
+        {
+            yield return null;
+        }
+        
+        Debug.Log($"[LobbyNetworkManager] Сцена {targetScene} загружена успешно!");
+        
+        // Ждем еще немного, чтобы сцена полностью инициализировалась
+        yield return new WaitForSeconds(0.1f);
+        
+        // Теперь останавливаем сервер/хост, что отключит всех клиентов
+        if (NetworkServer.active)
+        {
+            Debug.Log("[LobbyNetworkManager] Останавливаем хост после загрузки сцены...");
+            StopHost();
+        }
+        else if (NetworkClient.active)
+        {
+            Debug.Log("[LobbyNetworkManager] Останавливаем клиент после загрузки сцены...");
+            StopClient();
+        }
+        
+        // Сбрасываем флаг после загрузки
+        isCheckingAllPlayersDead = false;
     }
 }
 

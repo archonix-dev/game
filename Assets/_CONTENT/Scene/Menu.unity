@@ -2235,10 +2235,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 1910409472}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 117779185}
 --- !u!114 &117779185
 MonoBehaviour:
@@ -3156,8 +3152,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 289.1056, y: -319.66}
-  m_SizeDelta: {x: 578.9, y: 59.78}
+  m_AnchoredPosition: {x: 291.72, y: -319.66}
+  m_SizeDelta: {x: 573.67, y: 59.78}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &199878791
 MonoBehaviour:
@@ -3173,10 +3169,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 1630426364}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 199878795}
 --- !u!114 &199878792
 MonoBehaviour:
@@ -4115,11 +4107,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 1122929467}
-  - {fileID: 691385394}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 225587471}
 --- !u!114 &225587471
 MonoBehaviour:
@@ -5465,10 +5452,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts: []
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 289408034}
 --- !u!114 &289408036
 MonoBehaviour:
@@ -6840,15 +6824,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 10905, guid: 0000000000000000f000000000000000, type: 0}
-  m_Type: 1
+  m_Sprite: {fileID: 21300000, guid: b82ddcfa53b906b4eaa69ca00feec175, type: 3}
+  m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -7766,10 +7750,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0, g: 0, b: 1, a: 1}
-  targetTexts:
-  - {fileID: 516205193}
-  normalTextColor: {r: 0, g: 0, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 421749393}
 --- !u!114 &421749393
 MonoBehaviour:
@@ -9893,10 +9873,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts: []
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 532452208}
 --- !u!114 &532452210
 MonoBehaviour:
@@ -10549,10 +10526,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts: []
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 564325143}
 --- !u!114 &564325145
 MonoBehaviour:
@@ -12497,10 +12471,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 670451486}
-  normalTextColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 670451489}
 --- !u!114 &670451489
 MonoBehaviour:
@@ -12902,9 +12872,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts: []
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 684060458}
 --- !u!114 &684060455
 MonoBehaviour:
@@ -13060,7 +13027,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: f5b32eaa080ea4746951a65f43fa9d1f, type: 3}
+  m_Sprite: {fileID: 21300000, guid: ec5e92d35dd680246a4ae68c4a9912b8, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -15554,11 +15521,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts:
-  - {fileID: 1463888492}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 828388814}
 --- !u!114 &828388811
 MonoBehaviour:
@@ -16503,10 +16466,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 236682582}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 868596791}
 --- !u!1 &871216427
 GameObject:
@@ -16802,10 +16761,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts: []
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 874177029}
 --- !u!114 &874177029
 MonoBehaviour:
@@ -17879,10 +17835,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 1863819973}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 919362554}
 --- !u!114 &919362554
 MonoBehaviour:
@@ -18405,11 +18357,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts:
-  - {fileID: 1041704674}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 967594703}
 --- !u!114 &967594703
 MonoBehaviour:
@@ -18816,7 +18764,7 @@ RectTransform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 976681390}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: -0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -18825,8 +18773,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -289.78204, y: -319.09998}
-  m_SizeDelta: {x: 578.8958, y: 70.9268}
+  m_AnchoredPosition: {x: -291.06, y: -319.32}
+  m_SizeDelta: {x: 576.32, y: 61.13}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &976681392
 MonoBehaviour:
@@ -18842,10 +18790,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 1553728896}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 976681396}
 --- !u!114 &976681393
 MonoBehaviour:
@@ -18948,7 +18892,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 976681390}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
   m_Name: 
@@ -19535,7 +19479,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -789, y: 67}
+  m_AnchoredPosition: {x: -789, y: 28}
   m_SizeDelta: {x: 449.06, y: 585.97}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1011485997
@@ -20078,11 +20022,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts:
-  - {fileID: 679734267}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 1040655620}
 --- !u!114 &1040655617
 MonoBehaviour:
@@ -20497,10 +20437,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 577633911}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 1065476250}
 --- !u!114 &1065476250
 MonoBehaviour:
@@ -21125,10 +21061,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts: []
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 1090502014}
 --- !u!114 &1090502016
 MonoBehaviour:
@@ -21551,10 +21484,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts: []
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 1106200073}
 --- !u!114 &1106200075
 MonoBehaviour:
@@ -22771,10 +22701,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts: []
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 1150911910}
 --- !u!114 &1150911910
 MonoBehaviour:
@@ -23008,10 +22935,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts: []
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 1157675606}
 --- !u!114 &1157675608
 MonoBehaviour:
@@ -24363,10 +24287,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0, g: 0.8980392, b: 1, a: 1}
-  targetTexts:
-  - {fileID: 1591301843}
-  normalTextColor: {r: 0, g: 0.8980392, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 1266814100}
 --- !u!114 &1266814100
 MonoBehaviour:
@@ -24516,11 +24436,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts:
-  - {fileID: 2072803744}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 1281853755}
 --- !u!114 &1281853752
 MonoBehaviour:
@@ -26269,10 +26185,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts: []
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 1361630341}
 --- !u!114 &1361630343
 MonoBehaviour:
@@ -27833,10 +27746,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 1780761801}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 1419842695}
 --- !u!114 &1419842695
 MonoBehaviour:
@@ -28277,10 +28186,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 1, g: 0, b: 0.91764706, a: 1}
-  targetTexts:
-  - {fileID: 232308899}
-  normalTextColor: {r: 1, g: 0, b: 0.91764706, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 1457871854}
 --- !u!114 &1457871854
 MonoBehaviour:
@@ -29121,10 +29026,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 1, g: 0, b: 0, a: 1}
-  targetTexts:
-  - {fileID: 619529128}
-  normalTextColor: {r: 1, g: 0, b: 0, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 1479243469}
 --- !u!1 &1484123260
 GameObject:
@@ -29462,6 +29363,8 @@ GameObject:
   - component: {fileID: 1502481478}
   - component: {fileID: 1502481477}
   - component: {fileID: 1502481476}
+  - component: {fileID: 1502481480}
+  - component: {fileID: 1502481479}
   m_Layer: 5
   m_Name: Password
   m_TagString: Untagged
@@ -29597,6 +29500,36 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1502481474}
   m_CullTransparentMesh: 1
+--- !u!114 &1502481479
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1502481474}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5a28d2105d93817488ddc2a26d564393, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  normalImageColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
+  targetOutline: {fileID: 1502481480}
+--- !u!114 &1502481480
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1502481474}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_EffectColor: {r: 1, g: 1, b: 1, a: 1}
+  m_EffectDistance: {x: 5, y: -5}
+  m_UseGraphicAlpha: 1
 --- !u!1 &1504805973
 GameObject:
   m_ObjectHideFlags: 0
@@ -30687,10 +30620,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0, g: 1, b: 0.105882354, a: 1}
-  targetTexts:
-  - {fileID: 1504805975}
-  normalTextColor: {r: 0, g: 1, b: 0.105882354, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 1572559747}
 --- !u!4 &1578742162 stripped
 Transform:
@@ -30837,10 +30766,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 2139125032}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 0}
 --- !u!114 &1584150790
 MonoBehaviour:
@@ -32648,10 +32573,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 2017278651}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 1624108502}
 --- !u!114 &1624108502
 MonoBehaviour:
@@ -32998,10 +32919,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 474144807}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 1631239608}
 --- !u!114 &1631239608
 MonoBehaviour:
@@ -35492,10 +35409,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 21837907}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 1739935392}
 --- !u!114 &1739935392
 MonoBehaviour:
@@ -36866,10 +36779,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts: []
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 1797642933}
 --- !u!114 &1797642935
 MonoBehaviour:
@@ -38013,11 +37923,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts:
-  - {fileID: 856989905}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 1834536643}
 --- !u!114 &1834536640
 MonoBehaviour:
@@ -39140,9 +39046,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts: []
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 1860123846}
 --- !u!114 &1860123843
 MonoBehaviour:
@@ -39731,10 +39634,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 1, g: 0.2784314, b: 0.6431373, a: 1}
-  targetTexts:
-  - {fileID: 1833845539}
-  normalTextColor: {r: 1, g: 0.2784314, b: 0.6431373, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 1878743862}
 --- !u!114 &1878743862
 MonoBehaviour:
@@ -40568,10 +40467,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 1, g: 1, b: 1, a: 1}
-  targetTexts:
-  - {fileID: 1206084009}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 1920237749}
 --- !u!1 &1921215576
 GameObject:
@@ -40703,10 +40598,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 243379680}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 1932007285}
 --- !u!114 &1932007282
 MonoBehaviour:
@@ -41595,11 +41486,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts:
-  - {fileID: 1765196753}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 1984497414}
 --- !u!114 &1984497416
 MonoBehaviour:
@@ -42692,7 +42579,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_EffectColor: {r: 1, g: 1, b: 1, a: 0.5}
+  m_EffectColor: {r: 1, g: 1, b: 1, a: 1}
   m_EffectDistance: {x: 5, y: -5}
   m_UseGraphicAlpha: 1
 --- !u!114 &2023863104
@@ -42708,11 +42595,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
-  hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts:
-  - {fileID: 915448463}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
   targetOutline: {fileID: 2023863103}
 --- !u!1 &2024458060
 GameObject:
@@ -44164,6 +44047,8 @@ GameObject:
   - component: {fileID: 2100650107}
   - component: {fileID: 2100650106}
   - component: {fileID: 2100650105}
+  - component: {fileID: 2100650109}
+  - component: {fileID: 2100650108}
   m_Layer: 5
   m_Name: PlayerCount
   m_TagString: Untagged
@@ -44299,6 +44184,36 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2100650103}
   m_CullTransparentMesh: 1
+--- !u!114 &2100650108
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2100650103}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_EffectColor: {r: 1, g: 1, b: 1, a: 1}
+  m_EffectDistance: {x: 5, y: -5}
+  m_UseGraphicAlpha: 1
+--- !u!114 &2100650109
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2100650103}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5a28d2105d93817488ddc2a26d564393, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  normalImageColor: {r: 0, g: 0, b: 0, a: 1}
+  hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
+  targetOutline: {fileID: 2100650108}
 --- !u!1 &2102979544
 GameObject:
   m_ObjectHideFlags: 0
@@ -44775,10 +44690,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 871216429}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 2131333514}
 --- !u!114 &2131333511
 MonoBehaviour:
@@ -45097,10 +45008,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0.24313726, g: 0.6627451, b: 0.30588236, a: 1}
-  targetTexts:
-  - {fileID: 480719488}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 2135657200}
 --- !u!114 &2135657197
 MonoBehaviour:

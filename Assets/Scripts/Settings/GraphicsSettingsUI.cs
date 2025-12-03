@@ -147,7 +147,14 @@ public class GraphicsSettings
 		{
 			int clampedIndex = Mathf.Clamp(resolutionIndex, 0, usableResolutions.Count - 1);
 			var res = usableResolutions[clampedIndex];
+			// Применяем разрешение и режим экрана
 			Screen.SetResolution(res.width, res.height, screenMode, 0);
+		}
+		else
+		{
+			// Если нет доступных разрешений, применяем только режим экрана
+			// Используем текущее разрешение экрана
+			Screen.fullScreenMode = screenMode;
 		}
 
 		if (fpsMatchMonitor)
@@ -200,14 +207,23 @@ public class GraphicsSettings
         targetFrameRate = Mathf.Max(0, PlayerPrefs.GetInt("TargetFrameRate", 60));
 		fpsMatchMonitor = PlayerPrefs.GetInt("FPSMatchMonitor", 0) == 1;
 		// При первом запуске (если нет сохраненного значения) устанавливаем полноэкранный режим по умолчанию
-		int defaultScreenMode = (int)FullScreenMode.ExclusiveFullScreen;
 		if (PlayerPrefs.HasKey("ScreenMode"))
 		{
-			screenMode = (FullScreenMode)Mathf.Clamp(PlayerPrefs.GetInt("ScreenMode"), (int)FullScreenMode.Windowed, (int)FullScreenMode.FullScreenWindow);
+			int savedMode = PlayerPrefs.GetInt("ScreenMode");
+			// Проверяем, что сохраненное значение валидно
+			if (savedMode >= (int)FullScreenMode.Windowed && savedMode <= (int)FullScreenMode.FullScreenWindow)
+			{
+				screenMode = (FullScreenMode)savedMode;
+			}
+			else
+			{
+				// Если значение невалидно, используем значение по умолчанию
+				screenMode = FullScreenMode.ExclusiveFullScreen;
+			}
 		}
 		else
 		{
-			screenMode = (FullScreenMode)defaultScreenMode;
+			screenMode = FullScreenMode.ExclusiveFullScreen;
 		}
     }
 
@@ -275,8 +291,11 @@ public class GraphicsSettingsUI : MonoBehaviour
 
     private void Start()
     {
-        InitializeSettings();
+        // Сначала инициализируем UI, чтобы построить filteredResolutions
         InitializeUI();
+        // Затем инициализируем настройки (они применятся с правильными разрешениями)
+        InitializeSettings();
+        // Загружаем текущие настройки и обновляем UI
         LoadCurrentSettings();
     }
 
@@ -414,6 +433,12 @@ public class GraphicsSettingsUI : MonoBehaviour
             currentSettings.urpAsset = urpPipelineAsset;
         }
         
+		// Убеждаемся, что filteredResolutions построен перед применением настроек
+		if (filteredResolutions == null || filteredResolutions.Count == 0)
+		{
+			BuildResolutionOptions(false);
+		}
+		
 		// Применяем настройки
 		ApplyAllSettings();
     }
@@ -495,8 +520,9 @@ public class GraphicsSettingsUI : MonoBehaviour
 				FullScreenMode.Windowed => 0,
 				FullScreenMode.ExclusiveFullScreen => 1,
 				FullScreenMode.FullScreenWindow => 2,
-				_ => 0
+				_ => 1 // По умолчанию полноэкранный режим
 			};
+			// Используем SetValueWithoutNotify, чтобы не вызвать событие изменения
 			screenModeDropdown.SetValueWithoutNotify(screenModeIndex);
 		}
 
@@ -756,12 +782,14 @@ public class GraphicsSettingsUI : MonoBehaviour
 			_ => FullScreenMode.Windowed
 		};
 		currentSettings.screenMode = mode;
+		// Применяем настройки экрана немедленно
 		currentSettings.ApplyDisplaySettings(filteredResolutions);
-		// Сохраняем через SaveSettings для консистентности
-		// Принудительно сохраняем ScreenMode, так как это критичное изменение
-		if (currentSettings != null)
+		// Сохраняем настройки
+		currentSettings.SaveSettings();
+		// Обновляем UI, чтобы убедиться, что dropdown показывает правильное значение
+		if (screenModeDropdown != null)
 		{
-			currentSettings.SaveSettings();
+			screenModeDropdown.SetValueWithoutNotify(value);
 		}
 	}
 

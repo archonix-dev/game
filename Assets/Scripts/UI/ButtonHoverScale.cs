@@ -5,7 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 
 /// <summary>
-/// Скрипт для плавного изменения Scale Image при наведении мыши
+/// Скрипт для плавного изменения Scale Image при наведении мыши и клике
 /// </summary>
 public class ButtonHoverScale : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
 {
@@ -14,16 +14,7 @@ public class ButtonHoverScale : MonoBehaviour, IPointerEnterHandler, IPointerExi
     public Color normalImageColor = Color.black;
 
     [Tooltip("Цвет Image при наведении")]
-    public Color hoverImageColor = new Color32(0, 255, 39, 255);
-
-    [Tooltip("Элементы текста, которым будем менять цвет")]
-    public List<Graphic> targetTexts = new List<Graphic>();
-
-    [Tooltip("Цвет текста в обычном состоянии")]
-    public Color normalTextColor = Color.white;
-
-    [Tooltip("Цвет текста при наведении")]
-    public Color hoverTextColor = Color.black;
+    public Color hoverImageColor = new Color32(62, 169, 78, 255);
 
     [Header("Обводка")]
     [Tooltip("Outline, который выключаем/включаем при наведении")]
@@ -35,10 +26,8 @@ public class ButtonHoverScale : MonoBehaviour, IPointerEnterHandler, IPointerExi
     void Start()
     {
         targetImage = GetComponent<Image>();
-        // Получаем компонент Button
         button = GetComponent<Button>();
         
-        // Получаем Outline, если не задан вручную
         if (targetOutline == null)
         {
             targetOutline = GetComponent<Outline>();
@@ -48,13 +37,10 @@ public class ButtonHoverScale : MonoBehaviour, IPointerEnterHandler, IPointerExi
         {
             targetImage.color = normalImageColor;
         }
-        SetTextColors(normalTextColor);
         SetOutlineState(false);
     }
     
     /// <summary>
-    /// Вызывается при наведении мыши на кнопку
-    /// </summary>
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (targetImage == null) return;
@@ -62,8 +48,6 @@ public class ButtonHoverScale : MonoBehaviour, IPointerEnterHandler, IPointerExi
     }
     
     /// <summary>
-    /// Вызывается при убирании мыши с кнопки
-    /// </summary>
     public void OnPointerExit(PointerEventData eventData)
     {
         if (targetImage == null) return;
@@ -77,20 +61,7 @@ public class ButtonHoverScale : MonoBehaviour, IPointerEnterHandler, IPointerExi
             targetImage.color = isHover ? hoverImageColor : normalImageColor;
         }
 
-        SetTextColors(isHover ? hoverTextColor : normalTextColor);
         SetOutlineState(isHover);
-    }
-
-    private void SetTextColors(Color color)
-    {
-        if (targetTexts == null) return;
-        for (int i = 0; i < targetTexts.Count; i++)
-        {
-            if (targetTexts[i] != null)
-            {
-                targetTexts[i].color = color;
-            }
-        }
     }
 
     private void SetOutlineState(bool state)
@@ -102,17 +73,13 @@ public class ButtonHoverScale : MonoBehaviour, IPointerEnterHandler, IPointerExi
     }
     
     /// <summary>
-    /// Вызывается при нажатии на кнопку
-    /// </summary>
     public void OnPointerClick(PointerEventData eventData)
     {
-        // Проверяем, что кнопка не заблокирована
         if (button != null && !button.interactable)
         {
             return;
         }
 
-        // При клике фиксируем визуальное состояние как наведённое
         ApplyHoverVisuals(true);
     }
 }

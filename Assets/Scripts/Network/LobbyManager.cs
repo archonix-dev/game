@@ -173,17 +173,27 @@ public class LobbyManager : MonoBehaviour
                 return;
             }
             
-            Debug.Log("[LobbyManager] Создание лобби через Steam...");
+            Debug.Log($"[LobbyManager] Создание лобби через Steam... (maxPlayers={maxPlayers})");
+            
+            // Проверяем, что мы не в лобби уже
+            if (currentLobbyID.IsValid())
+            {
+                Debug.LogWarning($"[LobbyManager] Уже в лобби (ID: {currentLobbyID}), сначала покидаем его...");
+                LeaveLobby();
+                // Не ждем здесь, так как LeaveLobby() уже вызван в MenuSceneInitializer
+            }
             
             // Создаем лобби через Steam Matchmaking
             SteamAPICall_t apiCall = SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypeFriendsOnly, maxPlayers);
+            Debug.Log($"[LobbyManager] SteamAPICall_t создан: {apiCall.m_SteamAPICall}");
             
             // Подписываемся на события Steam
             Callback<LobbyCreated_t>.Create(OnLobbyCreated);
+            Debug.Log("[LobbyManager] Callback<LobbyCreated_t> создан, ожидаем ответ от Steam...");
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"[LobbyManager] Ошибка создания лобби: {e.Message}");
+            Debug.LogError($"[LobbyManager] Ошибка создания лобби: {e.Message}\n{e.StackTrace}");
         }
     }
     
@@ -217,6 +227,8 @@ public class LobbyManager : MonoBehaviour
                 LobbyNetworkManager.Instance.CreateLobby();
                 // Обновляем список игроков после создания лобби (с задержкой для спавна LobbyPlayer)
                 Invoke(nameof(UpdatePlayerList), 0.5f);
+                // Дополнительное обновление через 2 секунды для надежности
+                Invoke(nameof(UpdatePlayerList), 2f);
             }
         }
         else

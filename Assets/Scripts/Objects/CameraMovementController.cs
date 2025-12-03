@@ -63,6 +63,28 @@ public class CameraMovementController : MonoBehaviour
     private Canvas currentActiveCanvas = null; // Текущий активный Canvas
     private GameObject currentHiddenObject = null; // Текущий скрытый объект
     private bool autoConnectMenuOpened = false;
+    private static bool shouldOpenSecondObjectOnMenuLoad = false;
+    private static CameraMovementController instance;
+    
+    public static CameraMovementController Instance
+    {
+        get
+        {
+            if (instance == null)
+            {
+                instance = FindObjectOfType<CameraMovementController>();
+            }
+            return instance;
+        }
+    }
+    
+    void Awake()
+    {
+        if (instance == null)
+        {
+            instance = this;
+        }
+    }
     
     void Start()
     {
@@ -104,6 +126,39 @@ public class CameraMovementController : MonoBehaviour
         
         // Настраиваем кнопки ESC
         SetupEscapeButtons();
+        
+        // Проверяем, нужно ли открыть второй объект при загрузке Menu
+        if (shouldOpenSecondObjectOnMenuLoad)
+        {
+            shouldOpenSecondObjectOnMenuLoad = false;
+            // Открываем второй объект (индекс 1) с небольшой задержкой
+            StartCoroutine(OpenSecondObjectDelayed());
+        }
+        
+        // Убеждаемся, что курсор разблокирован на сцене Menu
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+    
+    /// <summary>
+    /// Открывает второй объект с задержкой
+    /// </summary>
+    private IEnumerator OpenSecondObjectDelayed()
+    {
+        yield return new WaitForSeconds(0.5f);
+        
+        if (objectTargets != null && objectTargets.Length > 1)
+        {
+            OpenConnectMenu(1);
+        }
+    }
+    
+    /// <summary>
+    /// Устанавливает флаг для открытия второго объекта при следующей загрузке Menu
+    /// </summary>
+    public static void SetShouldOpenSecondObjectOnMenuLoad()
+    {
+        shouldOpenSecondObjectOnMenuLoad = true;
     }
     
     /// <summary>
