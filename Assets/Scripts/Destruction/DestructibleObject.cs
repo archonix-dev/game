@@ -27,16 +27,27 @@ public class DestructibleObject : MonoBehaviour
     [Tooltip("Насколько крепко можно держать объект (0-1)")]
     [SerializeField] private float gripStrength = 1f;
     
-    [Tooltip("Центр масс объекта для реалистичной физики")]
+    [Tooltip("Центр масс объекта для реалистичной физики (в локальных координатах). Если Vector3.zero, будет использован центр меша")]
     [SerializeField] private Vector3 centerOfMass = Vector3.zero;
+    
+    [Tooltip("Автоматически вычислять центр масс из меша (если включено, centerOfMass будет проигнорирован)")]
+    [SerializeField] private bool autoCalculateCenterOfMass = false;
     
     [Header("Хрупкость")]
     [SerializeField] private bool isFragile = false;
     [SerializeField] private float breakForceThreshold = 100f;
     
     [Header("Звуки захвата (опционально)")]
+    [Tooltip("AudioSource для воспроизведения звуков (если не указан, будет создан автоматически)")]
+    [SerializeField] private AudioSource grabAudioSource;
     [SerializeField] private AudioClip grabSound;
     [SerializeField] private AudioClip releaseSound;
+    
+    [Header("Эффекты первого поднятия")]
+    [Tooltip("ParticleSystem, который появится при первом поднятии предмета (уже должен быть в префабе)")]
+    [SerializeField] private ParticleSystem firstGrabParticleSystem;
+    [Tooltip("AudioSource для звука первого поднятия (уже должен быть в префабе)")]
+    [SerializeField] private AudioSource firstGrabAudioSource;
     
     [Header("Отображение награды")]
     [SerializeField] private bool showRewardDisplay = true;
@@ -74,6 +85,7 @@ public class DestructibleObject : MonoBehaviour
     
     private MeshFilter meshFilter;
     private Renderer objectRenderer;
+    private MeshCollider meshCollider;
     private Mesh defaultMesh;
     
     // Для предотвращения множественных ударов в один кадр
@@ -82,6 +94,7 @@ public class DestructibleObject : MonoBehaviour
     
     // Для захвата объектов
     private bool isGrabbed = false;
+    private bool wasGrabbedBefore = false; // Флаг первого поднятия
     private float originalMass;
     private float originalDrag;
     private float originalAngularDrag;
@@ -105,23 +118,52 @@ public class DestructibleObject : MonoBehaviour
         
         CacheDefaultMesh();
         
+        // Инициализируем MeshCollider
+        InitializeMeshCollider();
+        
         // Настраиваем Rigidbody на основе веса
         if (rb != null)
         {
-            rb.mass = objectWeight;
-            rb.centerOfMass = centerOfMass;
-            originalMass = rb.mass;
+            originalMass = objectWeight;
+            
+            // Настраиваем центр масс
+            if (autoCalculateCenterOfMass && meshFilter != null && meshFilter.sharedMesh != null)
+            {
+                // Вычисляем центр масс из меша
+                rb.centerOfMass = CalculateCenterOfMassFromMesh(meshFilter.sharedMesh);
+            }
+            else if (centerOfMass != Vector3.zero)
+            {
+                // Используем заданный центр масс
+                rb.centerOfMass = centerOfMass;
+            }
+            // Если centerOfMass == Vector3.zero и autoCalculateCenterOfMass == false,
+            // Unity использует центр по умолчанию (что обычно нормально)
+            
             originalDrag = rb.linearDamping;
             originalAngularDrag = rb.angularDamping;
+            
+            // Обновляем вес с учетом текущего урона (если объект уже был поврежден)
+            UpdateWeightBasedOnDamage();
         }
         
-        // Настраиваем аудио компонент
+        // Настраиваем аудио компонент (только если не указан в инспекторе)
+        if (grabAudioSource == null)
+        {
+            grabAudioSource = GetComponent<AudioSource>();
+            if (grabAudioSource == null)
+            {
+                grabAudioSource = gameObject.AddComponent<AudioSource>();
+                grabAudioSource.spatialBlend = 1f; // 3D звук
+                grabAudioSource.playOnAwake = false;
+                grabAudioSource.volume = 0.5f;
+            }
+        }
+        
+        // Сохраняем старую ссылку для обратной совместимости
         if (audioSource == null)
         {
-            audioSource = gameObject.AddComponent<AudioSource>();
-            audioSource.spatialBlend = 1f; // 3D звук
-            audioSource.playOnAwake = false;
-            audioSource.volume = 0.5f;
+            audioSource = grabAudioSource;
         }
     }
     
@@ -132,6 +174,7 @@ public class DestructibleObject : MonoBehaviour
             gameObject.tag = "Grabbable";
         }
         InitializeRewardDisplay();
+        firstGrabParticleSystem.gameObject.SetActive(false);
     }
     
     void Update()
@@ -257,14 +300,33 @@ public class DestructibleObject : MonoBehaviour
         // Скрываем отображение награды при захвате
         HideRewardDisplay();
         
-        // Воспроизводим звук захвата
-        if (audioSource != null && grabSound != null)
+        // Проверяем, первый ли раз поднимаем предмет
+        if (!wasGrabbedBefore)
         {
-            audioSource.PlayOneShot(grabSound);
+            wasGrabbedBefore = true;
+            
+            // Показываем ParticleSystem при первом поднятии
+            if (firstGrabParticleSystem != null)
+            {
+                firstGrabParticleSystem.gameObject.SetActive(true);
+                firstGrabParticleSystem.Play();
+                
+                // Скрываем через 3 секунды
+                StartCoroutine(HideFirstGrabParticlesAfterDelay(3f));
+            }
+            
+            // Воспроизводим звук первого поднятия
+            if (firstGrabAudioSource != null)
+            {
+                firstGrabAudioSource.Play();
+            }
         }
         
-        // Можно добавить визуальные эффекты
-        // Например, изменить цвет или включить частицы
+        // Воспроизводим звук захвата
+        if (grabAudioSource != null && grabSound != null)
+        {
+            grabAudioSource.PlayOneShot(grabSound);
+        }
     }
     
     /// <summary>
@@ -275,9 +337,9 @@ public class DestructibleObject : MonoBehaviour
         isGrabbed = false;
         
         // Воспроизводим звук отпускания
-        if (audioSource != null && releaseSound != null)
+        if (grabAudioSource != null && releaseSound != null)
         {
-            audioSource.PlayOneShot(releaseSound);
+            grabAudioSource.PlayOneShot(releaseSound);
         }
         
         // Восстанавливаем оригинальные физические параметры
@@ -285,6 +347,20 @@ public class DestructibleObject : MonoBehaviour
         {
             rb.linearDamping = originalDrag;
             rb.angularDamping = originalAngularDrag;
+        }
+    }
+    
+    /// <summary>
+    /// Скрывает ParticleSystem первого поднятия через указанное время
+    /// </summary>
+    private System.Collections.IEnumerator HideFirstGrabParticlesAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        
+        if (firstGrabParticleSystem != null)
+        {
+            firstGrabParticleSystem.Stop();
+            firstGrabParticleSystem.gameObject.SetActive(false);
         }
     }
     
@@ -611,16 +687,15 @@ public class DestructibleObject : MonoBehaviour
     
     // Методы для настройки объекта извне
     /// <summary>
-    /// Установить вес объекта
+    /// Установить вес объекта (базовый вес без учета урона)
     /// </summary>
     public void SetWeight(float weight)
     {
         objectWeight = weight;
-        if (rb != null)
-        {
-            rb.mass = weight;
-            originalMass = weight;
-        }
+        originalMass = weight;
+        
+        // Обновляем вес с учетом текущего урона
+        UpdateWeightBasedOnDamage();
     }
     
     /// <summary>
@@ -647,6 +722,7 @@ public class DestructibleObject : MonoBehaviour
         currentHits = 0;
         
         RestoreDefaultMesh();
+        UpdateWeightBasedOnDamage();
     }
     
     /// <summary>
@@ -936,6 +1012,9 @@ public class DestructibleObject : MonoBehaviour
         if (targetMesh != null)
         {
             meshFilter.sharedMesh = targetMesh;
+            
+            // Обновляем MeshCollider при изменении меша
+            UpdateMeshCollider(targetMesh);
         }
     }
     
@@ -946,6 +1025,7 @@ public class DestructibleObject : MonoBehaviour
     {
         currentHits = Mathf.Max(0, hits);
         ApplyDamageMeshState();
+        UpdateWeightBasedOnDamage();
     }
     
     /// <summary>
@@ -955,6 +1035,7 @@ public class DestructibleObject : MonoBehaviour
     {
         currentHits++;
         ApplyDamageMeshState();
+        UpdateWeightBasedOnDamage();
         return currentHits;
     }
     
@@ -1048,11 +1129,45 @@ public class DestructibleObject : MonoBehaviour
     
     void OnDrawGizmosSelected()
     {
+        // Вычисляем реальный центр масс, который используется в Rigidbody
+        Vector3 actualCenterOfMass = Vector3.zero;
+        bool isAutoCalculated = false;
+        
+        if (autoCalculateCenterOfMass && meshFilter != null && meshFilter.sharedMesh != null)
+        {
+            // Автоматически вычисленный центр масс
+            actualCenterOfMass = CalculateCenterOfMassFromMesh(meshFilter.sharedMesh);
+            isAutoCalculated = true;
+        }
+        else if (centerOfMass != Vector3.zero)
+        {
+            // Заданный вручную центр масс
+            actualCenterOfMass = centerOfMass;
+        }
+        // Если centerOfMass == Vector3.zero и autoCalculateCenterOfMass == false,
+        // центр масс будет в центре объекта (transform.position)
+        
         // Отображаем центр масс
-        Gizmos.color = Color.red;
-        Vector3 worldCenterOfMass = transform.TransformPoint(centerOfMass);
-        Gizmos.DrawWireSphere(worldCenterOfMass, 0.1f);
+        Vector3 worldCenterOfMass = transform.TransformPoint(actualCenterOfMass);
+        
+        // Рисуем большую сферу для центра масс
+        Gizmos.color = isAutoCalculated ? new Color(0f, 1f, 0f, 0.8f) : new Color(1f, 0f, 0f, 0.8f); // Зеленый если авто, красный если ручной
+        Gizmos.DrawSphere(worldCenterOfMass, 0.15f);
+        
+        // Рисуем контур сферы
+        Gizmos.color = isAutoCalculated ? Color.green : Color.red;
+        Gizmos.DrawWireSphere(worldCenterOfMass, 0.15f);
+        
+        // Рисуем линию от центра объекта до центра масс
+        Gizmos.color = isAutoCalculated ? new Color(0f, 1f, 0f, 0.5f) : new Color(1f, 0f, 0f, 0.5f);
         Gizmos.DrawLine(transform.position, worldCenterOfMass);
+        
+        // Рисуем крестик в центре масс для лучшей видимости
+        Gizmos.color = isAutoCalculated ? Color.green : Color.red;
+        float crossSize = 0.2f;
+        Gizmos.DrawLine(worldCenterOfMass + Vector3.left * crossSize, worldCenterOfMass + Vector3.right * crossSize);
+        Gizmos.DrawLine(worldCenterOfMass + Vector3.up * crossSize, worldCenterOfMass + Vector3.down * crossSize);
+        Gizmos.DrawLine(worldCenterOfMass + Vector3.forward * crossSize, worldCenterOfMass + Vector3.back * crossSize);
         
         // Отображаем радиус отображения награды
         if (showRewardDisplay)
@@ -1063,7 +1178,31 @@ public class DestructibleObject : MonoBehaviour
         
         // Отображаем информацию об объекте
         #if UNITY_EDITOR
-        string info = $"Вес: {objectWeight}kg\nЗахвачен: {isGrabbed}";
+        string info = $"Вес: {objectWeight}kg";
+        
+        // Показываем текущий вес с учетом урона
+        if (rb != null && objectData != null)
+        {
+            float currentWeight = rb.mass;
+            info += $"\nТекущий вес: {currentWeight:F1}kg";
+        }
+        
+        info += $"\nЗахвачен: {isGrabbed}";
+        
+        // Информация о центре масс
+        if (isAutoCalculated)
+        {
+            info += $"\nЦентр масс: Авто ({actualCenterOfMass.x:F2}, {actualCenterOfMass.y:F2}, {actualCenterOfMass.z:F2})";
+        }
+        else if (centerOfMass != Vector3.zero)
+        {
+            info += $"\nЦентр масс: Ручной ({actualCenterOfMass.x:F2}, {actualCenterOfMass.y:F2}, {actualCenterOfMass.z:F2})";
+        }
+        else
+        {
+            info += "\nЦентр масс: По умолчанию (0, 0, 0)";
+        }
+        
         if (objectData != null)
         {
             info += $"\nПрочность: {currentHits}/{objectData.HitsToDestroy}\nМонеты: {objectData.CoinAmount}";
@@ -1073,6 +1212,9 @@ public class DestructibleObject : MonoBehaviour
             info += $"\nРадиус награды: {displayDistance}m\nРазмер: {minScale}-{maxScale}";
         }
         UnityEditor.Handles.Label(transform.position + Vector3.up * 0.5f, info);
+        
+        // Показываем метку у центра масс
+        UnityEditor.Handles.Label(worldCenterOfMass + Vector3.up * 0.3f, "Центр масс", new GUIStyle() { normal = new GUIStyleState() { textColor = isAutoCalculated ? Color.green : Color.red }, fontSize = 12, fontStyle = FontStyle.Bold });
         #endif
     }
     
@@ -1116,6 +1258,12 @@ public class DestructibleObject : MonoBehaviour
         {
             defaultMesh = meshFilter.sharedMesh;
         }
+        
+        // Обновляем MeshCollider при кешировании меша
+        if (defaultMesh != null && meshCollider != null)
+        {
+            UpdateMeshCollider(defaultMesh);
+        }
     }
     
     void RestoreDefaultMesh()
@@ -1123,6 +1271,108 @@ public class DestructibleObject : MonoBehaviour
         if (meshFilter != null && defaultMesh != null)
         {
             meshFilter.sharedMesh = defaultMesh;
+            
+            // Обновляем MeshCollider при восстановлении меша
+            UpdateMeshCollider(defaultMesh);
+        }
+    }
+    
+    /// <summary>
+    /// Инициализирует MeshCollider, удаляя BoxCollider если он есть
+    /// </summary>
+    void InitializeMeshCollider()
+    {
+        // Удаляем BoxCollider если он есть
+        BoxCollider boxCollider = GetComponent<BoxCollider>();
+        if (boxCollider != null)
+        {
+            #if UNITY_EDITOR
+            DestroyImmediate(boxCollider);
+            #else
+            Destroy(boxCollider);
+            #endif
+        }
+        
+        // Получаем или создаем MeshCollider
+        meshCollider = GetComponent<MeshCollider>();
+        if (meshCollider == null)
+        {
+            meshCollider = gameObject.AddComponent<MeshCollider>();
+        }
+        
+        // Настраиваем MeshCollider
+        meshCollider.convex = true;
+        
+        // Устанавливаем меш коллайдера на текущий меш объекта
+        Mesh meshToUse = meshFilter != null && meshFilter.sharedMesh != null ? meshFilter.sharedMesh : defaultMesh;
+        if (meshToUse != null)
+        {
+            meshCollider.sharedMesh = meshToUse;
+        }
+    }
+    
+    /// <summary>
+    /// Обновляет MeshCollider при изменении меша
+    /// </summary>
+    void UpdateMeshCollider(Mesh newMesh)
+    {
+        if (meshCollider == null)
+        {
+            InitializeMeshCollider();
+        }
+        
+        if (meshCollider != null && newMesh != null)
+        {
+            meshCollider.sharedMesh = newMesh;
+            meshCollider.convex = true;
+        }
+    }
+    
+    /// <summary>
+    /// Вычисляет центр масс из меша
+    /// </summary>
+    Vector3 CalculateCenterOfMassFromMesh(Mesh mesh)
+    {
+        if (mesh == null) return Vector3.zero;
+        
+        Vector3[] vertices = mesh.vertices;
+        if (vertices == null || vertices.Length == 0) return Vector3.zero;
+        
+        // Вычисляем среднюю точку всех вершин
+        Vector3 sum = Vector3.zero;
+        foreach (Vector3 vertex in vertices)
+        {
+            sum += vertex;
+        }
+        
+        return sum / vertices.Length;
+    }
+    
+    /// <summary>
+    /// Обновляет вес объекта в зависимости от полученного урона
+    /// </summary>
+    void UpdateWeightBasedOnDamage()
+    {
+        if (rb == null || objectData == null) return;
+        
+        int hitsToDestroy = objectData.HitsToDestroy;
+        if (hitsToDestroy <= 0) return;
+        
+        // Вычисляем процент оставшегося веса
+        // При 0 ударах: (hitsToDestroy - 0) / hitsToDestroy = 1.0 (100%)
+        // При 1 ударе: (hitsToDestroy - 1) / hitsToDestroy = 0.8 (80% если hitsToDestroy = 5)
+        // При hitsToDestroy ударах: (hitsToDestroy - hitsToDestroy) / hitsToDestroy = 0 (0%)
+        float remainingHits = Mathf.Max(0, hitsToDestroy - currentHits);
+        float weightMultiplier = remainingHits / hitsToDestroy;
+        
+        // Применяем новый вес
+        float newWeight = objectWeight * weightMultiplier;
+        rb.mass = newWeight;
+        
+        // Обновляем центр масс если включено автоматическое вычисление
+        if (autoCalculateCenterOfMass && meshFilter != null && meshFilter.sharedMesh != null)
+        {
+            rb.centerOfMass = CalculateCenterOfMassFromMesh(meshFilter.sharedMesh);
         }
     }
 }

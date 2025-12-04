@@ -92,6 +92,14 @@ public class FlyingMob : NetworkBehaviour
     [SerializeField] private LayerMask groundMask = ~0;
     [Tooltip("Максимальная дистанция луча вниз для поиска земли")]
     [SerializeField] private float maxGroundCheckDistance = 200f;
+    
+    [Header("Alarm Settings")]
+    [Tooltip("Шанс вызвать тревогу при обнаружении игрока (0-1)")]
+    [SerializeField] private float alarmTriggerChance = 0.1f; // 10%
+    [Tooltip("Радиус распространения тревоги")]
+    [SerializeField] private float alarmRadius = 50f;
+    [Tooltip("Длительность тревоги в секундах")]
+    [SerializeField] private float alarmDuration = 60f;
 
     [Header("Collision Settings")]
     [Tooltip("Слои, с которыми летающий моб должен сталкиваться (стены, объекты и т.п.)")]
@@ -131,6 +139,133 @@ public class FlyingMob : NetworkBehaviour
     private float currentScanRotation = 0f;
     private const float maxScanRotation = 90f;
     [SerializeField] private float explosionEffectLifetime = 3f;
+    
+    // Система тревоги
+    private static Dictionary<Transform, float> activeAlarms = new Dictionary<Transform, float>(); // Игрок -> время окончания тревоги
+    private Transform alarmedPlayer = null; // Игрок, на которого объявлена тревога
+    
+    /// <summary>
+    /// Вызывает тревогу на игрока и распространяет её на всех мобов в радиусе
+    /// </summary>
+    [Server]
+    void TriggerAlarm(Transform targetPlayer)
+    {
+        if (targetPlayer == null) return;
+        
+        // Устанавливаем время окончания тревоги
+        float alarmEndTime = Time.time + alarmDuration;
+        activeAlarms[targetPlayer] = alarmEndTime;
+        
+        // Уведомляем игрока о тревоге
+        PlayerAlarmVisualizer alarmVisualizer = targetPlayer.GetComponent<PlayerAlarmVisualizer>();
+        if (alarmVisualizer != null)
+        {
+            alarmVisualizer.StartAlarm(alarmDuration);
+        }
+        
+        // Распространяем тревогу на всех мобов в радиусе
+        // Ищем всех FlyingMob в сцене и проверяем расстояние
+        FlyingMob[] allMobs = FindObjectsOfType<FlyingMob>();
+        foreach (FlyingMob nearbyMob in allMobs)
+        {
+            if (nearbyMob == null || nearbyMob == this)
+                continue;
+            
+            float distance = Vector3.Distance(transform.position, nearbyMob.transform.position);
+            if (distance <= alarmRadius)
+            {
+                // Устанавливаем игрока как цель для моба
+                nearbyMob.player = targetPlayer;
+                nearbyMob.alarmedPlayer = targetPlayer;
+                
+                // Если моб в состоянии Wandering или Scanning, переводим его в Chasing
+                if (nearbyMob.currentState == MobState.Wandering || nearbyMob.currentState == MobState.Scanning)
+                {
+                    nearbyMob.currentState = MobState.Chasing;
+                }
+            }
+        }
+        
+        Debug.Log($"[FlyingMob] Тревога вызвана на игрока {targetPlayer.name}. Распространена на мобов в радиусе {alarmRadius}");
+    }
+    
+    /// <summary>
+    /// Проверяет, находится ли игрок под тревогой
+    /// </summary>
+    [Server]
+    bool IsPlayerUnderAlarm(Transform player)
+    {
+        if (player == null) return false;
+        
+        if (activeAlarms.TryGetValue(player, out float endTime))
+        {
+            // Проверяем, не истекла ли тревога
+            if (Time.time < endTime)
+            {
+                return true;
+            }
+            else
+            {
+                // Тревога истекла, удаляем из словаря
+                activeAlarms.Remove(player);
+                return false;
+            }
+        }
+        
+        return false;
+    }
+    
+    /// <summary>
+    /// Возвращает список всех игроков, находящихся под тревогой
+    /// </summary>
+    [Server]
+    List<Transform> GetAlarmedPlayers()
+    {
+        List<Transform> alarmed = new List<Transform>();
+        List<Transform> toRemove = new List<Transform>();
+        
+        foreach (var kvp in activeAlarms)
+        {
+            Transform player = kvp.Key;
+            float endTime = kvp.Value;
+            
+            // Проверяем, что игрок все еще активен
+            if (player == null || !player.gameObject.activeInHierarchy)
+            {
+                toRemove.Add(player);
+                continue;
+            }
+            
+            // Проверяем, не истекла ли тревога
+            if (Time.time < endTime)
+            {
+                alarmed.Add(player);
+            }
+            else
+            {
+                // Тревога истекла
+                toRemove.Add(player);
+            }
+        }
+        
+        // Удаляем истекшие тревоги
+        foreach (Transform player in toRemove)
+        {
+            activeAlarms.Remove(player);
+            
+            // Уведомляем игрока об окончании тревоги
+            if (player != null)
+            {
+                PlayerAlarmVisualizer alarmVisualizer = player.GetComponent<PlayerAlarmVisualizer>();
+                if (alarmVisualizer != null)
+                {
+                    alarmVisualizer.StopAlarm();
+                }
+            }
+        }
+        
+        return alarmed;
+    }
     
     // Базовый угол конуса сканирования (по текущим spotDetectionRadius/spotHeight)
     private float baseScanHalfAngleRad;
@@ -382,6 +517,9 @@ public class FlyingMob : NetworkBehaviour
             
             HandleHoverMovement();
             HandleScanningRotation();
+            
+            // Проверяем активные тревоги и очищаем истекшие
+            GetAlarmedPlayers();
             
             if (currentState == MobState.Wandering)
             {
@@ -931,6 +1069,36 @@ public class FlyingMob : NetworkBehaviour
         
         while (currentState == MobState.Wandering)
         {
+            // Проверяем, есть ли игроки под тревогой в радиусе
+            List<Transform> alarmedPlayers = GetAlarmedPlayers();
+            if (alarmedPlayers.Count > 0)
+            {
+                // Находим ближайшего игрока под тревогой
+                Transform closestAlarmedPlayer = null;
+                float closestDistance = float.MaxValue;
+                
+                foreach (Transform alarmedPlayerTransform in alarmedPlayers)
+                {
+                    if (alarmedPlayerTransform == null || !alarmedPlayerTransform.gameObject.activeInHierarchy)
+                        continue;
+                    
+                    float distance = Vector3.Distance(transform.position, alarmedPlayerTransform.position);
+                    if (distance < closestDistance && distance <= alarmRadius * 2f) // Увеличиваем радиус для тревоги
+                    {
+                        closestDistance = distance;
+                        closestAlarmedPlayer = alarmedPlayerTransform;
+                    }
+                }
+                
+                if (closestAlarmedPlayer != null)
+                {
+                    player = closestAlarmedPlayer;
+                    alarmedPlayer = closestAlarmedPlayer;
+                    currentState = MobState.Chasing;
+                    break;
+                }
+            }
+            
             // Проверяем время для сканирования
             if (Time.time - lastScanTime >= scanInterval)
             {
@@ -961,6 +1129,13 @@ public class FlyingMob : NetworkBehaviour
             {
                 player = detectedPlayer;
                 playerDetected = true;
+                
+                // В 10% случаев вызываем тревогу
+                if (Random.value <= alarmTriggerChance)
+                {
+                    TriggerAlarm(detectedPlayer);
+                }
+                
                 currentState = MobState.Chasing;
                 break;
             }
@@ -983,6 +1158,12 @@ public class FlyingMob : NetworkBehaviour
         SetScanningState(false);
         SetAlertVisuals(true);
         TriggerAttackAlertVisuals();
+        
+        // Проверяем, есть ли активная тревога на этого игрока
+        if (player != null && IsPlayerUnderAlarm(player))
+        {
+            alarmedPlayer = player;
+        }
         
         float presentationDuration = GetAlertPresentationDuration();
         float elapsed = 0f;
@@ -1227,6 +1408,28 @@ public class FlyingMob : NetworkBehaviour
         float baseRadius = Mathf.Max(spotDetectionRadius, 0.01f);
         float maxDistance = Mathf.Sqrt(height * height + baseRadius * baseRadius);
         Vector3 apex = transform.position;
+        
+        // Если есть активная тревога, видим всех игроков под тревогой
+        List<Transform> alarmedPlayers = GetAlarmedPlayers();
+        if (alarmedPlayers.Count > 0)
+        {
+            // Проверяем игроков под тревогой
+            foreach (Transform alarmedPlayerTransform in alarmedPlayers)
+            {
+                if (alarmedPlayerTransform == null || !alarmedPlayerTransform.gameObject.activeInHierarchy)
+                    continue;
+                
+                Vector3 playerPosition = alarmedPlayerTransform.position;
+                Vector3 toPlayer = playerPosition - apex;
+                float distanceToPlayer = toPlayer.magnitude;
+                
+                // Если игрок под тревогой в пределах максимального расстояния
+                if (distanceToPlayer <= maxDistance * 2f) // Увеличиваем радиус для тревоги
+                {
+                    return alarmedPlayerTransform;
+                }
+            }
+        }
         
         // Используем NetworkServer.spawned для поиска всех игроков в сети
         foreach (var identity in NetworkServer.spawned.Values)

@@ -830,6 +830,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 09e33acedda97ed4281c4e53ed42ab4f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  enableDiscordRichPresence: 0
   clientId: 1445531932019527690
   menuSceneName: Menu
   lobbySceneName: Lobby

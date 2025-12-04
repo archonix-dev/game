@@ -10,6 +10,9 @@ using Discord;
 public class DiscordRichPresenceManager : MonoBehaviour
 {
     [Header("Discord Settings")]
+    [Tooltip("Включить Discord Rich Presence (если выключено, Discord не будет запускаться автоматически)")]
+    [SerializeField] private bool enableDiscordRichPresence = true;
+    
     [Tooltip("Discord Application Client ID (из Discord Developer Portal)")]
     [SerializeField] private long clientId = 1445531932019527690;
     
@@ -55,7 +58,16 @@ public class DiscordRichPresenceManager : MonoBehaviour
         {
             instance = this;
             DontDestroyOnLoad(gameObject);
-            InitializeDiscord();
+            
+            // Инициализируем Discord только если Rich Presence включен
+            if (enableDiscordRichPresence)
+            {
+                InitializeDiscord();
+            }
+            else
+            {
+                Debug.Log("[DiscordRichPresenceManager] Discord Rich Presence отключен в настройках");
+            }
         }
         else if (instance != this)
         {
@@ -117,18 +129,29 @@ public class DiscordRichPresenceManager : MonoBehaviour
     /// </summary>
     void InitializeDiscord()
     {
+        // Не инициализируем, если Rich Presence отключен
+        if (!enableDiscordRichPresence)
+        {
+            isInitialized = false;
+            return;
+        }
+        
         try
         {
-            discord = new Discord.Discord(clientId, (ulong)CreateFlags.Default);
+            // Используем CreateFlags.NoRequireDiscord, чтобы не запускать Discord автоматически
+            // Это предотвратит автоматический запуск Discord, если он не запущен
+            discord = new Discord.Discord(clientId, (ulong)CreateFlags.NoRequireDiscord);
             activityManager = discord.GetActivityManager();
             isInitialized = true;
             Debug.Log($"[DiscordRichPresenceManager] Discord SDK инициализирован с Client ID: {clientId}");
         }
         catch (Exception e)
         {
-            Debug.LogError($"[DiscordRichPresenceManager] Не удалось инициализировать Discord SDK: {e.Message}");
-            Debug.LogWarning("[DiscordRichPresenceManager] Rich Presence не будет работать. Убедитесь, что Discord запущен.");
+            Debug.LogWarning($"[DiscordRichPresenceManager] Не удалось инициализировать Discord SDK: {e.Message}");
+            Debug.Log("[DiscordRichPresenceManager] Rich Presence не будет работать. Discord может быть не запущен или не установлен.");
             isInitialized = false;
+            discord = null;
+            activityManager = null;
         }
     }
     
@@ -272,6 +295,52 @@ public class DiscordRichPresenceManager : MonoBehaviour
     {
         currentLocation = locationName ?? "";
         UpdateRichPresence();
+    }
+    
+    /// <summary>
+    /// Включает или выключает Discord Rich Presence
+    /// </summary>
+    public void SetDiscordRichPresenceEnabled(bool enabled)
+    {
+        if (enableDiscordRichPresence == enabled)
+            return;
+        
+        enableDiscordRichPresence = enabled;
+        
+        if (enabled)
+        {
+            // Включаем Rich Presence
+            if (!isInitialized)
+            {
+                InitializeDiscord();
+            }
+        }
+        else
+        {
+            // Выключаем Rich Presence
+            if (discord != null)
+            {
+                try
+                {
+                    discord.Dispose();
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[DiscordRichPresenceManager] Ошибка при закрытии Discord SDK: {e.Message}");
+                }
+                discord = null;
+                activityManager = null;
+                isInitialized = false;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Возвращает, включен ли Discord Rich Presence
+    /// </summary>
+    public bool IsDiscordRichPresenceEnabled()
+    {
+        return enableDiscordRichPresence;
     }
 }
 

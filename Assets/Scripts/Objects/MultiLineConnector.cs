@@ -55,7 +55,7 @@ public class MultiLineConnector : MonoBehaviour
     {
         InitializeRenderers();
     }
-    
+
     void LateUpdate()
     {
         if (connections == null || runtimeRenderers == null) return;

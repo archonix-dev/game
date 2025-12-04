@@ -724,7 +724,7 @@ MonoBehaviour:
   spotHeight: 6
   explosionForce: 30
   explosionRadius: 3
-  damageToPlayer: 10
+  damageToPlayer: 1
   chaseDistance: 2
   maxExplosionShakeIntensity: 0.3
   destructibleImpactForce: 0
@@ -741,8 +741,8 @@ MonoBehaviour:
   scanningAudioSource: {fileID: 4585497356653772924}
   explosionAudioSource: {fileID: 5443038690350602870}
   idleSound: {fileID: 8300000, guid: 7002c80bd70be9b418513da665b6098b, type: 3}
-  scanningSound: {fileID: 8300000, guid: 5c524568cbb68f5459470670dd8e1b40, type: 3}
-  explosionSound: {fileID: 8300000, guid: 34a3c719ff6e6e744bdf92dc3925dcdd, type: 3}
+  scanningSound: {fileID: 8300000, guid: 679fe95176b529842b7ca6d00a32a990, type: 3}
+  explosionSound: {fileID: 8300000, guid: 0c5c1a6eae750494a919262ee5d0f765, type: 3}
   idleVolume: 1
   scanningVolume: 1
   explosionVolume: 0.8
@@ -758,7 +758,7 @@ MonoBehaviour:
   typewriterCharInterval: 0.05
   alertExtraDelay: 2
   diveSpeedMultiplier: 4
-  alarmClip: {fileID: 8300000, guid: 7c722219cd45edf419f10405442f0c6c, type: 3}
+  alarmClip: {fileID: 8300000, guid: 7c8ddecd55736ac448d778f9078ee351, type: 3}
   alarmVolume: 0.8
   mirrorFacingWhenAlerted: 1
   invertModelForwardAxis: 1
@@ -767,6 +767,9 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 72
   maxGroundCheckDistance: 200
+  alarmTriggerChance: 0.1
+  alarmRadius: 50
+  alarmDuration: 60
   obstacleMask:
     serializedVersion: 2
     m_Bits: 72
