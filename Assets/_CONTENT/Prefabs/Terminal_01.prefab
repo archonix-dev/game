@@ -295,10 +295,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts:
-  - {fileID: 9218546130403457920}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 8332087831896136740}
 --- !u!114 &8332087831896136740
 MonoBehaviour:
@@ -728,10 +724,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   normalImageColor: {r: 0, g: 0, b: 0, a: 1}
   hoverImageColor: {r: 0, g: 1, b: 0.15294118, a: 1}
-  targetTexts:
-  - {fileID: 8950749575667714954}
-  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
-  hoverTextColor: {r: 0, g: 0, b: 0, a: 1}
   targetOutline: {fileID: 2897150220536789213}
 --- !u!114 &2897150220536789213
 MonoBehaviour:
@@ -952,11 +944,7 @@ MonoBehaviour:
   alignCameraForwardToCanvas: 1
   cameraLookTargetOverride: {fileID: 0}
   interactionPrompt: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C [E]"
-  highlightRenderers:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
+  highlightRenderers: []
   hoverMaterial: {fileID: 2100000, guid: eb64a3643e21f8041b3b68e57b8e1cff, type: 2}
   idleMaterial: {fileID: 2100000, guid: c40fdc8d0f40a2444a36e91e6895a5a7, type: 2}
   terminalCanvas: {fileID: 7437045757506399706}
@@ -965,23 +953,23 @@ MonoBehaviour:
   closeAudio: {fileID: 0}
   shopItems:
   - itemData: {fileID: 11400000, guid: 423764c992ab089409c1f4f5ab0a4a81, type: 2}
-    priceOverride: 150
-  - itemData: {fileID: 11400000, guid: b0ab26827c3296c4b82695921a477699, type: 2}
-    priceOverride: 360
-  - itemData: {fileID: 11400000, guid: 32a9241de1300f943804b7a92303c9b8, type: 2}
-    priceOverride: 840
-  - itemData: {fileID: 11400000, guid: af9acf3a1cc957049abcf51c3b96587c, type: 2}
-    priceOverride: 220
-  - itemData: {fileID: 11400000, guid: 16c8b0b9a27202341a8629fa7478ef88, type: 2}
     priceOverride: 500
-  - itemData: {fileID: 11400000, guid: 314efbec69c1ba24d8f564d03cacf21c, type: 2}
-    priceOverride: 1000
-  - itemData: {fileID: 11400000, guid: b269ac194a12b2a4ebb44f7c79fde6de, type: 2}
-    priceOverride: 450
-  - itemData: {fileID: 11400000, guid: 853360cb0c0eb7d46965e04cb653f92a, type: 2}
-    priceOverride: 1000
-  - itemData: {fileID: 11400000, guid: e22900936f1d52e41afe835fee3958a7, type: 2}
+  - itemData: {fileID: 11400000, guid: b0ab26827c3296c4b82695921a477699, type: 2}
     priceOverride: 2000
+  - itemData: {fileID: 11400000, guid: 32a9241de1300f943804b7a92303c9b8, type: 2}
+    priceOverride: 5000
+  - itemData: {fileID: 11400000, guid: af9acf3a1cc957049abcf51c3b96587c, type: 2}
+    priceOverride: 800
+  - itemData: {fileID: 11400000, guid: 16c8b0b9a27202341a8629fa7478ef88, type: 2}
+    priceOverride: 3500
+  - itemData: {fileID: 11400000, guid: 314efbec69c1ba24d8f564d03cacf21c, type: 2}
+    priceOverride: 8
+  - itemData: {fileID: 11400000, guid: b269ac194a12b2a4ebb44f7c79fde6de, type: 2}
+    priceOverride: 1000
+  - itemData: {fileID: 11400000, guid: 853360cb0c0eb7d46965e04cb653f92a, type: 2}
+    priceOverride: 5000
+  - itemData: {fileID: 11400000, guid: e22900936f1d52e41afe835fee3958a7, type: 2}
+    priceOverride: 10000
 --- !u!114 &8729302767673629076
 MonoBehaviour:
   m_ObjectHideFlags: 0

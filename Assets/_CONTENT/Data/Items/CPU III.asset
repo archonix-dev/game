@@ -10,20 +10,20 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 12345678901234567890123456789012, type: 3}
-  m_Name: MedKit II
+  m_Name: CPU III
   m_EditorClassIdentifier: 
-  itemName: "\u041D\u0430\u0431\u043E\u0440 \u0443\u043B\u0443\u0447\u0448\u0435\u043D\u0438\u0439
-    II"
-  description: "\u0414\u0430\u0435\u0442 +30 \u0437\u0434\u043E\u0440\u043E\u0432\u044C\u044F"
-  icon: {fileID: -1158483088, guid: 50b4062e81d46e14e9861a337cdd0838, type: 3}
-  itemType: 2
+  itemName: "\u0413\u0438\u0433\u043E\u0440\u0433\u0435\u0446\u043D\u043E\u0441\u0442\u044C
+    III"
+  description: "\u0414\u0430\u0435\u0442 +50 \u0441\u0438\u043B\u044B"
+  icon: {fileID: -1096084305, guid: 50b4062e81d46e14e9861a337cdd0838, type: 3}
+  itemType: 4
   weight: 1
   isBreakable: 0
   itemTag: Item
   itemLayer: 0
   bitPrice: 1
   healthAmount: 0
-  maxHealthAmount: 30
+  maxHealthAmount: 0
   maxStaminaAmount: 0
-  strengthAmount: 0
-  itemPrefab: {fileID: 8285580570872637171, guid: ba911c5a9cbb34e4dbe0b8cdb1bf17cf, type: 3}
+  strengthAmount: 50
+  itemPrefab: {fileID: 8285580570872637171, guid: f0ad8abd1b2b19c40b485fa852ccd779, type: 3}

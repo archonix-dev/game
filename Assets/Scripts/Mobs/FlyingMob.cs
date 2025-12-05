@@ -111,6 +111,20 @@ public class FlyingMob : NetworkBehaviour
     [SerializeField, Range(1, 12)] private int avoidanceProbeSteps = 5;
     [SerializeField, Range(5f, 45f)] private float avoidanceAngleStep = 15f;
     
+    [Header("Health Settings")]
+    [SerializeField] private float maxHealth = 5f;
+    [SyncVar(hook = nameof(OnHealthChanged))] private float currentHealth;
+    
+    [Header("Death Fragment Settings")]
+    [Tooltip("Prefab осколков, которые спавнятся при смерти моба (должны иметь коллайдер и Rigidbody)")]
+    [SerializeField] private GameObject fragmentPrefab;
+    [Tooltip("Количество осколков при смерти")]
+    [SerializeField] private int fragmentCount = 2;
+    [Tooltip("Сила разлета осколков")]
+    [SerializeField] private float fragmentExplosionForce = 5f;
+    [Tooltip("Время жизни осколков в секундах")]
+    [SerializeField] private float fragmentLifetime = 3f;
+    
     private Transform player;
     private Vector3 targetPosition;
     private Vector3 startPosition;
@@ -143,6 +157,9 @@ public class FlyingMob : NetworkBehaviour
     // Система тревоги
     private static Dictionary<Transform, float> activeAlarms = new Dictionary<Transform, float>(); // Игрок -> время окончания тревоги
     private Transform alarmedPlayer = null; // Игрок, на которого объявлена тревога
+    
+    // Система здоровья
+    private bool isDead = false;
     
     /// <summary>
     /// Вызывает тревогу на игрока и распространяет её на всех мобов в радиусе
@@ -288,6 +305,9 @@ public class FlyingMob : NetworkBehaviour
         {
             player = FindClosestPlayer();
             SetTargetVisual(normalColor, 0f);
+            
+            // Инициализируем здоровье
+            currentHealth = maxHealth;
             
             // Получаем зону спавна, чтобы не выходить за её пределы
             spawnedHandle = GetComponent<SpawnedMobHandle>();
@@ -895,7 +915,7 @@ public class FlyingMob : NetworkBehaviour
     
     void HandleMovement()
     {
-        if (!isServer) return;
+        if (!isServer || isDead) return;
         
         if (currentState == MobState.Scanning || currentState == MobState.Exploding)
             return;
@@ -1040,6 +1060,12 @@ public class FlyingMob : NetworkBehaviour
     {
         while (true)
         {
+            if (isDead)
+            {
+                yield return null;
+                continue;
+            }
+            
             switch (currentState)
             {
                 case MobState.Wandering:
@@ -1067,7 +1093,7 @@ public class FlyingMob : NetworkBehaviour
     {
         SetScanningState(false);
         
-        while (currentState == MobState.Wandering)
+        while (currentState == MobState.Wandering && !isDead)
         {
             // Проверяем, есть ли игроки под тревогой в радиусе
             List<Transform> alarmedPlayers = GetAlarmedPlayers();
@@ -1122,7 +1148,7 @@ public class FlyingMob : NetworkBehaviour
         bool playerDetected = false;
         
         // Сканируем в течение указанного времени
-        while (Time.time - scanStartTime < scanDuration && !playerDetected)
+        while (Time.time - scanStartTime < scanDuration && !playerDetected && !isDead)
         {
             Transform detectedPlayer = FindPlayerInSpot();
             if (detectedPlayer != null)
@@ -1190,7 +1216,7 @@ public class FlyingMob : NetworkBehaviour
         
         float diveSpeed = chaseSpeed * Mathf.Max(diveSpeedMultiplier, 1f);
         
-        while (currentState == MobState.Chasing)
+        while (currentState == MobState.Chasing && !isDead)
         {
             if (!EnsureValidChaseTarget())
             {
@@ -1369,6 +1395,143 @@ public class FlyingMob : NetworkBehaviour
         }
     }
 
+    #region Health System
+    
+    void OnHealthChanged(float oldValue, float newValue)
+    {
+        // Обработка изменения здоровья на клиентах (если нужно)
+    }
+    
+    /// <summary>
+    /// Наносит урон мобу (вызывается на сервере)
+    /// </summary>
+    [Server]
+    public void TakeDamage(float amount)
+    {
+        if (isDead || amount <= 0f)
+            return;
+        
+        currentHealth = Mathf.Max(0f, currentHealth - amount);
+        
+        if (currentHealth <= 0f)
+        {
+            HandleDeathFromDamage();
+        }
+    }
+    
+    /// <summary>
+    /// Обрабатывает смерть моба от урона - спавнит осколки и эффекты
+    /// </summary>
+    [Server]
+    void HandleDeathFromDamage()
+    {
+        if (isDead)
+            return;
+        
+        isDead = true;
+        
+        // Останавливаем все корутины и состояние
+        StopAllCoroutines();
+        SetScanningState(false);
+        SetAlertVisuals(false);
+        BroadcastStopAttackAlertVisuals();
+        
+        // Спавним осколки
+        SpawnFragments();
+        
+        // Проигрываем эффекты взрыва
+        HandleExplosionEffects();
+        RpcHandleExplosionEffects();
+        
+        // Наносим урон игроку и разрушаемым объектам (если они рядом)
+        if (player != null && Vector3.Distance(transform.position, player.position) <= explosionRadius)
+        {
+            PlayerHealthStamina playerHealth = player.GetComponent<PlayerHealthStamina>();
+            if (playerHealth != null)
+            {
+                playerHealth.UseHealth(damageToPlayer);
+            }
+            
+            Rigidbody playerRb = player.GetComponent<Rigidbody>();
+            if (playerRb != null)
+            {
+                Vector3 explosionDirection = (player.position - transform.position).normalized;
+                explosionDirection.y = 0.3f;
+                playerRb.AddForce(explosionDirection * explosionForce, ForceMode.Impulse);
+            }
+        }
+        
+        DamageDestructiblesInRadius();
+        
+        // Удаляем моба
+        if (NetworkServer.active)
+        {
+            NetworkServer.Destroy(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+    
+    /// <summary>
+    /// Спавнит осколки при смерти моба
+    /// </summary>
+    [Server]
+    void SpawnFragments()
+    {
+        if (fragmentPrefab == null)
+        {
+            Debug.LogWarning($"[FlyingMob] Fragment prefab не назначен для {gameObject.name}");
+            return;
+        }
+        
+        Vector3 spawnPosition = transform.position;
+        int fragmentsToSpawn = Mathf.Max(1, fragmentCount);
+        
+        for (int i = 0; i < fragmentsToSpawn; i++)
+        {
+            // Случайное смещение от центра
+            Vector3 randomOffset = Random.insideUnitSphere * 0.5f;
+            Vector3 fragmentPos = spawnPosition + randomOffset;
+            
+            // Спавним осколок
+            GameObject fragment = Instantiate(fragmentPrefab, fragmentPos, Random.rotation);
+            
+            // Проверяем наличие Rigidbody и коллайдера
+            Rigidbody fragmentRb = fragment.GetComponent<Rigidbody>();
+            if (fragmentRb == null)
+            {
+                fragmentRb = fragment.AddComponent<Rigidbody>();
+            }
+            
+            Collider fragmentCollider = fragment.GetComponent<Collider>();
+            if (fragmentCollider == null)
+            {
+                // Добавляем простой BoxCollider если нет коллайдера
+                fragmentCollider = fragment.AddComponent<BoxCollider>();
+            }
+            
+            // Применяем силу разлета
+            Vector3 explosionDir = (fragment.transform.position - spawnPosition).normalized;
+            if (explosionDir.sqrMagnitude < 0.01f)
+            {
+                explosionDir = Random.insideUnitSphere.normalized;
+            }
+            explosionDir.y = Mathf.Abs(explosionDir.y) + 0.3f; // Добавляем немного вверх
+            
+            fragmentRb.AddForce(explosionDir * fragmentExplosionForce, ForceMode.Impulse);
+            fragmentRb.AddTorque(Random.insideUnitSphere * fragmentExplosionForce * 0.5f, ForceMode.Impulse);
+            
+            // Удаляем осколок через заданное время
+            Destroy(fragment, fragmentLifetime);
+        }
+        
+        Debug.Log($"[FlyingMob] Заспавнено {fragmentsToSpawn} осколков при смерти {gameObject.name}");
+    }
+    
+    #endregion
+    
     void PlayExplosionSound()
     {
         // Звук проигрывается только на клиентах для правильной пространственной обработки

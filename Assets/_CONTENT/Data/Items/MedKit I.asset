@@ -21,9 +21,9 @@ MonoBehaviour:
   isBreakable: 0
   itemTag: Item
   itemLayer: 0
-  bitPrice: 220
+  bitPrice: 1
   healthAmount: 0
   maxHealthAmount: 10
   maxStaminaAmount: 0
   strengthAmount: 0
-  itemPrefab: {fileID: 8917145387495050568, guid: 63792be048f2a4e4cb7ee3bdc505f40d, type: 3}
+  itemPrefab: {fileID: 8285580570872637171, guid: 8b10d7e228c67c74684dfc77c985ff1b, type: 3}

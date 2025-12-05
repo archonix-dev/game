@@ -776,6 +776,11 @@ MonoBehaviour:
   collisionRadius: 1
   avoidanceProbeSteps: 5
   avoidanceAngleStep: 15
+  maxHealth: 10
+  fragmentPrefab: {fileID: 2943591091986660250, guid: 87f94e7c696a2a34c9764ca3224bcb08, type: 3}
+  fragmentCount: 2
+  fragmentExplosionForce: 5
+  fragmentLifetime: 3
   explosionEffectLifetime: 3
 --- !u!114 &4566422800202836117
 MonoBehaviour:
